@@ -6,7 +6,22 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: selected hair binding to a fresh skeleton target.** The owned
+**Latest: complete fresh skeleton startup.** Native code now owns all six
+original startup resources, including position records, scale writes, paired
+mirroring and derived vector words. The actual original80041108 caller matches
+36 complete initialized files,36 published references and36 vector words across
+three contexts twice; only archive acquisition is supplied. Required constants
+are exported privately to W: for native loading without a runtime DOL.
+
+Selected geometry now binds prepared face/hair targets across1,206 assemblies
+for402 roster players and three explicit body variants. Earlier hair/headwear
+gates still pass. See [complete startup evidence](reconstruction/native_assets/skeleton_startup.md).
+
+Menus and the controllable reference scene work. Texture/material ownership,
+resource-pool activation, fresh descriptors and actor creation remain before
+selected teams can start a fresh playable match. Protected originals are unchanged.
+
+**Earlier: selected hair binding to a fresh skeleton target.** The owned
 selected geometry path now binds all three hair models to freshly loaded
 animdata entry101. Across402 roster players and three explicit body variants,
 3,618 model bindings and repeat no-ops pass per native process. All831 distinct

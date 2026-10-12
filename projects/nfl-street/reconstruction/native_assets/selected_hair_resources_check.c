@@ -6,6 +6,9 @@
 #include "selected_player_geometry.h"
 #ifdef NFLSTREET_BIND_HAIR
 #include "hair_postattach.h"
+#ifdef NFLSTREET_INITIALIZED_SKELETONS
+#include "skeleton_startup.h"
+#endif
 #endif
 #endif
 #include "../menus/team_catalog.h"
@@ -33,7 +36,11 @@ int main(int argc,char **argv){
  #ifdef NFLSTREET_AUTOMATIC_HEADWEAR_ORACLE
  if(argc!=10)return 2;
 #else
+ #ifdef NFLSTREET_INITIALIZED_SKELETONS
+ if(argc!=9)return 2;
+#else
  if(argc!=8)return 2;
+#endif
 #endif
  size_t gn=0;uint8_t *gear_bytes=load(argv[7],&gn);nflstreet_headwear_catalog gear_catalog;
  if(!gear_bytes||!nflstreet_headwear_catalog_open(gear_bytes,gn,&gear_catalog))return 3;
@@ -51,13 +58,26 @@ int main(int argc,char **argv){
  if(!local_bytes||!nflstreet_archive_open(local_bytes,ln,&local))return 3;size_t fn=0,hn=0,bn=0,an=0;
  uint8_t *face=load(argv[1],&fn),*hair=load(argv[2],&hn),*body=load(argv[3],&bn);
  uint8_t *anim=load(argv[4],&an);nflstreet_archive animation;nflstreet_skeleton_resource target={0};
- if(!anim||!nflstreet_archive_open(anim,an,&animation)||!nflstreet_skeleton_resource_open(&animation,95,0x30000000u,&target))return 3;
+ if(!anim||!nflstreet_archive_open(anim,an,&animation))return 3;
+#ifdef NFLSTREET_INITIALIZED_SKELETONS
+ size_t startup_size=0;uint8_t *startup_bytes=load(argv[8],&startup_size);
+ nflstreet_skeleton_startup_catalog startup_catalog;nflstreet_skeleton_startup startup={0};
+ if(!startup_bytes||!nflstreet_skeleton_startup_catalog_open(startup_bytes,startup_size,&startup_catalog)||
+    !nflstreet_skeleton_startup_open(&animation,&startup_catalog,0x30000000u,&startup))return 20;
+ target=startup.resources[0];
+#else
+ if(!nflstreet_skeleton_resource_open(&animation,95,0x30000000u,&target))return 3;
+#endif
  nflstreet_team_player_resolver resolver;nflstreet_body_resource_pool bodies={0};
  if(!face||!hair||!body||!nflstreet_team_player_resolver_open(face,fn,hair,hn,&resolver)||
   !nflstreet_body_resource_pool_open(body,bn,0x20000000u,&bodies)||!nflstreet_body_resource_pool_process(&bodies))return 3;
  #ifdef NFLSTREET_BIND_HAIR
  nflstreet_skeleton_resource hair_target={0};
+ #ifdef NFLSTREET_INITIALIZED_SKELETONS
+ hair_target=startup.resources[5];
+#else
  if(!nflstreet_skeleton_resource_open(&animation,101,0x31000000u,&hair_target))return 16;
+#endif
  unsigned bound_hair_models=0;
 #endif
  unsigned rows=0,assemblies=0,models=0,guards=0,hair_models=0,hair_plans=0;
@@ -162,7 +182,10 @@ int main(int argc,char **argv){
    ++rows;
   }free(db);
  }
- nflstreet_skeleton_resource_close(&target);nflstreet_body_resource_pool_close(&bodies);free(face);free(hair);free(body);free(anim);
+ #ifndef NFLSTREET_INITIALIZED_SKELETONS
+ nflstreet_skeleton_resource_close(&target);
+#endif
+ nflstreet_body_resource_pool_close(&bodies);free(face);free(hair);free(body);free(anim);
  if(rows!=402||assemblies!=1206||models!=2412||guards!=3)return 6;
  printf("Selected native resources: %u roster rows, %u explicit body-variant assemblies, %u bound face models, %u ownership/input guards; fresh target and repeated binding, no snapshot/module input.\n",rows,assemblies,models,guards);
  #ifdef NFLSTREET_AUTOMATIC_HEADWEAR
@@ -175,7 +198,12 @@ int main(int argc,char **argv){
  free(gear_bytes);
 #ifdef NFLSTREET_BIND_HAIR
  printf("Hair binding: %u selected models and repeated no-ops; fresh entry101 target.\n",bound_hair_models);
+ #ifdef NFLSTREET_INITIALIZED_SKELETONS
+ nflstreet_skeleton_startup_close(&startup);free(startup_bytes);
+ printf("Selected geometry uses initialized face/hair targets from six-resource startup; no DOL/module/snapshot runtime input.\n");
+#else
  nflstreet_skeleton_resource_close(&hair_target);
+#endif
 #endif
 #ifdef NFLSTREET_AUTOMATIC_HEADWEAR_ORACLE
  printf("Headwear original checks: %u extracted fields, %u selectors, %u mapped values; fresh GEAR query services supplied.\n",field_checks,selector_checks,map_checks);free(hw_ram);
