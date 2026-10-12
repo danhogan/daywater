@@ -2,8 +2,11 @@
 
 The connected factory and player/model-binding owners accept resource views
 through explicit callbacks. Their original-module checks still supply those
-views from reference state. The next loading milestone is to build the same
-views from independently decoded assets and the selected roster.
+views from reference state. A [fresh base-body catalog](model_view.md) now
+builds raw 52-byte model views directly from the nine independently decoded
+body entries. These raw offsets are not relocated runtime pointers. The next
+loading milestone is to own relocation and complete selected-player resources,
+then connect them to the checked creation path.
 
 ## Reuse existing work
 

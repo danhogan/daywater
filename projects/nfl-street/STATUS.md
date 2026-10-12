@@ -6,7 +6,21 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: connected factory and model binding.** Native creation now owns the
+**Latest: fresh base-body resource views.** Native code now decodes all nine
+verified base-body archive entries and owns their complete raw model views.
+No saved actor record is copied into this catalog. Across three contexts and
+two fresh Windows processes each,432 full attachments and1,728 direct tag
+applications match the actual original attachment/lookup bodies, including
+missing, empty and duplicate sections and preserved output bytes. Source
+archive and protected original hashes are unchanged.
+
+These views retain raw section offsets. Original relocation, face/hair/texture
+and material binding, fresh constructor descriptors and connection to the
+player-creation path remain unfinished. Current menus and the controllable
+reference scene still work; fresh selected-match startup remains open. See
+[fresh resource-view evidence](reconstruction/native_assets/model_view.md).
+
+**Earlier: connected factory and model binding.** Native creation now owns the
 fresh object's clearing/header and routes model binding into reconstructed
 command headers, model copies, index buffers/remapping and shared-model state.
 Root independently rebuilt and passed3,072 joined comparisons through the
