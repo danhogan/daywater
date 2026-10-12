@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daywater — Roadmap</title>
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="/shared/style.css">
+  <link rel="stylesheet" href="/shared/roadmap.css">
+</head>
+<body>
+  <main class="roadmap-page">
+    <nav class="breadcrumb"><a href="/index.html">Projects</a><span class="sep">/</span><span>Roadmap</span></nav>
+    <h2 id="roadmap-title">Research roadmap</h2>
+    <p id="roadmap-error" role="alert" hidden>Unable to load the roadmap. Please refresh the page.</p>
+    <div id="roadmap" hidden>
+      <p id="roadmap-goal" class="roadmap-goal"></p>
+      <p id="roadmap-updated" class="roadmap-meta"></p>
+      <section class="roadmap-summary" aria-labelledby="current-heading">
+        <h3 id="current-heading">Where we are</h3>
+        <p id="roadmap-current"></p>
+        <div id="roadmap-capabilities" class="roadmap-capabilities"></div>
+      </section>
+      <section class="roadmap-next" aria-labelledby="next-heading">
+        <h3 id="next-heading">Current focus</h3>
+        <p id="roadmap-next"></p>
+        <p id="roadmap-why"></p>
+      </section>
+      <section aria-labelledby="milestones-heading">
+        <h3 id="milestones-heading">Path to the standalone game</h3>
+        <p class="roadmap-meta">These are checkpoints, not a completion percentage or a delivery estimate. Expand each milestone for its evidence and completion criteria.</p>
+        <ol id="roadmap-milestones" class="roadmap-milestones"></ol>
+      </section>
+      <section class="roadmap-summary" aria-labelledby="roles-heading">
+        <h3 id="roles-heading">What Daywater does</h3>
+        <p id="roadmap-boundary"></p>
+        <p class="roadmap-meta">This page is a dated research summary. It does not indicate whether a worker or Dolphin is currently running. Use Processes for live Dolphin status.</p>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="/shared/roadmap.js"></script>
+</body>
+</html>

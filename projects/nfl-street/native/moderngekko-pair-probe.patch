@@ -1,0 +1,65 @@
+--- a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Run.cpp
++++ b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Run.cpp
+@@ -57,6 +57,9 @@
+   auto& memory = m_system.GetMemory();
+   const CPU::State* state_ptr = m_system.GetCPU().GetStatePtr();
+   FilePtr dispatch_trace = OpenDispatchTrace();
++  const bool pair_probe = std::getenv("STATICRECOMP_PAIR_PROBE") != nullptr;
++  u32 polynomial_probes = 0;
++  u32 product_probes = 0;
+ 
+   m_guest.ram = memory.GetRAM();
+   m_guest.ram_size = memory.GetRamSizeReal();
+@@ -155,7 +158,52 @@
+           if (m_has_rel_modules)
+             ResolveNativeAddress(runtime_dispatch_address, &linked_dispatch_address, nullptr);
+           m_guest.pc = linked_dispatch_address;
++          const bool probe_polynomial =
++              pair_probe && linked_dispatch_address == 0x80188BB0u && polynomial_probes < 32;
++          const bool probe_product =
++              pair_probe && linked_dispatch_address == 0x801FFDF0u && product_probes < 32;
++          u32 probe_input[27]{};
++          u32 probe_output_address = 0;
++          if (probe_polynomial)
++          {
++            probe_input[0] = m_guest.gpr[3];
++            probe_input[1] = m_guest.gqr[0];
++            probe_input[2] = m_guest.gqr[6];
++            for (u32 i = 0; i < 6; ++i)
++              probe_input[3 + i] = mem_read32(&m_guest, m_guest.gpr[4] + 4 * i);
++            probe_output_address = m_guest.gpr[5];
++          }
++          if (probe_product)
++          {
++            probe_input[0] = m_guest.gqr[0];
++            for (u32 i = 0; i < 12; ++i)
++            {
++              probe_input[1 + i] = mem_read32(&m_guest, m_guest.gpr[3] + 4 * i);
++              probe_input[13 + i] = mem_read32(&m_guest, m_guest.gpr[4] + 4 * i);
++            }
++            probe_input[25] = mem_read32(&m_guest, 0x803A3958u);
++            probe_input[26] = mem_read32(&m_guest, 0x803A395Cu);
++            probe_output_address = m_guest.gpr[5];
++          }
+           m_module->dispatch(&m_guest, linked_dispatch_address);
++          if (probe_polynomial || probe_product)
++          {
++            const u32 input_count = probe_polynomial ? 9 : 27;
++            const u32 output_count = probe_polynomial ? 2 : 12;
++            const u32 sequence = probe_polynomial ? ++polynomial_probes : ++product_probes;
++            std::fprintf(stderr, "[staticrecomp] pair-probe pc=%08x seq=%u input=",
++                         linked_dispatch_address, sequence);
++            for (u32 i = 0; i < input_count; ++i)
++              std::fprintf(stderr, "%s%08x", i ? "," : "", probe_input[i]);
++            std::fprintf(stderr, " output=");
++            for (u32 i = 0; i < output_count; ++i)
++            {
++              const u32 address = probe_polynomial && i == 1 ? m_guest.gpr[6] :
++                                  probe_output_address + 4 * i;
++              std::fprintf(stderr, "%s%08x", i ? "," : "", mem_read32(&m_guest, address));
++            }
++            std::fprintf(stderr, "\n");
++          }
+           if (m_has_rel_modules)
+             m_guest.pc = TranslateRelAddress(m_guest.pc);
+           ++m_native_dispatches;

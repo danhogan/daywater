@@ -1,0 +1,65 @@
+diff --git a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Hooks.cpp b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Hooks.cpp
+index 7b3d845..2ddf5ae 100644
+--- a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Hooks.cpp
++++ b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Hooks.cpp
+@@ -332,34 +332,42 @@ void StaticRecompCore::HookCacheControl(CPUState* cpu, u8 operation, u32 ea, u32
+   core->PropagateGuestMSR();
+   auto& ppc = core->m_system.GetPPCState();
+   auto& mmu = core->m_system.GetMMU();
++  const u64 reverify_before = core->m_reverify_events;
++  const bool dcache_enabled = ppc.m_enable_dcache;
+ 
+   if (operation == PPC_CACHE_ICBI)
+   {
+     ppc.iCache.Invalidate(core->m_system.GetMemory(), core->m_system.GetJitInterface(), ea);
+-    return;
+   }
+-
+-  if (!ppc.m_enable_dcache)
++  else if (!dcache_enabled)
+   {
+     core->m_system.GetJitInterface().InvalidateICacheLine(ea);
+-    return;
+   }
+-
+-  switch (operation)
++  else
+   {
+-  case PPC_CACHE_DCBST:
+-    mmu.StoreDCacheLine(ea);
+-    break;
+-  case PPC_CACHE_DCBF:
+-    mmu.FlushDCacheLine(ea);
+-    break;
+-  case PPC_CACHE_DCBI:
+-    mmu.InvalidateDCacheLine(ea);
+-    break;
+-  default:
+-    ppc_program_exception(cpu, PPC_PROGRAM_ILLEGAL, cia);
+-    break;
++    switch (operation)
++    {
++    case PPC_CACHE_DCBST:
++      mmu.StoreDCacheLine(ea);
++      break;
++    case PPC_CACHE_DCBF:
++      mmu.FlushDCacheLine(ea);
++      break;
++    case PPC_CACHE_DCBI:
++      mmu.InvalidateDCacheLine(ea);
++      break;
++    default:
++      ppc_program_exception(cpu, PPC_PROGRAM_ILLEGAL, cia);
++      break;
++    }
+   }
++
++  // Generated C may continue past this instruction only while its code is
++  // still verified. Return to the chassis after a code invalidation, a host
++  // exception, or a dcache-on operation whose side effects need attention.
++  if (!cpu->exception &&
++      (core->m_reverify_events != reverify_before || dcache_enabled || ppc.Exceptions != 0))
++    cpu->pc = cia + 4u;
+ }
+ 
+ void StaticRecompCore::HookInstructionFallback(CPUState* cpu, u32 raw, u32 cia)

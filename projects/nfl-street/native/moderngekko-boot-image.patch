@@ -1,0 +1,30 @@
+diff --git a/src/runtime/dolphin_runtime.cpp b/src/runtime/dolphin_runtime.cpp
+--- a/src/runtime/dolphin_runtime.cpp
++++ b/src/runtime/dolphin_runtime.cpp
+@@ -755,20 +755,23 @@
+             RuntimeError{RuntimeErrorCode::InvalidState,
+                          "runtime is already running"}};
+ 
++  const char* boot_image = std::getenv("MODERNGEKKO_BOOT_IMAGE");
++  const std::string boot_path = boot_image && *boot_image ?
++      boot_image : PathToString(m_impl->metadata.main_dol);
+   std::unique_ptr<BootParameters> boot;
+   {
+     std::lock_guard lock(s_runtime_mutex);
+     if (s_boot_session_data)
+       boot = BootParameters::GenerateFromFile(
+-          PathToString(m_impl->metadata.main_dol), std::move(*s_boot_session_data));
++          boot_path, std::move(*s_boot_session_data));
+     else if (m_impl->config.load_state_path)
+       boot = BootParameters::GenerateFromFile(
+-          PathToString(m_impl->metadata.main_dol),
++          boot_path,
+           BootSessionData(PathToString(*m_impl->config.load_state_path),
+                           DeleteSavestateAfterBoot::No));
+     else
+       boot =
+-          BootParameters::GenerateFromFile(PathToString(m_impl->metadata.main_dol));
++          BootParameters::GenerateFromFile(boot_path);
+     s_boot_session_data.reset();
+   }
+   if (!boot) {

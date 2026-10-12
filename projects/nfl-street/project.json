@@ -1,0 +1,6 @@
+{
+  "name": "NFL Street",
+  "target_binary_sha1": "46e3de854998a0f66c9be8c72a1164d22cd29eb4",
+  "first_investigation": "score",
+  "notes": "GNNE69 North America revision 0. Verified addresses and field interpretations are recorded in research/nfl_street."
+}

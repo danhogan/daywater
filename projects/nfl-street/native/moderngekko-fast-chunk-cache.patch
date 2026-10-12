@@ -1,0 +1,32 @@
+diff --git a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Run.cpp b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Run.cpp
+index d91ec2d..a3b1c4a 100644
+--- a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Run.cpp
++++ b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Run.cpp
+@@ -70,6 +70,15 @@ void StaticRecompCore::Run()
+     if (!m_module_active || m_chunk_lookup_table.empty())
+       return false;
+ 
++    // Most native transfers stay within one verified chunk. A range check
++    // avoids touching the large per-instruction lookup table in that case.
++    if (m_last_chunk_index < m_module->num_chunk_ranges)
++    {
++      const auto& last = m_module->chunk_ranges[m_last_chunk_index];
++      if (address >= last.start && address < last.end)
++        return m_chunk_state[m_last_chunk_index] == CHUNK_VERIFIED;
++    }
++
+     int lookup_index = -1;
+     if (address >= 0x80000000u && address < 0x80000000u + m_lookup_ram_size)
+     {
+@@ -82,7 +91,10 @@ void StaticRecompCore::Run()
+     if (lookup_index < 0 || lookup_index >= static_cast<int>(m_chunk_lookup_table.size()))
+       return false;
+     const int chunk = m_chunk_lookup_table[lookup_index];
+-    return chunk >= 0 && m_chunk_state[chunk] == CHUNK_VERIFIED;
++    if (chunk < 0)
++      return false;
++    m_last_chunk_index = static_cast<u32>(chunk);
++    return m_chunk_state[chunk] == CHUNK_VERIFIED;
+   };
+ 
+   const std::string initial_game_id = SConfig::GetInstance().GetGameID();

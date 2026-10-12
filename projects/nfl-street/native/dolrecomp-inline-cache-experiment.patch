@@ -1,0 +1,122 @@
+diff --git a/src/backend/c_cfg.c b/src/backend/c_cfg.c
+index 3bd8850..87b7fec 100644
+--- a/src/backend/c_cfg.c
++++ b/src/backend/c_cfg.c
+@@ -7,10 +7,6 @@
+ 
+ static bool instruction_uses_fallback(const PPCInst* inst) {
+     switch (inst->op) {
+-    case PPC_OP_DCBST:
+-    case PPC_OP_DCBF:
+-    case PPC_OP_DCBI:
+-    case PPC_OP_ICBI:
+     case PPC_OP_UNKNOWN:
+         return true;
+     case PPC_OP_MFSPR:
+@@ -70,6 +66,10 @@ static bool instruction_ends_block(const PPCInst* inst) {
+     case PPC_OP_BCCTR:
+     case PPC_OP_SC:
+     case PPC_OP_RFI:
++    case PPC_OP_DCBST:
++    case PPC_OP_DCBF:
++    case PPC_OP_DCBI:
++    case PPC_OP_ICBI:
+         return true;
+     default:
+         return instruction_uses_fallback(inst);
+@@ -101,7 +101,12 @@ static u32 instruction_cycles(const PPCInst* inst) {
+     case PPC_OP_DIVWUO:
+         return 40;
+     case PPC_OP_DCBZ:
++    case PPC_OP_DCBST:
++    case PPC_OP_DCBF:
++    case PPC_OP_DCBI:
+         return 5;
++    case PPC_OP_ICBI:
++        return 4;
+     case PPC_OP_DCBTST:
+     case PPC_OP_DCBT:
+         return 2;
+diff --git a/src/backend/emitter.c b/src/backend/emitter.c
+index 45c3286..dde2c78 100644
+--- a/src/backend/emitter.c
++++ b/src/backend/emitter.c
+@@ -1610,11 +1610,20 @@ static void emit_instruction_with_range(FILE* out, const PPCInst* inst,
+     case PPC_OP_DCBST:
+     case PPC_OP_DCBF:
+     case PPC_OP_DCBI:
+-    case PPC_OP_ICBI:
+-        fprintf(out, "    ppc_fallback_instruction(ctx, 0x%08Xu, 0x%08Xu);\n",
+-                inst->raw, inst->address);
+-        fprintf(out, "    return;\n");
++    case PPC_OP_ICBI: {
++        const char* operation = inst->op == PPC_OP_DCBST ? "PPC_CACHE_DCBST" :
++                                inst->op == PPC_OP_DCBF ? "PPC_CACHE_DCBF" :
++                                inst->op == PPC_OP_DCBI ? "PPC_CACHE_DCBI" :
++                                "PPC_CACHE_ICBI";
++        fprintf(out, "    {\n        u32 ea = ");
++        emit_xform_ea(out, inst->rA, inst->rB, false);
++        fprintf(out, ";\n        ppc_cache_control(ctx, %s, ea, 0x%08Xu);\n",
++                operation, inst->address);
++        fprintf(out, "        if (ctx->exception || ctx->pc != 0x%08Xu) return;\n",
++                inst->address);
++        fprintf(out, "    }\n");
+         break;
++    }
+ 
+     case PPC_OP_DCBTST:
+     case PPC_OP_DCBT:
+diff --git a/tests/cmake/codegen_compile.cmake b/tests/cmake/codegen_compile.cmake
+index b1f2258..04099f6 100644
+--- a/tests/cmake/codegen_compile.cmake
++++ b/tests/cmake/codegen_compile.cmake
+@@ -45,8 +45,8 @@ endif()
+ if(NOT generated_source MATCHES "if \\(!ppc_fp_available_inline\\(ctx, 0x8000317Cu\\)\\) return;")
+     message(FATAL_ERROR "generated floating-point code has no MSR FP gate")
+ endif()
+-if(NOT generated_source MATCHES "ppc_fallback_instruction\\(ctx, 0x7C13A0ACu")
+-    message(FATAL_ERROR "dcbf codegen does not route through the environment fallback")
++if(NOT generated_source MATCHES "ppc_cache_control\\(ctx, PPC_CACHE_DCBF, ea")
++    message(FATAL_ERROR "dcbf codegen does not use the cache-control callback")
+ endif()
+ 
+ get_filename_component(output_dir "${OUTPUT_C}" DIRECTORY)
+diff --git a/tests/test_c_cfg.c b/tests/test_c_cfg.c
+index 9999080..029c2cb 100644
+--- a/tests/test_c_cfg.c
++++ b/tests/test_c_cfg.c
+@@ -102,10 +102,34 @@ static void test_memory_loop(void) {
+     c_function_cfg_destroy(&cfg);
+ }
+ 
++static void test_cache_loop(void) {
++    static const u32 words[] = {
++        0x7C0018ACu, /* dcbf 0,r3 */
++        0x38630020u, /* addi r3,r3,32 */
++        0x4BFFFFF8u, /* b BASE */
++        0x4E800020u, /* blr */
++    };
++    PPCInst insts[sizeof(words) / sizeof(words[0])];
++    for (u32 i = 0; i < sizeof(words) / sizeof(words[0]); ++i)
++        insts[i] = ppc_decode(words[i], BASE + i * 4u);
++
++    CFunctionCFG cfg;
++    check(c_function_cfg_build(&cfg, insts, 4, BASE), "build cache loop CFG");
++    check(insts[0].op == PPC_OP_DCBF && cfg.leaders[1],
++          "cache op ends its cycle-charge block");
++    check(cfg.block_cycles[0] == 5 && cfg.block_cycles[1] == 2,
++          "early cache return cannot charge following instructions");
++    check(cfg.materialize_pc[0], "cache callback sees its guest PC");
++    check(c_function_cfg_can_loop_directly(&cfg, insts, BASE, 2),
++          "cache loop can stay in generated code");
++    c_function_cfg_destroy(&cfg);
++}
++
+ int main(void) {
+     test_integer_loop();
+     test_timebase_loop();
+     test_local_call();
+     test_memory_loop();
++    test_cache_loop();
+     return failures != 0;
+ }

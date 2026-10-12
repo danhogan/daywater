@@ -1,0 +1,61 @@
+/* Controlled full source prompt script/timer/navigation comparison. Original
+   text allocation/font/device lookups are supplied; no physical card I/O. */
+#include <windows.h>
+#include "moderngekko/module_abi.h"
+#include "card_prompt.h"
+#include "screen.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+static uint32_t be(const uint8_t*p){return (uint32_t)p[0]<<24|(uint32_t)p[1]<<16|(uint32_t)p[2]<<8|p[3];}
+static void put(uint8_t*p,uint32_t v){p[0]=v>>24;p[1]=v>>16;p[2]=v>>8;p[3]=v;}
+static unsigned heap;
+static int run(const ModernGekkoModuleDesc*m,CPUState*c,nflstreet_card_prompt*a){c->lr=0;c->exception=0;for(unsigned i=0;c->pc&&i<2000000;++i){unsigned fn=c->pc;
+ if(fn==0x80006dc4){c->gpr[3]=a->card.storage.query_slot;c->pc=c->lr;continue;}
+ if(fn==0x8014e29c){if(c->gpr[3]!=13)return 0;c->gpr[3]=0;c->pc=c->lr;continue;}
+ if(fn==0x8018b7b8){if(c->gpr[3]>1020||heap>500)return 0;c->gpr[3]=0x81610000+heap++*1024;c->pc=c->lr;continue;}
+ if(fn==0x8018baa8){c->pc=c->lr;continue;}
+ if(fn==0x801d5aec){c->gpr[3]=0;c->pc=c->lr;continue;}
+ if(fn==0x801d5c24){c->gpr[3]=0x817f0000;c->pc=c->lr;continue;}
+ if(fn==0x801d5884){if(c->gpr[4]!=2||c->gpr[5]>3){fprintf(stderr,"Font lookup%x/%x\n",c->gpr[4],c->gpr[5]);return 0;}c->gpr[3]=0x817f3100+c->gpr[5]*0x20;c->pc=c->lr;continue;}
+ if(fn==0x801d4b3c){uint8_t*p=c->ram+c->gpr[7]-0x80000000;if(c->gpr[6]==5){if(a->card.ui.shared.pending_count>=128)return 0;nflstreet_ui_service_request*q=&a->card.ui.shared.pending[a->card.ui.shared.pending_count++];q->kind=7;q->property=(uint32_t)(int32_t)(int16_t)(be(p)>>16);q->target=be(p+8);q->argc=2;q->args[0]=be(p+4);q->args[1]=be(c->ram+c->gpr[9]-0x80000000);}
+ else if(c->gpr[6]==1){if(a->card.request_count==8)return 0;nflstreet_ui_service_request*q=&a->card.requests[a->card.request_count++];q->kind=9;q->property=1;q->source=(c->gpr[3]&65535)<<16|(c->gpr[4]&65535);q->target=be(p);q->aux=be(p+8);}
+ else{fprintf(stderr,"Unexpected prompt request kind%u\n",c->gpr[6]);return 0;}c->pc=c->lr;continue;}
+ if(fn==0x8012cb94&&c->gpr[3]&&c->gpr[4]==0){if(c->gpr[5]!=1||a->card.ui.shared.audio_count>=128)return 0;a->card.ui.shared.audio[a->card.ui.shared.audio_count++]=be(c->ram+c->gpr[6]-0x80000000);}
+ if(fn==0x8013d854){c->pc=c->lr;continue;}
+ if(fn==0x801d54a4||fn==0x801d5918){fprintf(stderr,"Unexpected prompt resource I/O%x\n",fn);return 0;}
+ c->downcount=-1000000000;m->dispatch(c,c->pc);if(c->exception){fprintf(stderr,"Original prompt exception%x PC%x\n",c->exception,c->pc);return 0;}
+ }if(c->pc)fprintf(stderr,"Original prompt still PC%x\n",c->pc);return !c->pc;}
+static int drain(const ModernGekkoModuleDesc*m,CPUState*c,nflstreet_card_prompt*a,unsigned first){for(unsigned i=first;i<a->card.ui.shared.pending_count;++i){nflstreet_ui_service_request*q=a->card.ui.shared.pending+i;c->pc=0x801d0e18;c->gpr[3]=0x817f0000;c->gpr[4]=1;c->gpr[5]=q->property;c->gpr[6]=q->target;c->gpr[7]=q->args[0];c->gpr[8]=9;c->gpr[9]=1;if(!run(m,c,a))return 0;}return 1;}
+static int event(const ModernGekkoModuleDesc*m,CPUState*c,nflstreet_card_prompt*a,unsigned node,unsigned e){unsigned first=a->card.ui.shared.pending_count;c->pc=0x801cf34c;c->gpr[3]=0x817f0000;c->gpr[4]=0x817f0100;c->gpr[5]=0x817f0068;c->gpr[6]=node;c->gpr[7]=e;c->gpr[8]=(uint32_t)(int32_t)(int16_t)e;c->gpr[9]=e<8?1:0;c->gpr[10]=e<8?0x817f3300:0;put(c->ram+0x17f3300,0x3f800000);put(c->ram+0x1700008,0x817f3200);return run(m,c,a)&&drain(m,c,a,first);}
+static int compare(const uint8_t*b,const uint8_t*ram,const nflstreet_card_prompt*n,const nflstreet_card_prompt*a){uint8_t actual[24030];memcpy(actual,ram+0x1100000,sizeof actual);
+ for(unsigned i=0;i<n->text_count;++i){unsigned off=n->text[i].target-0x81100000;const nflstreet_ui_text_lines*p=&n->text[i].plan;if(p->count>1){unsigned ptr=be(actual+off+36);if(ptr<0x80000000||ptr-0x80000000>24*1024*1024-p->count*4)return 0;for(unsigned j=0;j<p->count;++j)if(be(ram+ptr-0x80000000+j*4)!=((unsigned)p->lines[j].begin<<16|p->lines[j].end)){fprintf(stderr,"Prompt lines differ%x:%u\n",off,j);return 0;}put(actual+off+36,be(b+off+36));}}
+ if(memcmp(b,actual,sizeof actual)){for(unsigned i=0;i<sizeof actual;++i)if(b[i]!=actual[i]){fprintf(stderr,"Prompt file differs%x:%x/%x\n",i,b[i],actual[i]);fprintf(stderr,"words %x/%x\n",be(b+(i&~3u)),be(actual+(i&~3u)));break;}return 0;}
+ if(n->card.ui.shared.audio_count!=a->card.ui.shared.audio_count||memcmp(n->card.ui.shared.audio,a->card.ui.shared.audio,sizeof n->card.ui.shared.audio)||n->card.request_count!=a->card.request_count||memcmp(n->card.requests,a->card.requests,sizeof n->card.requests)||n->card.ui.shared.pending_count!=a->card.ui.shared.pending_count||memcmp(n->card.ui.shared.pending,a->card.ui.shared.pending,sizeof n->card.ui.shared.pending)||n->card.ui.shared.entry_flags!=be(ram+0x17f0100)||n->card.ui.shared.rates.count!=be(ram+0x17f0054)){fprintf(stderr,"Prompt state requests%u/%u pending%u/%u flags%x/%x rates%u/%u\n",n->card.request_count,a->card.request_count,n->card.ui.shared.pending_count,a->card.ui.shared.pending_count,n->card.ui.shared.entry_flags,be(ram+0x17f0100),n->card.ui.shared.rates.count,be(ram+0x17f0054));for(unsigned i=0;i<n->card.ui.shared.rates.count;++i)fprintf(stderr,"rate%u pc%x/%x type%x/%x\n",i,n->card.ui.shared.rates.records[i].words[8],be(ram+0x17e0000+i*52+32),n->card.ui.shared.rates.records[i].words[0],be(ram+0x17e0000+i*52));return 0;}
+ for(unsigned i=0;i<n->card.ui.shared.rates.count;++i)for(unsigned j=0;j<13;++j){unsigned v=n->card.ui.shared.rates.records[i].words[j];if(j==7)v=0x817f0100;if(v!=be(ram+0x17e0000+i*52+j*4)){fprintf(stderr,"Prompt rate differs%u:%u\n",i,j);return 0;}}return 1;}
+int main(int argc,char**argv){if(argc!=6)return 2;HMODULE h=LoadLibraryA(argv[1]);if(!h)return 3;ModernGekkoGetModuleFn get=(ModernGekkoGetModuleFn)GetProcAddress(h,MODERNGEKKO_GET_MODULE_SYMBOL);const ModernGekkoModuleDesc*m=get();uint8_t*seed=malloc(24*1024*1024),*ram=malloc(24*1024*1024),*source=malloc(24030),*b=malloc(24030);FILE*f=fopen(argv[2],"rb");if(!seed||!ram||!source||!b||!f||fread(seed,1,24*1024*1024,f)!=24*1024*1024)return 4;fclose(f);f=fopen(argv[3],"rb");if(!f||fread(source,1,24030,f)!=24030)return 4;fclose(f);unsigned relocated;if(!nflstreet_ui_relocate(source,24030,0x81100000,&relocated))return 4;
+ nflstreet_card_prompt initial={0};initial.line_base=0x81600000;initial.card.operation=1;initial.card.byte_6f77=1;initial.card.ui.shared.rates.clock=16;strcpy(initial.card.device_name,"OPTIONS");f=fopen(argv[5],"rb");if(!f||fread(initial.templates,1,sizeof initial.templates,f)!=sizeof initial.templates)return 4;fclose(f);
+ for(unsigned e=0;e<4;++e){char path[4096];snprintf(path,sizeof path,"%s/%05u.bin",argv[4],e);f=fopen(path,"rb");if(!f)return 4;fseek(f,0,SEEK_END);long z=ftell(f);rewind(f);unsigned at=0x1740000+e*65536;if(z<32||z>65536||fread(seed+at,1,z,f)!=(size_t)z)return 4;fclose(f);nflstreet_font font;if(!nflstreet_font_open(seed+at,z,&font))return 4;if(e==3)initial.card.ui.shared.font=font;else initial.card.ui.fonts[e]=font;unsigned rec=0x17f3000+e*32,asset=0x17f3100+e*32;put(seed+rec+4,0x80000000+at);put(seed+rec+8,0x80000000+at+font.glyphs);put(seed+rec+12,0x80000000+at+font.kerning);put(seed+rec+16,0x80000000+at+font.atlas);put(seed+asset,0x80000000+rec);}
+ if(!nflstreet_card_prompt_construct(source,24030,0x81100000,&initial))return 5;
+ for(unsigned warning=0;warning<2;++warning){for(unsigned operation=0;operation<2;++operation){for(unsigned slot=0;slot<2;++slot){for(unsigned choice=0;choice<5;++choice){initial.warning=warning;initial.card.operation=operation;initial.card.storage.query_slot=slot;memcpy(ram,seed,24*1024*1024);memcpy(b,source,24030);memcpy(ram+0x1100000,source,24030);nflstreet_card_prompt native=initial,actual=initial;actual.card.ui.shared.pending_count=0;heap=0;for(unsigned i=0;i<initial.text_count;++i)for(unsigned j=0;j<initial.text[i].plan.count;++j)put(ram+0x1600000+i*1024+j*4,(unsigned)initial.text[i].plan.lines[j].begin<<16|initial.text[i].plan.lines[j].end);
+ memset(ram+0x17f0000,0,0x3000);put(ram+0x17f0008,16);put(ram+0x17f000c,0x8012a414);put(ram+0x17f0104,0x10009);put(ram+0x17f0108,0x60004);put(ram+0x17f0110,0x81100000);put(ram+0x17f0038,1);put(ram+0x17f003c,0x817f0100);put(ram+0x17f0048,9);put(ram+0x17f004c,0x817b0000);memset(ram+0x17b0000,0,36);put(ram+0x17b0000,0x801d60dc);put(ram+0x17b0004,0x8012cb94);put(ram+0x17b0020,0x801d9244);put(ram+0x17f0058,0x817e0000);memset(ram+0x17e0000,0,64*52);put(ram+0x17f0074,0x817c0000);put(ram+0x17f0088,0x817c0400);ram[0x3a9a40-0x6f77]=1;ram[0x3a9a40-0x6940]=warning;put(ram+0x346500,operation);strcpy((char*)ram+0x346528,"OPTIONS");put(ram+0x3a9a40-0x573c,0);
+ CPUState c={0};c.ram=ram;c.ram_size=24*1024*1024;c.msr=0x2000;c.gpr[1]=0x81700000;c.gpr[2]=0x803b9a40;c.gpr[13]=0x803a9a40;uint32_t args[3]={1,0,choice==4?0:UINT32_MAX};if(!nflstreet_card_prompt_start(b,24030,0x81100000,&native,args))return 6;
+ unsigned children[]={1,4,10,16,22,23};for(unsigned i=0;i<6;++i)if(!event(m,&c,&actual,children[i],0xfffe))return 7;
+ memset(ram+0x17c0000,0,1024);put(ram+0x17c0004,0xfffe);for(unsigned i=0;i<3;++i)put(ram+0x17c0008+i*4,args[i]);put(ram+0x17c0014,0x81100b2c);put(ram+0x17f200c,0x817c001c);put(ram+0x17f2010,0x8110467d);c.pc=0x801d16a0;c.gpr[3]=0x817f0000;c.gpr[4]=0x817c0000;c.gpr[5]=0x817f2000;c.gpr[6]=0x817f0100;c.gpr[7]=0x81100b2c;unsigned first=actual.card.ui.shared.pending_count;if(!run(m,&c,&actual)||!drain(m,&c,&actual,first)||!compare(b,ram,&native,&actual))return 8;
+ for(unsigned frame=0;frame<160;++frame){if(!nflstreet_card_prompt_advance(b,24030,0x81100000,&native,16))return 9;first=actual.card.ui.shared.pending_count;c.pc=0x801cf610;c.gpr[3]=0x817f0000;c.gpr[4]=16;if(!run(m,&c,&actual)||!drain(m,&c,&actual,first)||!compare(b,ram,&native,&actual)){fprintf(stderr,"Prompt initial tick%u\n",frame);return 10;}}
+ /* Late invalid message formatting must preserve screen and full service state. */
+ {nflstreet_card_prompt saved=native;memcpy(native.templates[5],"%n",3);nflstreet_card_prompt bad=native;uint8_t previous[24030];memcpy(previous,b,sizeof previous);if(nflstreet_card_prompt_control(b,24030,0x81100000,&native,5)||memcmp(previous,b,sizeof previous)||memcmp(&bad,&native,sizeof bad))return 17;native=saved;}
+ /* Exercise both slot directions, then full choice wrap and upward/downward selection. */
+ unsigned controls[]={5,4,3,3,3,2,3};for(unsigned i=0;i<sizeof controls/sizeof *controls;++i){unsigned e=controls[i];if(!nflstreet_card_prompt_control(b,24030,0x81100000,&native,e)||!event(m,&c,&actual,0,e)||!compare(b,ram,&native,&actual))return 11;}
+ for(unsigned step=0;step<choice&&choice<3;++step){if(!nflstreet_card_prompt_control(b,24030,0x81100000,&native,3)||!event(m,&c,&actual,0,3)||!compare(b,ram,&native,&actual))return 11;}
+ unsigned confirm=choice>=3?6:7;if(!nflstreet_card_prompt_control(b,24030,0x81100000,&native,confirm)||!event(m,&c,&actual,0,confirm)||!compare(b,ram,&native,&actual))return 12;
+ for(unsigned frame=0;frame<160;++frame){if(!nflstreet_card_prompt_advance(b,24030,0x81100000,&native,16))return 13;first=actual.card.ui.shared.pending_count;c.pc=0x801cf610;c.gpr[3]=0x817f0000;c.gpr[4]=16;if(!run(m,&c,&actual)||!drain(m,&c,&actual,first)||!compare(b,ram,&native,&actual))return 14;}
+ if(choice>=3){/* Both supplied source continuations leave Back open. */
+ if(native.card.request_count)return 15;
+ for(unsigned step=0;step<2;++step)if(!nflstreet_card_prompt_control(b,24030,0x81100000,&native,3)||!event(m,&c,&actual,0,3)||!compare(b,ram,&native,&actual))return 16;
+ if(!nflstreet_card_prompt_control(b,24030,0x81100000,&native,7)||!event(m,&c,&actual,0,7)||!compare(b,ram,&native,&actual))return 16;
+ for(unsigned frame=0;frame<160;++frame){if(!nflstreet_card_prompt_advance(b,24030,0x81100000,&native,16))return 16;first=actual.card.ui.shared.pending_count;c.pc=0x801cf610;c.gpr[3]=0x817f0000;c.gpr[4]=16;if(!run(m,&c,&actual)||!drain(m,&c,&actual,first)||!compare(b,ram,&native,&actual))return 16;}
+ }
+ if(native.card.request_count!=1)return 15;printf("Original prompt warning%u operation%u slot%u choice%u ->word%u exact;full24030-byte normalized screen,all line ranges,focus/requests/flags/rates,%u initial/completion updates plus wrap/directions;device/font/allocator supplied\n",warning,operation,slot,choice,native.card.requests[0].aux,choice>=3?480:320);
+ }}}}
+ return 0;}

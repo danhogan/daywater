@@ -1,0 +1,181 @@
+{
+  "title": "NFL Street \u2192 standalone Windows game",
+  "goal": "Reconstruct the game in native code, with its own Windows runtime and locally supplied game assets. No Dolphin, ModernGekko, or ISO needed while playing.",
+  "updated": "2026-10-12",
+  "scope": "GameCube GNNE69, revision 0",
+  "current": "The independent Windows scene renders a field, sky, two controllable reference players and a football. Original menus support Options, bounded save dialogs, team selection and field selection; both lineups and the field survive confirmation. Native configuration and session preparation consume those lineups in original-body comparison runs. Connected player initialization now owns model/channel, reset and appearance state in new storage and matches the original constructor. Resource loading and complex model/texture bindings remain supplied; a fresh playable match is unfinished.",
+  "next": "Own selected-player resource lookup and model/texture binding, produce constructor descriptors from the selected roster, and connect factory/session state to fresh field, ball and gameplay initialization.",
+  "why": "Player initialization now joins previously separate reconstructed systems and creates their state in new storage. Full original constructor-through-appearance comparisons catch ordering and shared-state mistakes. Selected-resource loading remains necessary to turn menu choices into fresh playable players.",
+  "boundary": "Daywater is the research workbench: it inspects the original game, captures behavior, and checks claims. NFL Street reconstruction and its eventual Windows runtime stay in the separate game project. The web interface organizes research; it is not the native game itself. Private game data, generated code, builds, and diagnostics stay on W:.",
+  "capabilities": [
+    {
+      "title": "Playable reference",
+      "description": "A Windows prototype reaches a match and accepts movement input, slowly. It still uses ModernGekko/Dolphin and the original game data."
+    },
+    {
+      "title": "Verified native slices",
+      "description": "Score events, bounded player movement, and target-record handoffs replay in Windows C. Two players advance together from a RAM snapshot for three checked frames; four later handoffs match two fresh captures."
+    },
+    {
+      "title": "Standalone game",
+      "description": "Native field/sky rendering and two controllable reference player instances, each with eight-direction movement, stops, restarts and animation. Experimental V changes supported player-1 sets. Original roster assembly, contacts, ball gameplay, fresh startup, audio and menus remain unfinished."
+    }
+  ],
+  "milestones": [
+    {
+      "title": "Establish a reproducible research reference",
+      "status": "complete",
+      "description": "Use the original game as the comparison target so reconstructed code has something reliable to match.",
+      "evidence": "Daywater reads documented score and selected-player position fields and traces live writers. The Windows reference reaches a saved match and accepts movement input.",
+      "acceptance": "The research setup restores known states and produces reproducible observations for the identified game revision.",
+      "remaining": "Every new state or game branch still needs its own evidence. This milestone establishes the workbench, not native gameplay.",
+      "sources": [
+        "projects/nfl-street/STATUS.md",
+        "projects/nfl-street/native/recomp.md"
+      ]
+    },
+    {
+      "title": "Reconstruct useful game behavior in native code",
+      "status": "partial",
+      "description": "Replace bounded pieces of original behavior with readable, independently executable code.",
+      "evidence": "Native score replay reproduces failed and successful PAT events. Player input and movement outputs match recorded live calls, including direction changes and partial input strength. A two-player loop matches complete output blocks for three consecutive frames.",
+      "acceptance": "The movement and scoring paths needed by a chosen match segment work across its input and state transitions and match fresh original-game captures.",
+      "remaining": "Broader animation-dependent movement and target selection, other actor branches, collision, launch/catch/bounce scheduling and match rules. Eight-direction normal movement and braking are checked; ball plane sampling is checked in controlled calls. Verification covers identified saved states and branches.",
+      "sources": [
+        "projects/nfl-street/native/score_event_replay.md",
+        "projects/nfl-street/reconstruction/command_to_movement/paired_actor_replay.md",
+        "projects/nfl-street/reconstruction/command_to_movement/partial_strength.md"
+      ]
+    },
+    {
+      "title": "Run a deterministic match segment without the emulator",
+      "status": "partial",
+      "focus": false,
+      "description": "Join reconstructed behavior into a simulation that owns its updates and carries game state forward.",
+      "evidence": "The snapshot-start Windows executable matches three original-game frames for two actors. Timing matches 30 updates; stream setup and early-stage decisions match fresh captures. Native contact selection produces its own paired requests. The newer paired contact application now owns links, allocation, clip setup, callback metadata, transition decisions and completion: two fresh runs match both complete actor objects and the complete selection manager. Eight direct transition searches also match. These pieces are not yet a continuously running match segment. Native bank resolution now derives the tested source tables from twelve disc bank blocks. Two controlled original-game experiments verify successful spawning of different clips and match six full actor checkpoints and the duration per run.",
+      "acceptance": "A longer segment advances all relevant actors, selection changes, and match events in the correct order from one initial state, with checkpoints matching fresh reference runs.",
+      "remaining": "Join contact, timing, event processing and movement; establish actor eligibility and scheduling; expand naturally occurring transitions. Fresh match state and animation frame interpretation remain open. Independent DAT traversal and an owned bank catalog are now implemented.",
+      "sources": [
+        "projects/nfl-street/reconstruction/command_to_movement/snapshot_start.md",
+        "projects/nfl-street/reconstruction/actor_target_input/descriptor_event.md",
+        "projects/nfl-street/reconstruction/actor_target_input/event_signals.md",
+        "projects/nfl-street/reconstruction/command_to_movement/actor_order_dynamic.md",
+        "projects/nfl-street/reconstruction/actor_target_input/command_timing.md",
+        "projects/nfl-street/reconstruction/actor_target_input/stream_setup_early_events.md",
+        "projects/nfl-street/reconstruction/actor_target_input/contact_selection.md",
+        "projects/nfl-street/reconstruction/actor_target_input/animation_channels.md",
+        "projects/nfl-street/reconstruction/actor_target_input/callback_metadata_transitions.md",
+        "projects/nfl-street/reconstruction/actor_target_input/asset_loading_transition_spawning.md"
+      ]
+    },
+    {
+      "title": "Activate and navigate the original menus",
+      "status": "partial",
+      "focus": false,
+      "description": "Execute the original menu definitions, scripts, drawing and input routing in the independent Windows runtime.",
+      "evidence": "Actual title/background activation and properties9/8 match19,200 complete two-screen updates. Connected main-menu services now match5 complete layout modes,30 label/state updates and18 sequential selections per original context (three contexts), including12 ordered help requests and3 rollback guards. Native Windows captures show Play It, Features, Options and Inside Street with source-selected highlights. Existing title capture is unchanged. Source directional navigation now matches40 consecutive events and52 ordered focus requests per context, with wraparound/disabled-row skipping and original callback sound requests retained. Native directional captures exercise the same event path; late-failure rollback is checked. Play It/Features confirm and Back now match640 complete source-screen/scheduler updates per context with saved inputs, plus640 on an explicit alternate branch (3,840 total). Native Enter/Backspace captures show source submenu labels and timed fades;32 new captures pass and53 earlier captures are unchanged. Options child startup matches60 creation scripts and1 activation script per context. Across three contexts,303 source controls and6,060 subsequent timed updates match complete screens, records, selection/settings and retained requests. 55 native Options captures and the Windows main request48 adapter pass. Actual Options Back suspension and returned raw words0/1/2 plus480 updates per context match across three contexts. Storage recipient lifecycle/selection matches450 cases. Independent continuation replay passes6 captures;55 earlier Options captures remain byte-identical. Storage polling matches192 supplied-response cases; actual device I/O and recipient UI remain separate. Native22-setting storage passes corruption/truncation/atomic-replacement checks,source-control save/reload and fresh-process restart. Defaults and303 controls/6,060 updates with those defaults match the original. All55 earlier Options captures are unchanged. Card owner:36 controlled activation runs/5,760 updates and27 raw-result resumptions match across three contexts. Original wrapped-text objects and line ranges match3,600 cases; Native code3F prompt navigation, slot changes, warning text, return words and rollback match120 controlled runs/1,176 controls/46,080 updates. Device I/O and other message families remain unfinished. Quick Game main handoff matches960 complete timed updates across three contexts. Original setup coordinator forward/Back/completion matches96 complete source/VM comparisons and174 ordered requests. An independent Windows join passes main -> outer coordinator -> controllers -> teams -> field -> completion with supplied selection-screen notifications. Original loaded-screen ordering now applies to owned records:4,320 complete comparisons and21 actual setup requests match the original across three contexts, preserving active index and animation/continuation owners. Independent Windows routing with those moves applied passes. Local controller selection matches14,403 cycles,45,000 remap/set/read checks,15,000 confirmations and11,952 actual screen callbacks across three contexts. Local source initialization/device refresh additionally match21,504 refreshes,10,752 initializations and43,008 actual screen callbacks. Device/profile inputs are supplied and profile/device effects captured; hardware discovery and live original UI remain unverified. `verify_controller_checks.py` automates the strict build, three-context checks, selection/routing regressions, baseline hashes and private metadata; `--no-build` reuses existing executables. Controller screen startup now matches456 ordered original class callbacks,36 creation scripts,3 selected activation scripts,480 updates,complete38,682-byte screens,all scheduled records and7,803 retained device requests across three contexts. The native source probe runs without the original DLL. The original input dispatcher supplies a float word after the logical port; the corrected native frame reaches profile/side selection and delayed completion. `verify_controller_screen.py` repeats the comparisons and records baseline hashes on W:. Controller source input and delayed completion now match across three contexts (15 controls,300 subsequent updates), and an independent probe forwards the actual completion to request team7. Six diagnostic controller captures use original artwork/fonts and supplied profiles/devices. Team selection now reads32 private MAET blocks: all1,216 numeric and96 text fields per context match original801B94C8/801C4388 across three contexts. Original8011CE64 and its no-profile eligibility branch match1,170 controlled comparisons, including18 with actual private records. Independent native selection traverses both sides forward/backward through all32 records. No-profile startup matches144 controlled original cases. The complete253,987-byte source image/text construction matches3,558 ordered callbacks and1,164 resource acquisitions/lookups across three contexts; independent allocator hooks verify every multiline range. Both native probes pass without the original module. Original query/profile bootstrap, creation/activation scripts, actor previews, source input/confirmation and field handoff remain open. `verify_team_start.py` automates this additional milestone and preserves baseline hashes. `verify_team_selection.py` automates builds, checks and baseline/provenance evidence on W:. Team source callback framing now adds144 actual startup dispatcher comparisons and1,170 carousel dispatcher comparisons; multidimensional arrays and retained results match the original. Independent mixed screen/stack outputs and six atomic rejection guards pass. This remains a bounded bridge rather than full source activation. Native team-window checks pass ten fresh-process captures with 60 updates each, preserving passive pixels and original baseline hashes. Separate source-selected head/body geometry inspection is connected; stored pose and body variant remain explicit candidate/supplied boundaries. Automated loading/shared-skeleton checks pass twice for all 402 supported PLAY identities across all three body keys; representative candidate renders are repeatable. Forward Quick Game load arguments are now delivered separately from activation/input. Six fresh Windows runs repeat default source events7,7,7 and both browse directions4,4,7,4,4,7,7 or5,5,7,5,5,7,7: teams1/1,31/31 or3/3, lineups7/7 and14 athlete requests; separate selected geometry resolves PLAY15,PLAY318 orPLAY39; checked shared body resources can produce identical untextured pixels. Original high80000007 dirty/rebuild callback matches raw0/1/2/FFFFFFFF; malformed argc rejects atomically. Full original loaded startup comparison remains incomplete. The first field recipient helper now matches original8011F1F0 cached-record reads in24 controlled cases: four text spans, raw byte and selected index. Cache population and visible field-screen startup remain open. Actual native team source completion now reaches coordinator5 and requests field8 load/activation in six fresh processes across teams1/1,31/31 and3/3. Controller completion, logical devices, clock12345/audio0/context7 remain supplied; field recipient and match creation are absent. Native RVNE catalog builds eight cache records from raw DIVE keys; original cached reader agrees for all eight. Text42/C9 remain supplied; original cache-miss/profile/unlock initialization is not established. Actual RVNE extraction for the consumed40 numeric and24 text values also matches original primitive readers; other table fields are excluded. Six team-completion runs retain both native14-word active formations with every word belonging to the selected seven players. Field class0/class8 construction now matches complete32,914-byte sources,170 callbacks and47 resource/font identities in three reference contexts. Native field load/activation, timed fades, eight-slot forward browsing, reverse steps and bounded endpoints run; settled captures show original artwork, labels, descriptions and lock presentation. Source confirm completes a native timed transition and captures its link to5. Six fresh team/field joins cover teams1/1,31/31 and3/3, source field cursor0\u21921\u21920\u21921 and final slot1/key1, preserving both seven-player lineups and fourteen-word formations. Native input-record guards reject unavailable slots, incomplete lineups and duplicate formations atomically. This is native integration with explicit no-profile/device/stat/clock/archive inputs; full original lifecycle, general unlocks and match creation remain separate. Source FFFD shutdown now records exactly one selected-field commit and cache-release request. Original8011F170 selected-input transfer matches the field key and both complete14-word arrays in three saved contexts; 801EA480 is captured without execution. Original phase3 transition completion matches768 controlled cases, with3000 application cases; private hashes remain unchanged. Automated Win32 source5/4/5/7 input, timer updates, GDI paints and FFFD shutdown pass with consumed notification queues empty and a validated native selection JSON. Scripted Back6 returns without a commit or snapshot. This is automated host integration, not manual physical-controller testing. Native801EA480 caller orchestration now matches102 controlled cases in six fresh original-module processes, preserving all28 output words and ordered service requests. Real private PLAY records resolve both fourteen-word lineups in one supplied team1 context. Session recipient801E577C remains captured without execution; no fresh match claim.",
+      "acceptance": "Title activation, Start-to-main-menu flow, directional selection, confirm/back and game setup run through reconstructed original services and agree with original observations.",
+      "remaining": "Complete original loaded-startup comparison and broader menu integration; original selected-athlete materials/animation; build fresh selected match state from the completed field return and retained formation arrays. Logical devices, profiles, clock and audio/broadcast owners remain explicit boundaries. Full original field/team lifecycle and GX rendering comparisons are not established.",
+      "sources": [
+        "projects/nfl-street/reconstruction/menus/README.md",
+        "projects/nfl-street/reconstruction/menus/quick_game_flow.md",
+        "projects/nfl-street/reconstruction/menus/screen_order.md",
+        "projects/nfl-street/reconstruction/menus/controller_selection.md",
+        "projects/nfl-street/reconstruction/menus/controller_devices.md",
+        "projects/nfl-street/reconstruction/menus/controller_screen.md",
+        "projects/nfl-street/reconstruction/menus/team_selection.md",
+        "projects/nfl-street/reconstruction/menus/team_screen_startup.md",
+        "projects/nfl-street/reconstruction/menus/verify_team_screen_input.py",
+        "projects/nfl-street/reconstruction/menus/team_visible_input.md",
+        "projects/nfl-street/reconstruction/menus/team_live_preview.md",
+        "projects/nfl-street/reconstruction/menus/verify_team_loaded_flow.py",
+        "projects/nfl-street/reconstruction/menus/field_cache.md",
+        "projects/nfl-street/reconstruction/menus/verify_team_field_handoff.py",
+        "projects/nfl-street/reconstruction/menus/verify_field_catalog.py",
+        "projects/nfl-street/reconstruction/menus/field_screen_startup.md",
+        "projects/nfl-street/reconstruction/menus/verify_team_field_picker.py",
+        "projects/nfl-street/reconstruction/menus/field_callbacks.md",
+        "projects/nfl-street/reconstruction/menus/verify_field_classes.py",
+        "projects/nfl-street/reconstruction/menus/verify_field_transition.py",
+        "projects/nfl-street/reconstruction/menus/field_screen_preview.md",
+        "projects/nfl-street/reconstruction/menus/field_commit.md",
+        "projects/nfl-street/reconstruction/menus/verify_field_commit.py",
+        "projects/nfl-street/reconstruction/menus/verify_field_screen_runtime.py",
+        "projects/nfl-street/reconstruction/menus/fresh_match_start_contract.md",
+        "projects/nfl-street/reconstruction/menus/match_start.c",
+        "projects/nfl-street/reconstruction/menus/match_player_query.c",
+        "projects/nfl-street/reconstruction/menus/verify_match_start.py"
+      ]
+    },
+    {
+      "title": "Create match state and load assets natively",
+      "status": "partial",
+      "description": "Start the reconstructed game from local assets instead of inheriting emulator RAM or a savestate.",
+      "evidence": "The independent Windows loader reads all 8,688 entries across 47 original DAT archives. All 5,903 compressed entries pass embedded checksum and exact-size checks; all plain entries and 39 compressed entries also match an independent verifier. Startup owns 14 direct animation banks and its registry without captured RAM. Native C decodes 2,672 first MMAP texture planes. Fresh playable match initialization remains unfinished. A bounded TMdl reader accepts 125 static models; 14 mesh dumps match an independent reader across 10,582 triangles, positions, UVs and material selectors. Original venue instance tables and hash-based object references now load natively for eight venues; 586 records are accounted for, including 47 formerly omitted matrix instances now rendered; one missing original definition is skipped. Connected startup/session/configuration now matches54 original-body comparisons using actual Win32 lineups and private PLAY records, with configuration/query/table/resource/stage responses supplied. Separate session and configuration gates pass234 and34 comparisons. Base model initialization owns skeleton/channel allocations and source writes, matching384 full fresh-object/allocated-block comparisons across64 resource-presence combinations in three contexts. Connected model/reset/appearance initialization now matches1,536 original constructor-through-appearance comparisons, including all actor bytes, allocations, both registries and89 ordered service requests. A separate appearance gate passes48 comparisons. Reference resource views and descriptor/catalog inputs are supplied; complex rendering bindings, selected-resource lookup and playable fresh match creation remain open.",
+      "acceptance": "Native code loads the required locally extracted assets, builds valid match state, and enters the verified simulation without an ISO, Dolphin, or an emulator savestate at runtime.",
+      "remaining": "Matrix/skinned models, skeleton/manifest traversal, original bank selection and variants, broader animation bank layouts, live time interpolation and actor posing, complete scene assembly, fresh roster/field/actor/ball/event state and host services. Static mesh loading does not initialize a match.",
+      "sources": [
+        "projects/nfl-street/PORTING_PLAN.md",
+        "projects/nfl-street/reconstruction/actor_target_input/asset_loading_transition_spawning.md",
+        "projects/nfl-street/reconstruction/native_assets/README.md",
+        "projects/nfl-street/reconstruction/menus/match_session.md",
+        "projects/nfl-street/reconstruction/menus/match_settings.md",
+        "projects/nfl-street/reconstruction/menus/match_pipeline.c",
+        "projects/nfl-street/reconstruction/menus/verify_match_pipeline.py",
+        "projects/nfl-street/reconstruction/native_assets/actor_model_init.md",
+        "projects/nfl-street/reconstruction/native_assets/verify_actor_model_init.py",
+        "projects/nfl-street/reconstruction/native_assets/player_startup.md"
+      ],
+      "focus": true
+    },
+    {
+      "title": "Make the independent Windows game playable",
+      "status": "partial",
+      "description": "Connect independently reconstructed game behavior to native Windows rendering and controls.",
+      "evidence": "Native Windows field/sky rendering and two independently controlled reference players work with eight-direction starts, movement, braking and stops. Source clip selection, phase/rate updates, bounded four-channel fades and supported inspection set changes pass controlled original comparisons and Windows checks. Fixed source-backed contact inspection renders both finite streams and completes; natural contacts remain open. Ball state/release services match 867 original records, with 864 association joins and 1,728 time/XY samples. Compact hand posing matches 2,784 complete matrices and 192 wrist-position joins. Full actor attachment position/quaternion and corrected associated-ball outputs each match 576 controlled original cases across three saved contexts. Native orientation diagnostics run through contact and direction/set playback (806 and 2,118 calculations), retaining all 26 corresponding baseline captures. Existing NAP1 inspection remains compatible. These are bounded services and inspection gameplay; visible ball possession and full match startup remain unfinished. The subsequent complete attached update matches 576 full ball records and 576 visual-model poses, including velocity and scale; 806 contact and 2,118 direction/set native updates pass, with captures unchanged. Existing original draw evidence identifies shared GameBall geometry; visible fixed attachment is now connected. Original GameBall resources match two captures; 513 native triangles/UVs pass independent checks. 576 ordinary render bases match original float words. Actual Windows movement/contact checks render an animated wrist football, while all 26 ball-disabled captures and both player exports remain identical. Automatic possession and full gameplay remain open. Complete original assignment matches 576 full records, actor flags, context effects and model poses. Optional native ownership inspection switches the visible football between both animated players and releases/reassigns it; direction/set and paired contact runs each pass six assignments/two releases. Detached rendering freezes the last pose; no free-flight claim. Bounded complete airborne update matches 1,536 original records, including force integration, field limits, no-spin orientation and plane sampling. Optional Windows airborne mode passes movement/contact checks with 121/64 moving detached updates; all 12 prior ownership captures remain identical. Force/context inputs and ground-plane stopping are host choices; launch/collision policy remains open.",
+      "acceptance": "A player can start and finish a match in the independent Windows executable, with working gameplay, rendering, audio, and controls.",
+      "remaining": "Independent actor creation, automatic gameplay animation-set eligibility, broader original transition choices and root travel and full callback context routing; join other actors and contact scheduling; ball launching/catching/bouncing and automatic ownership, appearance/camera/effects fidelity, fresh match initialization, rules, audio and menus. The native movement executor selects a bounded normal-context handoff; other original game-service branches remain open.",
+      "sources": [
+        "projects/nfl-street/PORTING_PLAN.md",
+        "projects/nfl-street/STATUS.md",
+        "projects/nfl-street/reconstruction/native_assets/README.md",
+        "projects/nfl-street/reconstruction/native_assets/original_render_capture.md",
+        "projects/nfl-street/reconstruction/native_assets/native_field_render.md",
+        "projects/nfl-street/reconstruction/native_assets/native_sky_render.md",
+        "projects/nfl-street/reconstruction/native_assets/native_player_render.md",
+        "projects/nfl-street/reconstruction/native_assets/native_player_animation.md",
+        "projects/nfl-street/reconstruction/native_assets/native_live_player.md",
+        "projects/nfl-street/reconstruction/native_assets/native_movement_player.md",
+        "projects/nfl-street/reconstruction/native_assets/native_braking.md",
+        "projects/nfl-street/reconstruction/native_assets/native_directions.md",
+        "projects/nfl-street/reconstruction/ball/README.md",
+        "projects/nfl-street/reconstruction/native_assets/native_idle_stream.md",
+        "projects/nfl-street/reconstruction/actor_target_input/locomotion_selection.md",
+        "projects/nfl-street/reconstruction/native_assets/native_paired_playback.md",
+        "projects/nfl-street/reconstruction/native_assets/native_phase_rebind.md",
+        "projects/nfl-street/reconstruction/native_assets/native_retiring_fade.md",
+        "projects/nfl-street/reconstruction/native_assets/native_curve_choice.md",
+        "projects/nfl-street/reconstruction/native_assets/native_directional_playback.md",
+        "projects/nfl-street/reconstruction/actor_target_input/variant_selection.md",
+        "projects/nfl-street/reconstruction/actor_target_input/variant_second.md",
+        "projects/nfl-street/reconstruction/native_assets/native_set_playback.md",
+        "projects/nfl-street/reconstruction/native_assets/native_two_players.md",
+        "projects/nfl-street/reconstruction/native_assets/native_contact_playback.md",
+        "projects/nfl-street/reconstruction/ball/native_ball_render.md",
+        "projects/nfl-street/reconstruction/ball/native_ball_ownership.md",
+        "projects/nfl-street/reconstruction/ball/native_ball_flight.md"
+      ]
+    },
+    {
+      "title": "Verify, package, and broaden coverage",
+      "status": "planned",
+      "description": "Turn the first playable native match into a dependable standalone build.",
+      "evidence": "Current comparisons establish confidence only for the documented revision, states, and branches; they do not establish whole-game compatibility.",
+      "acceptance": "Fresh native starts and complete matches pass repeatable checks, unsupported behavior is documented, and a Windows build runs with local assets and no emulator dependencies.",
+      "remaining": "Broader modes and scenarios, performance, saves, controller coverage, build packaging, and regression checks against the original game.",
+      "sources": [
+        "projects/nfl-street/PORTING_PLAN.md"
+      ]
+    }
+  ]
+}

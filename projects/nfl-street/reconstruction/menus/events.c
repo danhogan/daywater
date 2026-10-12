@@ -1,0 +1,26 @@
+#include "events.h"
+#include "screen.h"
+#include <stdlib.h>
+#include <string.h>
+static unsigned be(const uint8_t*p){return (unsigned)p[0]<<24|(unsigned)p[1]<<16|(unsigned)p[2]<<8|p[3];}
+static unsigned sh(const uint8_t*p){return (unsigned)p[0]<<8|p[1];}
+typedef struct {uint8_t*b;size_t n;unsigned base,id,linked,flags,event,argument,argc,budget,executed;uint32_t stack_base;const uint32_t*args;uint8_t visiting[1024];nflstreet_ui_script_service service;void*ctx;size_t ctxsize;nflstreet_ui_script_capture capture;nflstreet_ui_script_memory_service memory;} walk;
+static uint8_t*ptr(walk*w,unsigned a,size_t z){if(a<w->base||a-w->base>w->n||z>w->n-(a-w->base))return NULL;return w->b+a-w->base;}
+static int script(walk*w,unsigned root,unsigned pc){nflstreet_ui_script vm={0};vm.current_screen=w->id;vm.linked_screen=w->linked;vm.root=root;vm.flags=w->flags;vm.pc=w->base+pc;vm.words[vm.sp++]=0;vm.words[vm.sp++]=w->argument;for(unsigned i=0;i<w->argc;++i)vm.words[vm.sp++]=w->args[i];vm.words[vm.sp++]=root;vm.words[vm.sp++]=0;
+ if(!nflstreet_ui_script_services_memory(w->b,w->n,w->base,w->stack_base,&vm,100000,w->service,w->ctx,w->ctxsize,w->capture,w->memory))return 0;w->flags=vm.flags;++w->executed;return 1;}
+static int node(walk*w,unsigned index,unsigned*selected){if(index>=be(w->b)||index>=1024||!w->budget--||w->visiting[index])return 0;w->visiting[index]=1;uint8_t*rows=ptr(w,be(w->b+4),(size_t)be(w->b)*20);if(!rows)return 0;uint8_t*r=rows+index*20,*root=ptr(w,be(r),100);if(!root)return 0;
+ unsigned special=w->event==0xfff5||w->event==0xfff6||w->event==0xfff7||w->event==0xfff8||w->event==0xfffb||w->event==0xfffc;
+ if((be(root+4)&&be(root+0x60))||special||w->event==0xfffe||w->event==0xfffd){unsigned count=be(r+12);uint8_t*list=ptr(w,be(r+16),(size_t)count*8);if(!list)return 0;
+  for(unsigned i=0;i<count;++i)if(sh(list+i*8+2)==65535){unsigned childselected=0;if(!node(w,be(list+i*8+4),&childselected))return 0;if(childselected==1){unsigned pc,found;if(!nflstreet_ui_event(w->b,w->n,w->base,index,2,w->event,(uint16_t)be(list+i*8+4),&pc,&found))return 0;if(found&&!script(w,be(r),pc))return 0;}}
+  unsigned pc,found;if(!nflstreet_ui_event(w->b,w->n,w->base,index,0,w->event,0,&pc,&found))return 0;if(found&&!script(w,be(r),pc))return 0;
+ }*selected=root[7];w->visiting[index]=0;return 1;}
+int nflstreet_ui_events_memory_context(uint8_t*b,size_t n,uint32_t base,uint32_t id,uint32_t linked,uint32_t stack_base,uint32_t*flags,unsigned start,uint16_t event,uint32_t argument,unsigned argc,const uint32_t*args,nflstreet_ui_script_service service,void*ctx,size_t ctxsize,unsigned*executed,nflstreet_ui_script_capture capture,nflstreet_ui_script_memory_service memory){
+ if(!b||!flags||!executed||n<32||n>8*1024*1024||!base||n>UINT32_MAX-base||!stack_base||stack_base>UINT32_MAX-1024u||((uint64_t)base+n>stack_base&&(uint64_t)stack_base+1024u>base)||!be(b)||be(b)>1024||argc>16||(argc&&!args)||!service||!ctx||!ctxsize||ctxsize>8*1024*1024)return 0;uint8_t*copy=malloc(n);void*state=malloc(ctxsize);if(!copy||!state){free(copy);free(state);return 0;}memcpy(copy,b,n);memcpy(state,ctx,ctxsize);walk w={0};w.b=copy;w.n=n;w.base=base;w.id=id;w.linked=linked;w.stack_base=stack_base;w.flags=*flags;w.event=event;w.argument=argument;w.argc=argc;w.args=args;w.budget=4096;w.service=service;w.ctx=state;w.ctxsize=ctxsize;w.capture=capture;w.memory=memory;unsigned selected=0;int ok=node(&w,start,&selected);if(ok){memcpy(b,copy,n);memcpy(ctx,state,ctxsize);*flags=w.flags;*executed=w.executed;}free(copy);free(state);return ok;
+}
+
+int nflstreet_ui_events_memory(uint8_t*b,size_t n,uint32_t base,uint32_t id,uint32_t linked,uint32_t*flags,unsigned start,uint16_t event,uint32_t argument,unsigned argc,const uint32_t*args,nflstreet_ui_script_service service,void*ctx,size_t ctxsize,unsigned*executed,nflstreet_ui_script_capture capture,nflstreet_ui_script_memory_service memory){return nflstreet_ui_events_memory_context(b,n,base,id,linked,0x817c0000u,flags,start,event,argument,argc,args,service,ctx,ctxsize,executed,capture,memory);}
+
+int nflstreet_ui_events_capture(uint8_t*b,size_t n,uint32_t base,uint32_t id,uint32_t linked,uint32_t*flags,unsigned start,uint16_t event,uint32_t argument,unsigned argc,const uint32_t*args,nflstreet_ui_script_service service,void*ctx,size_t ctxsize,unsigned*executed,nflstreet_ui_script_capture capture){return nflstreet_ui_events_memory(b,n,base,id,linked,flags,start,event,argument,argc,args,service,ctx,ctxsize,executed,capture,NULL);}
+int nflstreet_ui_events(uint8_t*b,size_t n,uint32_t base,uint32_t id,uint32_t*flags,unsigned start,uint16_t event,uint32_t argument,unsigned argc,const uint32_t*args,nflstreet_ui_script_service service,void*ctx,size_t ctxsize,unsigned*executed){return nflstreet_ui_events_linked(b,n,base,id,0,flags,start,event,argument,argc,args,service,ctx,ctxsize,executed);}
+
+int nflstreet_ui_events_linked(uint8_t*b,size_t n,uint32_t base,uint32_t id,uint32_t linked,uint32_t*flags,unsigned start,uint16_t event,uint32_t argument,unsigned argc,const uint32_t*args,nflstreet_ui_script_service service,void*ctx,size_t ctxsize,unsigned*executed){return nflstreet_ui_events_capture(b,n,base,id,linked,flags,start,event,argument,argc,args,service,ctx,ctxsize,executed,NULL);}

@@ -1,0 +1,36 @@
+/* Integration oracle: original VM70 and801D0310 against owned continuation.
+   Synthetic instructions exercise actual original semantics, no card I/O. */
+#include <windows.h>
+#include "moderngekko/module_abi.h"
+#include "coroutine.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+static unsigned be(const uint8_t*p){return (unsigned)p[0]<<24|(unsigned)p[1]<<16|(unsigned)p[2]<<8|p[3];}
+static void put(uint8_t*p,unsigned v){p[0]=v>>24;p[1]=v>>16;p[2]=v>>8;p[3]=v;}
+static void code(uint8_t*b,unsigned*p,unsigned v){b[(*p)++]=0x10;put(b+*p,v);*p+=4;}
+typedef struct {unsigned count;nflstreet_ui_service_request requests[4];} effects;
+static int run(const ModernGekkoModuleDesc*m,CPUState*c,effects*e){c->lr=0;c->exception=0;for(unsigned i=0;c->pc&&i<1000000;++i){if(c->pc==0x801d4b3c){if(c->gpr[6]!=0||c->gpr[8]>16||e->count>=4)return 0;uint8_t*p=c->ram+c->gpr[7]-0x80000000;nflstreet_ui_service_request*q=&e->requests[e->count++];q->kind=9;q->target=be(p);q->source=q->link=be(p+4);q->argc=c->gpr[8];for(unsigned j=0;j<q->argc;++j)q->args[j]=be(c->ram+c->gpr[9]-0x80000000+j*4);c->pc=c->lr;continue;}c->downcount=-1000000000;m->dispatch(c,c->pc);if(c->exception)return 0;}return !c->pc;}
+static int stack(const nflstreet_ui_script*s,uint8_t*ram){for(unsigned i=0;i<256;++i)if(s->words[i]!=be(ram+0x17c0000+i*4)){fprintf(stderr,"Stack differs at%u:%x/%x\n",i,s->words[i],be(ram+0x17c0000+i*4));return 0;}return 1;}
+int main(int argc,char**argv){if(argc!=3)return 2;HMODULE h=LoadLibraryA(argv[1]);if(!h)return 3;ModernGekkoGetModuleFn get=(ModernGekkoGetModuleFn)GetProcAddress(h,MODERNGEKKO_GET_MODULE_SYMBOL);if(!get)return 3;const ModernGekkoModuleDesc*m=get();if(m->cpu_state_size!=sizeof(CPUState))return 3;
+ uint8_t*ram=malloc(24*1024*1024),*snapshot=malloc(24*1024*1024);FILE*f=fopen(argv[2],"rb");if(!ram||!snapshot||!f||fread(snapshot,1,24*1024*1024,f)!=24*1024*1024)return 4;fclose(f);unsigned cases=0,resumes=0;static const unsigned counts[]={0,1,4,16},results[]={0,1,0xffffffff,0x3f800000};
+ for(unsigned cap=0;cap<=1;++cap)for(unsigned a=0;a<4;++a)for(unsigned r=0;r<4;++r){memcpy(ram,snapshot,24*1024*1024);uint8_t bytes[4096]={0},before[4096];unsigned pc=0x800,target=(17+r)<<16|7;code(bytes,&pc,target);for(unsigned i=0;i<counts[a];++i)code(bytes,&pc,0xaabb0000+i);bytes[pc++]=0x70;bytes[pc++]=counts[a];unsigned next=pc;bytes[pc++]=0x42;bytes[pc++]=0x44;memcpy(before,bytes,sizeof bytes);memcpy(ram+0x1100000,bytes,sizeof bytes);
+  nflstreet_ui_script vm={0};vm.sp=2;vm.pc=0x81100800;vm.flags=0x11223344;vm.root=0x81100600;vm.current_screen=0x50000;vm.linked_screen=2;for(unsigned i=2;i<256;++i)vm.words[i]=i*0x01010101;
+  for(unsigned i=0;i<256;++i)put(ram+0x17c0000+i*4,vm.words[i]);memset(ram+0x17f0000,0,0x3000);memset(ram+0x17d0000,0,320);put(ram+0x17f0000,0x11111111);put(ram+0x17f0004,0x22222222);put(ram+0x17f0008,0x33333333);put(ram+0x17f000c,0x817c0008);put(ram+0x17f0010,vm.pc);put(ram+0x17f1000,vm.flags);put(ram+0x17f1004,0x50000);put(ram+0x17f1008,2);put(ram+0x17f1010,0x81100000);put(ram+0x17f2038,1);put(ram+0x17f203c,0x817f1000);put(ram+0x17f205c,cap);put(ram+0x17f2064,0x817d0000);
+  CPUState c={0};c.ram=ram;c.ram_size=24*1024*1024;c.msr=0x2000;c.gpr[1]=0x81700000;c.gpr[2]=0x803b9a40;c.gpr[13]=0x803a9a40;c.gpr[3]=0x817f2000;c.gpr[4]=0x817c0000;c.gpr[5]=0x817f0000;c.gpr[6]=0x817f1000;c.gpr[7]=vm.root;c.pc=0x801d16a0;effects original={0};if(!run(m,&c,&original))return 5;
+  nflstreet_ui_coroutines native={0};native.capacity=cap;if(!nflstreet_ui_script_services_capture(bytes,sizeof bytes,0x81100000,0x817c0000,&vm,10000,NULL,&native,sizeof native,nflstreet_ui_coroutine_capture))return 6;
+  if(memcmp(bytes,ram+0x1100000,sizeof bytes)||!stack(&vm,ram)||vm.pc!=be(ram+0x17f0010)||vm.sp*4+0x817c0000!=be(ram+0x17f000c)||native.count!=be(ram+0x17f2060)||vm.flags!=be(ram+0x17f1000)){fprintf(stderr,"Capture mismatch cap=%u argc=%u result=%x\n",cap,counts[a],results[r]);return 7;}
+  if(cap){nflstreet_ui_continuation*t=native.frames;if(c.gpr[3]!=3||vm.suspension!=3||original.count!=1||memcmp(&t->request,original.requests,sizeof t->request)||be(ram+0x17d000c)!=0x817c0008||be(ram+0x17d0010)!=0x81100000+next||be(ram+0x17d0014)!=vm.root||be(ram+0x17d0018)!=0x817f1000||be(ram+0x17d001c)!=0x817c0000||be(ram+0x17d0020)!=0x817f0000||be(ram+0x17d0024)!=target){fprintf(stderr,"Frozen mismatch ret=%u susp=%u queue=%u target=%x/%x source=%x/%x sp=%x pc=%x root=%x loaded=%x framebase=%x frame=%x argc=%u/%u\n",c.gpr[3],vm.suspension,original.count,t->request.target,be(ram+0x17d0024),t->request.source,original.requests[0].source,be(ram+0x17d000c),be(ram+0x17d0010),be(ram+0x17d0014),be(ram+0x17d0018),be(ram+0x17d001c),be(ram+0x17d0020),t->request.argc,original.requests[0].argc);return 8;}
+   nflstreet_ui_coroutines prior_queue=native;nflstreet_ui_script no_result={0};unsigned untouched=99;
+   c.pc=0x801d0310;c.gpr[3]=0x817f2000;c.gpr[4]=5;c.gpr[5]=0;c.gpr[6]=results[r];if(!run(m,&c,&original)||c.gpr[3]||be(ram+0x17f2060)!=1)return 14;
+   if(nflstreet_ui_coroutine_resume(&native,0x50000,results[r],bytes,sizeof bytes,0x81100000,0x817c0000,&no_result,NULL,NULL,0,&untouched)||untouched!=99||memcmp(&native,&prior_queue,sizeof native))return 15;
+   c.pc=0x801d0310;c.gpr[3]=0x817f2000;c.gpr[4]=9;c.gpr[5]=99;c.gpr[6]=results[r];if(!run(m,&c,&original)||c.gpr[3]!=1||be(ram+0x17f2060)!=1)return 16;
+   if(!nflstreet_ui_coroutine_resume(&native,0x90063,results[r],bytes,sizeof bytes,0x81100000,0x817c0000,&no_result,NULL,NULL,0,&untouched)||untouched||memcmp(&native,&prior_queue,sizeof native))return 17;
+   c.pc=0x801d0310;c.gpr[3]=0x817f2000;c.gpr[4]=7;c.gpr[5]=17+r;c.gpr[6]=results[r];if(!run(m,&c,&original))return 9;unsigned completed=0;nflstreet_ui_script resumed={0};if(!nflstreet_ui_coroutine_resume(&native,t->request.target,results[r],bytes,sizeof bytes,0x81100000,0x817c0000,&resumed,NULL,NULL,0,&completed))return 10;
+   if(!completed||native.count||be(ram+0x17f2060)||resumed.sp||be(ram+0x17f000c)!=0x817c0000||resumed.pc!=be(ram+0x17f0010)||!stack(&resumed,ram)||memcmp(bytes,ram+0x1100000,sizeof bytes))return 11;++resumes;
+  }else if(vm.suspension||original.count)return 12;++cases;
+ }
+ /* Failed continuation execution preserves bytes, frame and service state. */
+ nflstreet_ui_coroutines guard={0};guard.capacity=1;guard.count=1;guard.frames[0].request.target=0x70011;guard.frames[0].vm.sp=2;guard.frames[0].vm.pc=0x81100800;guard.frames[0].vm.suspension=3;uint8_t bytes[4096]={0},prior[4096];bytes[0x800]=0xff;memcpy(prior,bytes,sizeof bytes);nflstreet_ui_coroutines saved=guard;nflstreet_ui_script out={0},out_before=out;unsigned completed=99;
+ if(nflstreet_ui_coroutine_resume(&guard,0x70011,1,bytes,sizeof bytes,0x81100000,0x817c0000,&out,NULL,NULL,0,&completed)||memcmp(bytes,prior,sizeof bytes)||memcmp(&guard,&saved,sizeof saved)||memcmp(&out,&out_before,sizeof out)||completed!=99)return 13;
+ printf("Original VM70 capture/no-capacity exact:%u cases;801D0310 result resumption exact:%u;complete256-word stacks/files/PC/SP,queue fields and meaningful frozen-record fields;32 source/unrelated-destination guards;late unsupported resume rollback;screen/card recipients separate\n",cases,resumes);free(ram);free(snapshot);FreeLibrary(h);return 0;}

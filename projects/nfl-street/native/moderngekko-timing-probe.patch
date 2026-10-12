@@ -1,0 +1,128 @@
+diff --git a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore.cpp b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore.cpp
+index e3581cc..449b3d5 100644
+--- a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore.cpp
++++ b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore.cpp
+@@ -148,6 +148,7 @@ void StaticRecompCore::Init()
+   g_static_recomp_core = this;
+   RefreshConfig();
+   m_collect_dispatch_samples = std::getenv("STATICRECOMP_DISPATCH_SAMPLES") != nullptr;
++  m_collect_timing_samples = std::getenv("STATICRECOMP_TIMING_SAMPLES") != nullptr;
+   const char* fallback_override = std::getenv("STATICRECOMP_FALLBACK_RANGES");
+   std::istringstream fallback_ranges(fallback_override ? fallback_override :
+                                                          Config::Get(Config::MAIN_STATICRECOMP_FALLBACK_RANGES));
+@@ -209,6 +210,16 @@ void StaticRecompCore::Shutdown()
+                (unsigned long long)m_hook_fallback_instructions, m_failed_chunks,
+                (unsigned long long)m_verifications, (unsigned long long)m_reverify_events,
+                (unsigned long long)m_bursts, (unsigned long long)m_charged_cycles);
++  if (m_collect_timing_samples)
++  {
++    std::fprintf(stderr,
++                 "[staticrecomp] timing: dispatch_samples=%llu dispatch_ns=%llu "
++                 "cache_hook_samples=%llu cache_hook_ns=%llu\n",
++                 (unsigned long long)m_dispatch_timing_samples,
++                 (unsigned long long)m_dispatch_timing_ns,
++                 (unsigned long long)m_cache_hook_timing_samples,
++                 (unsigned long long)m_cache_hook_timing_ns);
++  }
+   std::vector<std::pair<u32, u64>> dispatch_samples(m_dispatch_samples.begin(),
+                                                     m_dispatch_samples.end());
+   std::sort(dispatch_samples.begin(), dispatch_samples.end(),
+diff --git a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore.h b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore.h
+index d084fea..11f2ee3 100644
+--- a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore.h
++++ b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore.h
+@@ -210,6 +210,14 @@ private:
+   mutable u32 m_last_chunk_index = 0;
+ 
+   bool m_collect_dispatch_samples = false;
++  bool m_collect_timing_samples = false;
++  u64 m_dispatch_timing_samples = 0;
++  u64 m_next_dispatch_timing = 0;
++  u64 m_next_hook_timing = 0;
++  u64 m_timing_rng = 0xD1B54A32D192ED03ull;
++  u64 m_dispatch_timing_ns = 0;
++  u64 m_cache_hook_timing_samples = 0;
++  u64 m_cache_hook_timing_ns = 0;
+   bool m_has_rel_modules = false;
+   u32 m_idle_pc = 0;
+ };
+diff --git a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Hooks.cpp b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Hooks.cpp
+index 7b3d845..fed3d36 100644
+--- a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Hooks.cpp
++++ b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Hooks.cpp
+@@ -12,6 +12,7 @@
+ #include "Core/HW/SystemTimers.h"
+ #include "Common/Logging/Log.h"
+ 
++#include <chrono>
+ #include <cstdio>
+ 
+ namespace
+@@ -393,10 +394,29 @@ void StaticRecompCore::HookInstructionFallback(CPUState* cpu, u32 raw, u32 cia)
+       const u32 ra = (raw >> 16) & 31u;
+       const u32 rb = (raw >> 11) & 31u;
+       const u32 ea = (ra ? cpu->gpr[ra] : 0u) + cpu->gpr[rb];
++      const bool sample_hook = core->m_collect_timing_samples &&
++                               core->m_hook_fallback_instructions >= core->m_next_hook_timing;
++      if (sample_hook)
++      {
++        core->m_timing_rng ^= core->m_timing_rng << 13;
++        core->m_timing_rng ^= core->m_timing_rng >> 7;
++        core->m_timing_rng ^= core->m_timing_rng << 17;
++        core->m_next_hook_timing = core->m_hook_fallback_instructions + 768 +
++                                   (core->m_timing_rng & 511u);
++      }
++      const auto hook_start = sample_hook ? std::chrono::steady_clock::now() :
++                                            std::chrono::steady_clock::time_point{};
+       if (xo == 982u)
+         ppc.iCache.Invalidate(system.GetMemory(), system.GetJitInterface(), ea);
+       else
+         system.GetJitInterface().InvalidateICacheLine(ea);
++      if (sample_hook)
++      {
++        const auto elapsed = std::chrono::steady_clock::now() - hook_start;
++        core->m_cache_hook_timing_ns += static_cast<u64>(
++            std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count());
++        ++core->m_cache_hook_timing_samples;
++      }
+       // These bypass SingleStepInner, so charge Dolphin's PPCTables cost
+       // here (icbi 4, dcbf/dcbst/dcbi 5); their emitted block cost is zero.
+       ppc.downcount -= (xo == 982u) ? 4 : 5;
+diff --git a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Run.cpp b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Run.cpp
+index d91ec2d..dc67f2d 100644
+--- a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Run.cpp
++++ b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Run.cpp
+@@ -12,6 +12,7 @@
+ #include "Core/Config/ConfigManager.h"
+ #include "Core/HW/SystemTimers.h"
+ 
++#include <chrono>
+ #include <cstdio>
+ #include <cstdlib>
+ #include <memory>
+@@ -155,7 +156,25 @@ void StaticRecompCore::Run()
+           if (m_has_rel_modules)
+             ResolveNativeAddress(runtime_dispatch_address, &linked_dispatch_address, nullptr);
+           m_guest.pc = linked_dispatch_address;
++          const bool sample_dispatch = m_collect_timing_samples &&
++                                       m_native_dispatches >= m_next_dispatch_timing;
++          if (sample_dispatch)
++          {
++            m_timing_rng ^= m_timing_rng << 13;
++            m_timing_rng ^= m_timing_rng >> 7;
++            m_timing_rng ^= m_timing_rng << 17;
++            m_next_dispatch_timing = m_native_dispatches + 3072 + (m_timing_rng & 2047u);
++          }
++          const auto dispatch_start = sample_dispatch ? std::chrono::steady_clock::now() :
++                                                        std::chrono::steady_clock::time_point{};
+           m_module->dispatch(&m_guest, linked_dispatch_address);
++          if (sample_dispatch)
++          {
++            const auto elapsed = std::chrono::steady_clock::now() - dispatch_start;
++            m_dispatch_timing_ns += static_cast<u64>(
++                std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count());
++            ++m_dispatch_timing_samples;
++          }
+           if (m_has_rel_modules)
+             m_guest.pc = TranslateRelAddress(m_guest.pc);
+           ++m_native_dispatches;

@@ -1,0 +1,97 @@
+--- a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore.h
++++ b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore.h
+@@ -210,6 +210,17 @@
+   mutable u32 m_last_chunk_index = 0;
+ 
+   bool m_collect_dispatch_samples = false;
++  struct DispatchTiming
++  {
++    u64 samples = 0;
++    u64 total_ns = 0;
++    u64 max_ns = 0;
++  };
++  bool m_collect_timed_sites = false;
++  u64 m_next_timed_dispatch = 4096;
++  u64 m_timing_rng = 0xD1B54A32D192ED03ull;
++  u64 m_timed_dispatch_samples = 0;
++  std::unordered_map<u32, DispatchTiming> m_dispatch_timings;
+   bool m_has_rel_modules = false;
+   u32 m_idle_pc = 0;
+ };
+--- a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore.cpp
++++ b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore.cpp
+@@ -148,6 +148,7 @@
+   g_static_recomp_core = this;
+   RefreshConfig();
+   m_collect_dispatch_samples = std::getenv("STATICRECOMP_DISPATCH_SAMPLES") != nullptr;
++  m_collect_timed_sites = std::getenv("STATICRECOMP_TIMED_SITES") != nullptr;
+   const char* fallback_override = std::getenv("STATICRECOMP_FALLBACK_RANGES");
+   std::istringstream fallback_ranges(fallback_override ? fallback_override :
+                                                          Config::Get(Config::MAIN_STATICRECOMP_FALLBACK_RANGES));
+@@ -209,6 +210,25 @@
+                (unsigned long long)m_hook_fallback_instructions, m_failed_chunks,
+                (unsigned long long)m_verifications, (unsigned long long)m_reverify_events,
+                (unsigned long long)m_bursts, (unsigned long long)m_charged_cycles);
++  if (m_collect_timed_sites)
++  {
++    std::vector<std::pair<u32, DispatchTiming>> sites(m_dispatch_timings.begin(),
++                                                      m_dispatch_timings.end());
++    std::sort(sites.begin(), sites.end(), [](const auto& left, const auto& right) {
++      return left.second.total_ns > right.second.total_ns;
++    });
++    std::fprintf(stderr, "[staticrecomp] timed-sites samples=%llu sites=%zu\n",
++                 static_cast<unsigned long long>(m_timed_dispatch_samples), sites.size());
++    for (std::size_t i = 0; i < std::min<std::size_t>(sites.size(), 32); ++i)
++    {
++      const auto& [pc, timing] = sites[i];
++      std::fprintf(stderr,
++                   "[staticrecomp] timed-site pc=%08x samples=%llu total_ns=%llu max_ns=%llu\n",
++                   pc, static_cast<unsigned long long>(timing.samples),
++                   static_cast<unsigned long long>(timing.total_ns),
++                   static_cast<unsigned long long>(timing.max_ns));
++    }
++  }
+   std::vector<std::pair<u32, u64>> dispatch_samples(m_dispatch_samples.begin(),
+                                                     m_dispatch_samples.end());
+   std::sort(dispatch_samples.begin(), dispatch_samples.end(),
+--- a/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Run.cpp
++++ b/Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Run.cpp
+@@ -12,6 +12,8 @@
+ #include "Core/Config/ConfigManager.h"
+ #include "Core/HW/SystemTimers.h"
+ 
++#include <algorithm>
++#include <chrono>
+ #include <cstdio>
+ #include <cstdlib>
+ #include <memory>
+@@ -155,7 +157,29 @@
+           if (m_has_rel_modules)
+             ResolveNativeAddress(runtime_dispatch_address, &linked_dispatch_address, nullptr);
+           m_guest.pc = linked_dispatch_address;
++          const bool timed_sample =
++              m_collect_timed_sites && m_native_dispatches >= m_next_timed_dispatch;
++          if (timed_sample)
++          {
++            m_timing_rng ^= m_timing_rng << 13;
++            m_timing_rng ^= m_timing_rng >> 7;
++            m_timing_rng ^= m_timing_rng << 17;
++            m_next_timed_dispatch = m_native_dispatches + 4096 + (m_timing_rng & 2047u);
++          }
++          const auto timed_start = timed_sample ? std::chrono::steady_clock::now() :
++                                                  std::chrono::steady_clock::time_point{};
+           m_module->dispatch(&m_guest, linked_dispatch_address);
++          if (timed_sample)
++          {
++            const auto elapsed = std::chrono::steady_clock::now() - timed_start;
++            const u64 ns = static_cast<u64>(
++                std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count());
++            auto& timing = m_dispatch_timings[runtime_dispatch_address];
++            ++timing.samples;
++            timing.total_ns += ns;
++            timing.max_ns = std::max(timing.max_ns, ns);
++            ++m_timed_dispatch_samples;
++          }
+           if (m_has_rel_modules)
+             m_guest.pc = TranslateRelAddress(m_guest.pc);
+           ++m_native_dispatches;
