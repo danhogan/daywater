@@ -10,9 +10,12 @@
 /* Private original data exported by export_gear_texture_catalog.py: DOL window
    802714F0..80271D58 (defaults, selectors, suffixes, initial color list,
    channel lists, 80271BC8/80271C58 GRSI tables), 802859F8 categories,
-   80285968 GEAR query tags and the 80252CF8 excluded palette name. */
-typedef struct {const uint8_t *window,*categories,*tags;const char *excluded_dynamic_name;} nflstreet_gear_texture_catalog;
+   80285968 GEAR query tags, the 80252CF8 excluded palette name and the 25
+   initial 802799EC slot request indices (slot templates). */
+typedef struct {const uint8_t *window,*categories,*tags;const char *excluded_dynamic_name;const uint8_t *templates;} nflstreet_gear_texture_catalog;
 int nflstreet_gear_texture_catalog_open(const uint8_t *,size_t,nflstreet_gear_texture_catalog *);
+/* Initial request index (template entry) of one slot; UINT32_MAX if out of range. */
+uint32_t nflstreet_gear_texture_template(const nflstreet_gear_texture_catalog *,unsigned slot);
 /* Original8014B918 112-byte GEAR record from one table row: text fields copy
    31 bytes plus the 801BFFDC type-0 terminator, then truncate at a space.
    Bytes outside written fields are retained. */

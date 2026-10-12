@@ -10,6 +10,7 @@
 #include <string.h>
 #define PLAYER_RECORDS 0x802aaa60u
 #define CAPTURED_PLAYERS 14u
+#define REQUEST_RECORDS 0x802799ecu
 static uint8_t *load_data(const char *path,size_t *size){FILE *f=fopen(path,"rb");if(!f)return NULL;
  if(fseek(f,0,SEEK_END)){fclose(f);return NULL;}long n=ftell(f);if(n<=0||fseek(f,0,SEEK_SET)){fclose(f);return NULL;}
  uint8_t *b=malloc((size_t)n);if(!b||fread(b,1,(size_t)n,f)!=(size_t)n){free(b);fclose(f);return NULL;}fclose(f);*size=(size_t)n;return b;}
@@ -17,6 +18,18 @@ static int load_captured(const char *path,uint8_t out[CAPTURED_PLAYERS][NFLSTREE
  FILE *f=fopen(path,"rb");if(!f)return 0;
  int ok=!fseek(f,(long)(PLAYER_RECORDS-0x80000000u),SEEK_SET)&&fread(out,NFLSTREET_GEAR_PLAYER_RECORD_BYTES,CAPTURED_PLAYERS,f)==CAPTURED_PLAYERS;
  fclose(f);return ok;
+}
+/* Live 800E2E48 records (802799EC + player*600 + slot*24) in the same snapshot:
+   captured record i belongs to player i. Slot1 is the separate face path. */
+static int captured_requests_match(const char *path,const nflstreet_gear_texture_plan plans[CAPTURED_PLAYERS],unsigned *slots){
+ static uint8_t live[CAPTURED_PLAYERS][600];FILE *f=fopen(path,"rb");if(!f)return 0;
+ int ok=!fseek(f,(long)(REQUEST_RECORDS-0x80000000u),SEEK_SET)&&fread(live,600,CAPTURED_PLAYERS,f)==CAPTURED_PLAYERS;fclose(f);if(!ok)return 0;
+ for(unsigned p=0;p<CAPTURED_PLAYERS;++p)for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s){if(s==1)continue;
+  const uint8_t *r=live[p]+24*s;int32_t index=plans[p].indices[s];uint32_t palette=plans[p].palettes[s];
+  if(!s&&plans[p].fallback){index=plans[p].fallback_index;palette=plans[p].fallback_palette;}
+  uint32_t ri=(uint32_t)r[0]<<24|(uint32_t)r[1]<<16|(uint32_t)r[2]<<8|r[3],rp=(uint32_t)r[16]<<24|(uint32_t)r[17]<<16|(uint32_t)r[18]<<8|r[19];
+  if(ri!=(uint32_t)index||rp!=palette){fprintf(stderr,"live request mismatch player%u slot%u\n",p,s);return 0;}++*slots;}
+ return 1;
 }
 static uint32_t fnv(uint32_t h,const void *p,size_t n){const uint8_t *b=p;for(size_t i=0;i<n;++i)h=(h^b[i])*16777619u;return h;}
 typedef struct {unsigned plans,assigned,palettes,fallbacks,colors,record_65,extra[3];uint8_t gear_used[NFLSTREET_GEAR_RECORDS_MAX],slot_used[NFLSTREET_GEAR_TEXTURE_SLOTS];uint32_t digest;} plan_stats;
@@ -70,14 +83,15 @@ int main(int argc,char **argv){
   }
   free(db);
  }
- unsigned captured_plans=0;
- for(unsigned i=0;i<CAPTURED_PLAYERS;++i){nflstreet_gear_texture_plan plan;
-  if(!nflstreet_gear_texture_plan_build(&catalog,&records,&textures,&dynamic,captured[i],&plan)){fprintf(stderr,"captured plan failed %u\n",i);return 6;}
+ unsigned captured_plans=0,live_slots=0;static nflstreet_gear_texture_plan captured_plan[CAPTURED_PLAYERS];
+ for(unsigned i=0;i<CAPTURED_PLAYERS;++i){nflstreet_gear_texture_plan *plan=captured_plan+i;
+  if(!nflstreet_gear_texture_plan_build(&catalog,&records,&textures,&dynamic,captured[i],plan)){fprintf(stderr,"captured plan failed %u\n",i);return 6;}
 #ifdef NFLSTREET_GEAR_ORACLE
-  if(!original_plan(&gear,&records,captured[i],i,&plan))return 7;
+  if(!original_plan(&gear,&records,captured[i],i,plan))return 7;
 #endif
-  account(&stats,&plan);++captured_plans;
+  account(&stats,plan);++captured_plans;
  }
+ if(!captured_requests_match(argv[6],captured_plan,&live_slots))return 9;
  unsigned variants=0;
  for(unsigned i=0;i<CAPTURED_PLAYERS;++i)for(unsigned k=0;k<8;++k){uint8_t player[NFLSTREET_GEAR_PLAYER_RECORD_BYTES];nflstreet_gear_texture_plan plan;
   memcpy(player,captured[i],sizeof player);player[0]=(uint8_t)(k&3u);player[1]=(uint8_t)(k>>1);
@@ -90,8 +104,8 @@ int main(int argc,char **argv){
  }
  unsigned gear_used=0,slots=0;for(unsigned i=0;i<NFLSTREET_GEAR_RECORDS_MAX;++i)gear_used+=stats.gear_used[i];
  for(unsigned i=0;i<NFLSTREET_GEAR_TEXTURE_SLOTS;++i)slots+=stats.slot_used[i];
- printf("Selected gear texture plans: %u roster rows x2 captured team contexts, %u captured records, %u controlled variants; %u plans, %u GEAR records (%u joined), %u slot indices across %u slots (slots16/17/18: %u/%u/%u), %u palettes, %u slot0 fallbacks, %u color requests, %u records +65 set; digest %08x.\n",
-  rows,captured_plans,variants,stats.plans,records.count,gear_used,stats.assigned,slots,stats.extra[0],stats.extra[1],stats.extra[2],stats.palettes,stats.fallbacks,stats.colors,stats.record_65,stats.digest);
+ printf("Selected gear texture plans: %u roster rows x2 captured team contexts, %u captured records, %u controlled variants; %u plans, %u GEAR records (%u joined), %u slot indices across %u slots (slots16/17/18: %u/%u/%u), %u palettes, %u slot0 fallbacks, %u color requests, %u records +65 set; %u live request slots match; digest %08x.\n",
+  rows,captured_plans,variants,stats.plans,records.count,gear_used,stats.assigned,slots,stats.extra[0],stats.extra[1],stats.extra[2],stats.palettes,stats.fallbacks,stats.colors,stats.record_65,live_slots,stats.digest);
 #ifdef NFLSTREET_GEAR_ORACLE
  printf("Original gear texture checks: %u GEAR records x2 fills, %u player-field rows (%u fields), %u selector kinds, %u fallback codes, %u complete 800DE3B8 plans (%u slot writes, %u color requests, %u queries).\n",
   gear_record_cases/2,player_rows,player_fields,kind_cases,fallback_cases,plan_cases,slot_writes,color_writes,gear_queries);

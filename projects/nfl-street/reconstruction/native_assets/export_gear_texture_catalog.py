@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export original gear texture-plan data privately; the native runtime reads GTC2, not a DOL."""
+"""Export original gear texture data privately; the native runtime reads GTC3, not a DOL."""
 
 import hashlib
 import struct
@@ -24,19 +24,22 @@ def span(dol: bytes, address: int, length: int) -> bytes:
 
 
 def export(output: Path) -> str:
-    """Write the GTC2 catalog and return its SHA256."""
+    """Write the GTC3 catalog and return its SHA256."""
     dol = BASELINES["dol"][0].read_bytes()
     if hashlib.sha1(dol).hexdigest() != ORIGINAL_SHA1:
         raise ValueError("Unexpected original revision")
     # Window: 802714F0 default names .. 80271C58 GRSI color words; then
-    # 802859F8 categories, 80285968 GEAR query tags, 80252CF8 excluded name.
+    # 802859F8 categories, 80285968 GEAR query tags, 80252CF8 excluded name,
+    # and the initial 802799EC request index of each of the 25 slots (templates).
+    templates = b"".join(span(dol, 0x802799EC + 24 * slot, 4) for slot in range(25))
     result = (
-        b"GTC2"
-        + struct.pack(">III", 2, WINDOW_START, WINDOW_SIZE)
+        b"GTC3"
+        + struct.pack(">III", 3, WINDOW_START, WINDOW_SIZE)
         + span(dol, WINDOW_START, WINDOW_SIZE)
         + span(dol, 0x802859F8, 48)
         + span(dol, 0x80285968, 104)
         + span(dol, 0x80252CF8, 32)
+        + templates
     )
     output = private(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -48,6 +51,6 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=PRIVATE / "private/nflstreet/GNNE69-r0/native/gear-texture.gtc2")
+    parser.add_argument("--output", type=Path, default=PRIVATE / "private/nflstreet/GNNE69-r0/native/gear-texture.gtc3")
     args = parser.parse_args()
     print("Private gear texture catalog SHA256 " + export(args.output))

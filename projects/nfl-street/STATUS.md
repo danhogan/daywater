@@ -6,7 +6,20 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: selected gear texture plans.** Native code now reconstructs original
+**Latest: owned selected slot textures.** Native code now loads each selected
+player's 25 gear/body texture slots into owned, relocated destinations,
+following the original boot-to-match pipeline (`800E2958` layout,
+`800E2AF0` templates, `800E2CAC`/`800E27F8` loader). The actual original
+pipeline matches 819 players per process, including 81,081 cache flushes and
+4,163 palette-composition requests, across three contexts twice.
+
+The gear plans also equal the live game's request records for all 14 players
+in a captured match. The owned textures equal that match's live destination
+memory in 281 of 350 slots. The other 69 differ only in palette data, still
+awaiting the original recolor step (`800D9C0C`). See
+[slot texture evidence](reconstruction/native_assets/slot_textures.md).
+
+**Earlier: selected gear texture plans.** Native code now reconstructs original
 `800DE3B8`: from a selected player's appearance record it joins 12 GEAR rows,
 builds `PLATEX`/`PLADYNCLUT` keys, fixed-index and default slots and the slot0
 fallback, producing all 25 texture slot index/palette pairs plus ordered color

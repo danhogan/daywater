@@ -12,7 +12,7 @@ NATIVE = (
     "Selected gear texture plans: 402 roster rows x2 captured team contexts, 14 captured records, "
     "112 controlled variants; 930 plans, 282 GEAR records (124 joined), 16429 slot indices across 23 slots "
     "(slots16/17/18: 664/535/98), 3889 palettes, 930 slot0 fallbacks, 26538 color requests, "
-    "930 records +65 set; digest 47d891f6."
+    "930 records +65 set; 336 live request slots match; digest 47d891f6."
 )
 ORIGINAL = (
     "Original gear texture checks: 282 GEAR records x2 fills, 402 player-field rows (12462 fields), "
@@ -39,7 +39,8 @@ BOUNDARY = (
     "and the +65 byte. Original 8014B918 GEAR records and 8014F60C/800DE000 player-record fields compared. "
     "801B1AC8 table search is supplied from fresh rows; each item is filled by original 801C4388/801B94C8 "
     "with the 801BFFDC type-0 terminator. 800E217C color, 800E2E48 request-record and 800E3020 state effects "
-    "are recorded arguments, not executed. Team bytes +3C..+3F/+4C..+67 come from captured records; "
+    "are recorded arguments, not executed. Plans for the 14 captured records also equal the live 800E2E48 "
+    "records in the same snapshot (336 non-face slots). Team bytes +3C..+3F/+4C..+67 come from captured records; "
     "controlled variants are not roster claims."
 )
 
@@ -63,7 +64,7 @@ def main() -> None:
     try:
         before = baseline_hashes()
         sources = source_hashes(root, entries)
-        catalog = data / "native/gear-texture.gtc2"
+        catalog = data / "native/gear-texture.gtc3"
         catalog_sha = export(catalog)
         archives = [data / "assets" / f"{name}.dat" for name in ("platex", "pladyncl")]
         contexts = [PRIVATE / f"research-temp/position-neutral-{i}.mem1" for i in (14, 15, 16)]
@@ -113,6 +114,7 @@ def main() -> None:
             native_log_sha256=native_logs,
             original_log_sha256=original_logs,
             executable_sha256={path.name: digest(path) for path in (plain, original)},
+            live_request_slots=336,
             roster_rows=402,
             plans_per_process=930,
             gear_records=282,

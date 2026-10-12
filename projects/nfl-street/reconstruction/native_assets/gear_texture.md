@@ -135,6 +135,13 @@ and 112 controlled variants of them, for 930 plans in total.
 The controlled variants set bytes `+00/+01/+08/+09/+0A`. They exist to drive
 the slot-18 and channel-list branches; they are not roster claims.
 
+**Verified against live original state:** for the 14 captured players
+(captured record *i* is player *i*), the native plans equal the live `800E2E48`
+records (`802799EC + player*600 + slot*24`) in the same snapshot. That covers
+index and palette in all 336 non-face slots, including the slot 0 fallback
+and the seeded slots 19–22. The live −1 values come from `800E341C`
+cancellation (see `slot_textures.md`), and they coincide with plan −1.
+
 **Verified controlled original comparison, per process:**
 
 - 282 GEAR records × 2 prefill patterns against original `8014B918`.
