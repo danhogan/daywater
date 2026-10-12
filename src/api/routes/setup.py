@@ -2,12 +2,32 @@
 
 from __future__ import annotations
 
+import asyncio
+from pathlib import Path
+
 from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import StreamingResponse
 
 from src.core.config import env_var_for_provider, provider_from_model, web_settings  # noqa: F401
 
 router = APIRouter()
+
+
+@router.get("/api/setup/codex-status")
+async def codex_status() -> dict[str, object]:
+    """Check the existing Codex login without exposing account details."""
+    def check() -> dict[str, object]:
+        from openai_codex import Codex, CodexConfig
+
+        with Codex(CodexConfig(cwd=str(Path(__file__).resolve().parents[3]))) as codex:
+            if codex.account().account is None:
+                return {"ok": False, "error": "No Codex login is visible in the container."}
+        return {"ok": True}
+
+    try:
+        return await asyncio.to_thread(check)
+    except Exception as exc:
+        return {"ok": False, "error": f"Codex login check failed: {exc}"}
 
 
 @router.post("/api/setup/test-key")
@@ -57,14 +77,16 @@ async def test_api_key(body: dict) -> dict:  # type: ignore[type-arg]
 @router.post("/api/setup/init-ghidra")
 async def init_ghidra(background_tasks: BackgroundTasks) -> dict[str, bool]:
     """Start Ghidra JVM initialization in the background."""
-    from src.agent.runner import run_ghidra_init
+    from src.agent.runner import reset_ghidra_init_events, run_ghidra_init
+
+    reset_ghidra_init_events()
 
     async def _init() -> None:
         try:
-            await run_ghidra_init()
-            web_settings.load()
-            web_settings.set("ghidra_initialized", True)
-            web_settings.save()
+            if await run_ghidra_init():
+                web_settings.load()
+                web_settings.set("ghidra_initialized", True)
+                web_settings.save()
         except Exception:
             pass
 

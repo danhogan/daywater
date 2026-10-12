@@ -46,6 +46,20 @@ def mask_key(key: str) -> str:
     return "***" if key else ""
 
 
+def validate_agent_config(backend: str, model: str, api_key: str, base_url: str) -> str | None:
+    """Return a user-facing configuration error, or None."""
+    if backend not in ("inspect", "codex"):
+        return "Backend must be inspect or codex."
+    if backend == "codex":
+        if api_key or base_url:
+            return "Codex uses an existing login; API key and base URL must be empty."
+        if "/" in model:
+            return "Codex model names must not have a provider prefix."
+    elif not model:
+        return "Inspect requires a model."
+    return None
+
+
 class Settings:
     def __init__(self) -> None:
         load_dotenv()
@@ -64,8 +78,8 @@ class WebSettings:
 
     Model configurations are stored as a list of dicts, each with::
 
-        {"id": "...", "name": "...", "model": "provider/model",
-         "api_key": "...", "base_url": ""}
+        {"id": "...", "name": "...", "backend": "inspect",
+         "model": "provider/model", "api_key": "...", "base_url": ""}
 
     One config is marked active via ``active_model_config`` (an id).
     """
@@ -127,13 +141,22 @@ class WebSettings:
                 return c
         return None
 
+    def active_backend(self) -> str:
+        config = self.active_config()
+        return str(config.get("backend", "inspect")) if config else "inspect"
+
     def add_model_config(
         self, *, name: str, model: str, api_key: str = "", base_url: str = "",
+        backend: str = "inspect",
     ) -> dict[str, Any]:
         """Add a new model config and return it."""
+        error = validate_agent_config(backend, model, api_key, base_url)
+        if error:
+            raise ValueError(error)
         config: dict[str, Any] = {
             "id": uuid.uuid4().hex[:12],
             "name": name,
+            "backend": backend,
             "model": model,
             "api_key": api_key,
             "base_url": base_url,
@@ -177,6 +200,8 @@ class WebSettings:
         """Push the active model config into environment variables."""
         config = self.active_config()
         if not config:
+            return
+        if self.active_backend() == "codex":
             return
 
         model = config.get("model", "")

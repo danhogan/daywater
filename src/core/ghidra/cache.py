@@ -27,6 +27,8 @@ class FunctionEntry:
     addr: str   # 8-char lowercase hex, e.g. "80003100"
     name: str
     size: int
+    ranges: tuple[tuple[str, str], ...] = ()
+    decompilation_sha256: str = ""
 
 
 @dataclass(frozen=True)
@@ -64,7 +66,9 @@ def _read_json_obj(p: Path) -> dict:
 def load_function_index(cache_dir: Path) -> list[FunctionEntry]:
     raw = _read_json_obj(cache_dir / "functions.json")
     return [
-        FunctionEntry(addr=str(e["addr"]).lower(), name=str(e["name"]), size=int(e["size"]))
+        FunctionEntry(addr=str(e["addr"]).lower(), name=str(e["name"]), size=int(e["size"]),
+                      ranges=tuple((str(r[0]).lower(), str(r[1]).lower()) for r in e.get("ranges", [])),
+                      decompilation_sha256=str(e.get("decompilation_sha256", "")))
         for e in raw["functions"]
     ]
 
@@ -176,6 +180,31 @@ def read_decompiled(cache_dir: Path, addr_or_name: str) -> tuple[FunctionEntry, 
     if not decomp_path.exists():
         raise FileNotFoundError(f"decompiled file missing: {decomp_path}")
     return entry, decomp_path.read_text()
+
+
+def function_containing(cache_dir: Path, address: int | str) -> FunctionEntry | None:
+    """Resolve a PC against indexed function bodies (best effort for sparse bodies)."""
+    if isinstance(address, str):
+        pc = int(address.removeprefix("0x"), 16)
+    else:
+        pc = address
+    for entry in load_function_index(cache_dir):
+        start = int(entry.addr, 16)
+        if pc == start or any(int(lo, 16) <= pc <= int(hi, 16) for lo, hi in entry.ranges):
+            return entry
+    return None
+
+
+def read_disassembly(cache_dir: Path, addr_or_name: str) -> tuple[FunctionEntry, str]:
+    entry = resolve_function(cache_dir, addr_or_name)
+    path = cache_dir / "disassembly" / f"{entry.addr}.txt"
+    if not path.exists():
+        raise FileNotFoundError(f"disassembly index missing: {path}; regenerate analysis")
+    return entry, path.read_text()
+
+
+def strings_for_function(cache_dir: Path, function_addr: str) -> list[StringEntry]:
+    return [s for s in load_strings(cache_dir) if function_addr.lower() in s.xrefs]
 
 
 def callees_of(cache_dir: Path, addr: str) -> list[CallEdge]:

@@ -31,11 +31,43 @@ from src.core.ghidra.cache import (
     callers_of,
     find_functions,
     find_orphan_roots,
+    function_containing,
     load_entry_points,
     read_decompiled,
+    read_disassembly,
     resolve_function,
     search_strings,
 )
+
+
+@tool
+def get_function_containing() -> Tool:
+    async def execute(pc: str) -> str:
+        """Find the indexed Ghidra function whose body contains a program counter."""
+        cache_dir = current_cache_dir()
+        if cache_dir is None:
+            return NO_BINARY_SELECTED_MSG
+        try:
+            entry = function_containing(cache_dir, pc)
+        except (ValueError, FileNotFoundError) as exc:
+            return f"Error: {exc}"
+        return f"0x{entry.addr} {entry.name} ({entry.size} bytes)" if entry else "No containing function in this binary"
+    return execute
+
+
+@tool
+def get_disassembly() -> Tool:
+    async def execute(addr_or_name: str) -> str:
+        """Return generated disassembly for a function in the selected binary."""
+        cache_dir = current_cache_dir()
+        if cache_dir is None:
+            return NO_BINARY_SELECTED_MSG
+        try:
+            entry, body = read_disassembly(cache_dir, addr_or_name)
+        except (FileNotFoundError, KeyError) as exc:
+            return f"Error: {exc}"
+        return f"// 0x{entry.addr} {entry.name}\n{body[:_MAX_DECOMP_CHARS]}"
+    return execute
 
 _MAX_DECOMP_CHARS = 16_000
 

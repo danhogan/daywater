@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from inspect_ai.tool import Tool
 
-from src.agent.job_spec import Capability, EvaluationMethod, JobSpec
+from src.agent.job_spec import Capability, JobSpec
 
 if TYPE_CHECKING:
     from src.core.dolphin.session import DolphinSession
@@ -28,6 +28,7 @@ def build_tools(
     task: Any | None = None,
     project: Any | None = None,
     savestate_path: Path | None = None,
+    winddown: bool = True,
 ) -> list[Tool]:
     """Assemble the tool list based on JobSpec capabilities."""
     tools: list[Tool] = []
@@ -42,6 +43,8 @@ def build_tools(
             entry_points,
             find_function,
             find_string,
+            get_disassembly,
+            get_function_containing,
             rename_function,
         )
 
@@ -50,11 +53,16 @@ def build_tools(
             find_function(),
             find_string(),
             decompile(),
+            get_disassembly(),
+            get_function_containing(),
             callees(),
             callers(),
             rename_function(task_id=task_id),
             add_note(task_id=task_id),
         ]
+        from src.agent.tools.investigation import investigate_address
+
+        tools.append(investigate_address(project_root, session))
 
     # Discovery tools
     if Capability.DISCOVERY in spec.capabilities:
@@ -180,6 +188,7 @@ def build_tools(
     # Wrap all tools with wind-down budget warning
     from src.agent.tools.winddown import wrap_tools_with_winddown
 
-    tools = wrap_tools_with_winddown(tools, spec.message_limit)
+    if winddown:
+        tools = wrap_tools_with_winddown(tools, spec.message_limit)
 
     return tools

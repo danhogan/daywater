@@ -69,3 +69,21 @@ cache/
 sessions/
 demo-site/
 demo-data/
+
+# Campaign outputs are local observations and generated analysis.
+projects/*/generated/
+projects/*/experiments/
+projects/*/savestates/
+
+# Private game inputs, runtime binaries and captured memory.
+*.iso
+*.gcm
+*.dol
+*.gci
+*.mem1
+*.mem2
+*.savestate
+*.exe
+*.dll
+*.o
+*.obj

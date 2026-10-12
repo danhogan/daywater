@@ -341,6 +341,9 @@ async def get_result(project_id: str, task_id: str) -> dict:  # type: ignore[typ
         raise HTTPException(400, f"No result yet (state: {task.state})")
     return {
         "verdict": task.config.result_verdict,
+        "backend": task.config.agent_backend,
+        "summary": task.config.result_summary,
+        "codex_thread_id": task.config.codex_thread_id,
         "gecko": task.config.result_gecko,
         "hud_mean": task.config.result_hud_mean,
         "preserve_mean": task.config.result_preserve_mean,

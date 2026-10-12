@@ -6,6 +6,8 @@ CPU paused, waiting for a debugger to connect and send ``c`` (continue).
 
 This module provides just enough RSP to:
 - Connect and continue execution
+- Single-step a PowerPC instruction while stopped
+- Set/remove execution breakpoints (``Z0``/``z0``)
 - Set/remove hardware write watchpoints (``Z2``/``z2``)
 - Read the program counter (PC) when a watchpoint fires
 - Collect unique PCs that write to a given address
@@ -70,6 +72,7 @@ class GDBClient:
     host: str = "127.0.0.1"
     port: int = 2345
     _sock: socket.socket | None = field(default=None, repr=False, init=False)
+    _recv_buffer: bytes = field(default=b"", repr=False, init=False)
 
     def connect(
         self,
@@ -129,6 +132,7 @@ class GDBClient:
         """Read and discard any pending data in the socket buffer."""
         if self._sock is None:
             return
+        self._recv_buffer = b""
         self._sock.setblocking(False)
         try:
             while True:
@@ -154,10 +158,16 @@ class GDBClient:
             except OSError:
                 pass
             self._sock = None
+            self._recv_buffer = b""
 
     def continue_execution(self) -> None:
         """Send ``c`` (continue). Does not wait for a stop reply."""
         self._send_raw(_make_packet("c"))
+
+    def step_instruction(self, timeout: float = 5.0) -> str:
+        """Execute one PowerPC instruction while stopped and return its stop reply."""
+        self._send("s")
+        return self.wait_for_stop(timeout)
 
     def interrupt(self) -> str:
         """Send Ctrl-C (\\x03) to pause the CPU.
@@ -167,13 +177,16 @@ class GDBClient:
         Returns the stop reply.
         """
         self._send_raw(b"\x03")
-        # Dolphin may send multiple packets (ACK + stop reply). Read until
-        # we get a T-packet (trap/signal).
-        resp = self._recv_response(timeout=5.0)
-        if resp is None:
-            raise GDBError("No stop reply after interrupt")
-        logger.debug("gdb_interrupt_reply", reply=resp)
-        return resp
+        # Dolphin may send an empty reply alongside a stop notification.
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            resp = self._recv_response(timeout=deadline - time.monotonic())
+            if resp is None:
+                break
+            if resp.startswith("T"):
+                logger.debug("gdb_interrupt_reply", reply=resp)
+                return resp
+        raise GDBError("No stop reply after interrupt")
 
     def read_pc(self) -> int:
         """Read the program counter (NIP) from Dolphin's PPC CPU.
@@ -192,6 +205,30 @@ class GDBClient:
             return pc
         except ValueError:
             raise GDBError(f"Invalid PC response: {resp!r}")
+
+    def read_register(self, number: int) -> int:
+        """Read one PPC register by its GDB register number while stopped."""
+        if not 0 <= number <= 0xFF:
+            raise ValueError("register number must fit in one byte")
+        resp = self._command(f"p{number:x}")
+        if resp.startswith("E"):
+            raise GDBError(f"Failed to read register {number}: {resp}")
+        try:
+            return int(resp, 16)
+        except ValueError as exc:
+            raise GDBError(f"Invalid register response: {resp!r}") from exc
+
+    def set_execution_breakpoint(self, address: int) -> None:
+        """Arm a four-byte PowerPC execution breakpoint while stopped."""
+        resp = self._command(f"Z0,{address:x},4")
+        if resp != "OK":
+            raise GDBError(f"Failed to set breakpoint at {hex(address)}: {resp}")
+
+    def remove_execution_breakpoint(self, address: int) -> None:
+        """Remove a PowerPC execution breakpoint while stopped."""
+        resp = self._command(f"z0,{address:x},4")
+        if resp != "OK":
+            raise GDBError(f"Failed to remove breakpoint at {hex(address)}: {resp}")
 
     def set_write_watchpoint(self, address: int, size: int = 4) -> str:
         """Set a hardware write watchpoint at *address* for *size* bytes.
@@ -214,21 +251,33 @@ class GDBClient:
 
         Returns the stop reason string (e.g. "T05watch:80123456;").
         """
-        resp = self._recv_response(timeout=timeout)
-        if resp is None:
-            raise GDBError(f"Timeout waiting for stop reply ({timeout}s)")
-        return resp
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            resp = self._recv_response(timeout=deadline - time.monotonic())
+            if resp is None:
+                break
+            if resp.startswith(("T", "W", "X")):
+                return resp
+        raise GDBError(f"Timeout waiting for stop reply ({timeout}s)")
 
     # --- Internal --------------------------------------------------------- #
 
     def _command(self, data: str) -> str:
         """Send a command and wait for the response."""
         self._send(data)
-        resp = self._recv_response(timeout=10.0)
-        if resp is None:
-            raise GDBError(f"No response to command: {data}")
-        logger.debug("gdb_command", cmd=data[:20], resp=resp[:60] if resp else "")
-        return resp
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            resp = self._recv_response(timeout=deadline - time.monotonic())
+            if resp is None:
+                break
+            # A stop may be reported twice around an interrupt. It is not
+            # the reply to a register or breakpoint command. Dolphin may
+            # also emit an empty packet in the same burst.
+            if not resp or resp.startswith("T"):
+                continue
+            logger.debug("gdb_command", cmd=data[:20], resp=resp[:60])
+            return resp
+        raise GDBError(f"No response to command: {data}")
 
     def _send(self, data: str) -> None:
         """Send a GDB RSP packet."""
@@ -249,41 +298,43 @@ class GDBClient:
         if self._sock is None:
             raise GDBError("Not connected")
 
-        self._sock.settimeout(timeout)
-        buf = b""
+        deadline = time.monotonic() + timeout
 
         try:
             while True:
-                chunk = self._sock.recv(4096)
-                if not chunk:
-                    return None
-                buf += chunk
-
                 # Skip ACK bytes
-                while buf and buf[0:1] in (b"+", b"-"):
-                    buf = buf[1:]
+                while self._recv_buffer[:1] in (b"+", b"-"):
+                    self._recv_buffer = self._recv_buffer[1:]
 
                 # Look for complete packet: $<data>#<xx>
-                if b"$" in buf and b"#" in buf:
-                    start = buf.index(b"$")
+                if b"$" in self._recv_buffer and b"#" in self._recv_buffer:
+                    start = self._recv_buffer.index(b"$")
                     # Find the checksum (2 chars after #)
-                    hash_pos = buf.index(b"#", start)
-                    if hash_pos + 2 < len(buf):
-                        payload = buf[start + 1 : hash_pos].decode(
+                    hash_pos = self._recv_buffer.index(b"#", start)
+                    if hash_pos + 2 < len(self._recv_buffer):
+                        payload = self._recv_buffer[start + 1 : hash_pos].decode(
                             "ascii", errors="replace"
                         )
+                        self._recv_buffer = self._recv_buffer[hash_pos + 3 :]
                         # Send ACK
                         try:
                             self._sock.sendall(b"+")
                         except OSError:
                             pass
                         return payload
-                    # Need more data for checksum
-                    continue
-
                 # If we've accumulated a lot without a packet, bail
-                if len(buf) > 65536:
+                if len(self._recv_buffer) > 65536:
+                    self._recv_buffer = b""
                     return None
+
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return None
+                self._sock.settimeout(remaining)
+                chunk = self._sock.recv(4096)
+                if not chunk:
+                    return None
+                self._recv_buffer += chunk
 
         except socket.timeout:
             return None

@@ -121,6 +121,7 @@
         </div>
         <div class="step-body">
           <div id="verdict-display"></div>
+          <div id="result-summary" style="white-space:pre-wrap;" hidden></div>
           <div id="result-gecko" hidden></div>
           <div class="btn-group" id="result-actions" hidden>
             <a id="inspect-link" target="_blank">Open in Inspect</a>
@@ -611,6 +612,12 @@
     async function loadResults() {
       try {
         const result = await api('GET', `${TBASE}/result`);
+        if (result.summary) {
+          const summaryEl = document.getElementById('result-summary');
+          summaryEl.textContent = result.summary;
+          summaryEl.hidden = false;
+        }
+        document.getElementById('inspect-link').hidden = result.backend === 'codex';
 
         // Show status in results section
         if (task.state === 'failed' || result.verdict === 'FAIL' || result.verdict === 'FAILED') {

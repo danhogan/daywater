@@ -137,6 +137,11 @@ uv run pre-commit run --all-files
 uv run pytest
 ```
 
+### Codex backend
+
+To use an existing Codex/ChatGPT login for static research tasks, see
+[Codex backend setup](docs/CODEX_BACKEND.md). Inspect/API remains the default.
+
 ## Docker Notes
 
 - `init: true` in compose for zombie reaping (Dolphin child processes)

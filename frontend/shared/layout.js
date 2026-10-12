@@ -10,6 +10,7 @@ export function renderLayout() {
   toolbar.id = 'global-toolbar';
   toolbar.style.cssText = 'position:fixed; top:0.75rem; right:1.5rem; z-index:200; display:flex; gap:0.5rem; align-items:center;';
   toolbar.innerHTML = `
+    <a href="/roadmap.html" style="font-size:0.72rem; padding:0.3rem 0.6rem;">Roadmap</a>
     <div style="position:relative;">
       <button onclick="window.location.href='/settings.html'" style="font-size:0.72rem; padding:0.3rem 0.6rem;">Settings</button>
     </div>

@@ -163,20 +163,37 @@ async def run_capture_frame(savestate_path: Path, iso_path: Path) -> Path:
 
 async def run_agent(task: Task, project: Project) -> dict[str, Any]:
     """Run the full agent pipeline and return results."""
-    from inspect_ai import eval as inspect_eval
-
-    from src.agent.sample_builder import build_task_from_project_task
+    from src.core.config import web_settings
 
     iso_path = project.iso_path.resolve()
     extract_root = _CACHE_ROOT / "extracted" / iso_path.stem
 
+    web_settings.load()
+    active_config = web_settings.active_config()
+    backend = web_settings.active_backend()
+    task.config.agent_backend = backend
+
     task.transition(TaskState.RUNNING)
-    task.append_event({"t": "agent_start"})
+    task.append_event({"t": "agent_start", "backend": backend})
 
     async with _run_lock:
         loop = asyncio.get_event_loop()
 
         def _run() -> dict[str, Any]:
+            if backend == "codex":
+                from src.agent.codex_backend import run_codex_task
+
+                return run_codex_task(
+                    task, project, iso_path, extract_root,
+                    model=str(active_config.get("model", "")) if active_config else "",
+                )
+            if backend != "inspect":
+                raise ValueError(f"Unknown agent backend: {backend}")
+
+            from inspect_ai import eval as inspect_eval
+
+            from src.agent.sample_builder import build_task_from_project_task
+
             inspect_task, session_cleanup = build_task_from_project_task(
                 task, project, iso_path, extract_root,
             )
@@ -233,8 +250,12 @@ async def run_agent(task: Task, project: Project) -> dict[str, Any]:
 
             task.config.result_verdict = result.get("verdict", "FAIL")
             task.config.result_gecko = result.get("gecko", "")
+            task.config.result_summary = result.get("summary", "")
+            task.config.codex_thread_id = result.get("thread_id", "")
             if result.get("log_file"):
                 task.config.result_log_file = Path(result["log_file"]).name
+            else:
+                task.config.result_log_file = ""
 
             # Save gecko code to file for download.
             if result.get("gecko"):
@@ -249,6 +270,8 @@ async def run_agent(task: Task, project: Project) -> dict[str, Any]:
             return result
 
         except Exception as exc:
+            task.config.result_verdict = "FAILED"
+            task.config.result_summary = str(exc)
             task.transition(TaskState.FAILED)
             task.append_event({"t": "agent_error", "error": str(exc)})
             logger.error("agent_failed", task=task.task_id, error=str(exc))
@@ -261,13 +284,19 @@ _ghidra_init_events = _SESSIONS_ROOT / ".ghidra_init_events.jsonl"
 _ghidra_init_running = False
 
 
+def reset_ghidra_init_events() -> None:
+    """Clear a previous run before the setup endpoint opens the new SSE stream."""
+    _ghidra_init_events.parent.mkdir(parents=True, exist_ok=True)
+    _ghidra_init_events.unlink(missing_ok=True)
+
+
 def _emit_ghidra_event(event: dict[str, Any]) -> None:
     event.setdefault("ts", _time.time())
     with _ghidra_init_events.open("a") as f:
         f.write(json.dumps(event) + "\n")
 
 
-async def run_ghidra_init() -> None:
+async def run_ghidra_init() -> bool:
     """Warm up Ghidra JVM + verify it can analyze a binary.
 
     Captures JVM stdout/stderr and emits progress events to a file
@@ -275,17 +304,14 @@ async def run_ghidra_init() -> None:
     """
     global _ghidra_init_running  # noqa: PLW0603
     if _ghidra_init_running:
-        return
+        return False
 
     _ghidra_init_running = True
     _ghidra_init_events.parent.mkdir(parents=True, exist_ok=True)
-    # Clear previous events
-    if _ghidra_init_events.exists():
-        _ghidra_init_events.unlink()
 
     loop = asyncio.get_event_loop()
 
-    def _init() -> None:
+    def _init() -> bool:
         import io
         import os
         import sys
@@ -301,7 +327,7 @@ async def run_ghidra_init() -> None:
                 "msg": f"DAYWATER_GHIDRA_HOME not set or missing: {ghidra_home!r}",
             })
             _emit_ghidra_event({"t": "done", "ok": False})
-            return
+            return False
 
         _emit_ghidra_event({"t": "log", "msg": f"ghidra home: {ghidra_home}"})
 
@@ -362,7 +388,7 @@ async def run_ghidra_init() -> None:
             sys.stderr = old_stderr
             _emit_ghidra_event({"t": "error", "msg": f"JVM start failed: {exc}"})
             _emit_ghidra_event({"t": "done", "ok": False})
-            return
+            return False
         finally:
             # Flush remaining buffered output
             if hasattr(sys.stdout, "flush"):
@@ -389,7 +415,7 @@ async def run_ghidra_init() -> None:
         except Exception as exc:
             _emit_ghidra_event({"t": "error", "msg": f"failed to import Ghidra classes: {exc}"})
             _emit_ghidra_event({"t": "done", "ok": False})
-            return
+            return False
 
         # Try a test analysis if a sample binary is available
         sample_dol = samples_root() / "nightfire_hud_off" / "boot.dol"
@@ -433,12 +459,14 @@ async def run_ghidra_init() -> None:
             "ok": True,
             "msg": f"initialization complete ({total:.1f}s)",
         })
+        return True
 
     try:
-        await loop.run_in_executor(_executor, _init)
+        return await loop.run_in_executor(_executor, _init)
     except Exception as exc:
         _emit_ghidra_event({"t": "error", "msg": str(exc)})
         _emit_ghidra_event({"t": "done", "ok": False})
+        return False
     finally:
         _ghidra_init_running = False
 
@@ -449,7 +477,8 @@ async def stream_ghidra_init_events() -> Any:
     while True:
         if _ghidra_init_events.exists():
             content = _ghidra_init_events.read_text()
-            lines = content.split("\n")
+            # Only count complete JSONL records; a concurrent write may be partial.
+            lines = content.split("\n")[:-1]
             new_lines = lines[offset:]
             for line in new_lines:
                 line = line.strip()

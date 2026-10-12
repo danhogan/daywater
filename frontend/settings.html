@@ -295,6 +295,7 @@
     <ul class="config-list" id="config-list"></ul>
 
     <button id="add-btn" onclick="toggleAddPanel()">+ Add Model</button>
+    <button id="add-codex-btn" onclick="addCodexConfig()">+ Add Codex (existing login)</button>
 
     <!-- ── Add model panel ───────────────────────────────────────── -->
     <div class="add-panel" id="add-panel" hidden>
@@ -416,14 +417,15 @@
       el.innerHTML = configs.map(c => {
         const isActive = c.id === activeId;
         const isProxy = !!c.base_url;
-        const detail = isProxy ? `${c.model} via ${c.base_url}` : c.model;
+        const isCodex = c.backend === 'codex';
+        const detail = isCodex ? (c.model || 'Codex default model') : (isProxy ? `${c.model} via ${c.base_url}` : c.model);
         return `<li class="config-item${isActive ? ' active' : ''}" onclick="window._activate('${c.id}')">
           <div class="ci-radio"></div>
           <div class="ci-info">
             <div class="ci-name">${esc(c.name)}</div>
             <div class="ci-detail">${esc(detail)}${c.api_key_preview ? ' &middot; key: ' + esc(c.api_key_preview) : ''}</div>
           </div>
-          ${isProxy ? '<span class="ci-badge proxy">proxy</span>' : '<span class="ci-badge">api</span>'}
+          ${isCodex ? '<span class="ci-badge">codex</span>' : (isProxy ? '<span class="ci-badge proxy">proxy</span>' : '<span class="ci-badge">api</span>')}
           <span class="ci-remove" onclick="event.stopPropagation(); window._remove('${c.id}')">remove</span>
         </li>`;
       }).join('');
@@ -443,6 +445,23 @@
       configs = configs.filter(c => c.id !== id);
       if (activeId === id) activeId = configs.length ? configs[0].id : '';
       renderConfigs();
+    };
+
+    window.addCodexConfig = async () => {
+      try {
+        const status = await api('GET', '/api/setup/codex-status');
+        if (!status.ok) throw new Error(status.error || 'Codex login unavailable');
+        const res = await api('POST', '/api/settings/configs', {
+          name: 'Codex (existing login)', backend: 'codex', model: '',
+        });
+        if (!res.ok) throw new Error(res.error || 'Could not add Codex');
+        const s = await api('GET', '/api/settings');
+        configs = s.model_configs || [];
+        activeId = s.active_model_config || '';
+        renderConfigs();
+      } catch (err) {
+        alert(err.message);
+      }
     };
 
     // ── Add panel toggle ───────────────────────────────────────────── //

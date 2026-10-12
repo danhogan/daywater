@@ -106,6 +106,9 @@ class TaskConfig:
     result_hud_mean: float = 0.0
     result_preserve_mean: float = 0.0
     result_log_file: str = ""
+    result_summary: str = ""
+    agent_backend: str = "inspect"
+    codex_thread_id: str = ""
 
     # ── Legacy fields (for migration only) ──────────────────────── #
     # These are read during deserialization for backwards compat

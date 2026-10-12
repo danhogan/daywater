@@ -116,9 +116,12 @@ def run_analysis(
     cache_dir.mkdir(parents=True, exist_ok=True)
     decomp_dir = cache_dir / "decompiled"
     decomp_dir.mkdir(exist_ok=True)
+    disasm_dir = cache_dir / "disassembly"
+    disasm_dir.mkdir(exist_ok=True)
 
     sentinel = cache_dir / ".binary_sha1"
-    if not force and sentinel.exists() and sentinel.read_text().strip() == binary_sha1:
+    if (not force and sentinel.exists() and sentinel.read_text().strip() == binary_sha1
+            and (cache_dir / "functions.json").exists()):
         existing = list(decomp_dir.glob("*.txt"))
         logger.info("analysis_cache_hit", sha1=binary_sha1, functions=len(existing))
         return AnalysisResult(
@@ -139,6 +142,7 @@ def run_analysis(
         project_dir,
         project_name,
         decomp_dir,
+        disasm_dir=disasm_dir,
         functions_json=cache_dir / "functions.json",
         callgraph_json=cache_dir / "callgraph.json",
         strings_json=cache_dir / "strings.json",
@@ -167,6 +171,7 @@ def _run_pyghidra(
     project_name: str,
     decomp_dir: Path,
     *,
+    disasm_dir: Path,
     functions_json: Path,
     callgraph_json: Path,
     strings_json: Path,
@@ -207,7 +212,7 @@ def _run_pyghidra(
         decompiler.openProgram(program)
         monitor = ConsoleTaskMonitor()
 
-        entries: list[dict[str, str | int]] = []
+        entries: list[dict[str, object]] = []
         callgraph: dict[str, dict[str, list[dict[str, object]] | list[str]]] = {}
 
         # Build a quick addr → name map up-front (used to label callees/callers
@@ -223,7 +228,12 @@ def _run_pyghidra(
             name = str(f.getName())
             size = int(f.getBody().getNumAddresses())
             addr_hex = f"{addr:08x}"
-            entries.append({"addr": addr_hex, "name": name, "size": size})
+            ranges = [
+                [f"{int(r.getMinAddress().getOffset()):08x}", f"{int(r.getMaxAddress().getOffset()):08x}"]
+                for r in f.getBody().getAddressRanges()
+            ]
+            entry_record = {"addr": addr_hex, "name": name, "size": size, "ranges": ranges}
+            entries.append(entry_record)
 
             callees: list[dict[str, object]] = []
             for callee in f.getCalledFunctions(monitor):
@@ -247,6 +257,11 @@ def _run_pyghidra(
                 code = f"// decompile exception: {exc}\n"
 
             (decomp_dir / f"{addr_hex}.txt").write_text(code)
+            entry_record["decompilation_sha256"] = hashlib.sha256(code.encode()).hexdigest()
+            instructions = listing.getInstructions(f.getBody(), True)
+            (disasm_dir / f"{addr_hex}.txt").write_text(
+                "\n".join(f"{ins.getAddress()}: {ins}" for ins in instructions) + "\n"
+            )
 
         decompiler.dispose()
         _detail(f"decompilation complete — writing {total:,} functions + call graph")

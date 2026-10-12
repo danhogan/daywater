@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from src.core.config import PROVIDER_ENV_VARS, settings, web_settings
+from src.core.config import PROVIDER_ENV_VARS, settings, validate_agent_config, web_settings
 
 router = APIRouter()
 
@@ -30,6 +30,7 @@ async def get_settings() -> dict:  # type: ignore[type-arg]
         "model_configs": web_settings.model_configs_masked(),
         "active_model_config": web_settings.active_config_id(),
         "active_model": active.get("model", "") if active else "",
+        "active_backend": web_settings.active_backend(),
         "setup_complete": web_settings.get("setup_complete", False),
         "ghidra_initialized": web_settings.get("ghidra_initialized", False),
         "demo": settings.DEMO,
@@ -45,12 +46,16 @@ async def add_model_config(body: dict) -> dict[str, Any]:  # type: ignore[type-a
     model = body.get("model", "").strip()
     api_key = body.get("api_key", "").strip()
     base_url = body.get("base_url", "").strip()
+    backend = body.get("backend", "inspect").strip()
 
-    if not name or not model:
-        return {"ok": False, "error": "Name and model are required."}
+    if not name:
+        return {"ok": False, "error": "Name is required."}
+    error = validate_agent_config(backend, model, api_key, base_url)
+    if error:
+        return {"ok": False, "error": error}
 
     config = web_settings.add_model_config(
-        name=name, model=model, api_key=api_key, base_url=base_url,
+        name=name, model=model, api_key=api_key, base_url=base_url, backend=backend,
     )
     web_settings.save()
     web_settings.apply_to_env()

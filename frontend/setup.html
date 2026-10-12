@@ -25,11 +25,20 @@
       <div class="setup-step-dot" data-step="3">3</div>
     </div>
 
-    <!-- Step 1: API key + model -->
+    <!-- Step 1: agent backend -->
     <div id="step-1" class="setup-step">
-      <div class="setup-step-title">API Key &amp; Model</div>
+      <div class="setup-step-title">Agent Backend</div>
       <div class="setup-step-desc">Configure the LLM backend used for agent runs.</div>
 
+      <div class="setup-field">
+        <label class="setup-label" for="backend">Backend</label>
+        <select id="backend" class="setup-input" onchange="updateBackendFields()">
+          <option value="inspect">Inspect / API key</option>
+          <option value="codex">Codex / existing ChatGPT login</option>
+        </select>
+      </div>
+
+      <div id="api-fields">
       <div class="setup-field">
         <label class="setup-label" for="model">Model</label>
         <input type="text" id="model" class="setup-input" value="openai/gpt-5.5" placeholder="provider/model-name" oninput="updateProviderHint()">
@@ -43,6 +52,10 @@
           <button type="button" id="key-vis-btn" onclick="toggleKeyVisibility()">show</button>
         </div>
         <div id="provider-hint" class="setup-field-hint">API key for the selected provider.</div>
+      </div>
+      </div>
+      <div id="codex-hint" class="setup-field-hint" hidden>
+        Codex uses the login mounted into the Daywater container. No API key is needed here.
       </div>
 
       <div style="display:flex; align-items:center; gap:0.75rem; margin-top:1rem;">
@@ -83,7 +96,7 @@
 
       <div class="setup-done-summary">
         <div class="setup-done-row">
-          <span class="setup-done-check">OK</span> API key configured
+          <span class="setup-done-check">OK</span> Agent backend configured
         </div>
         <div class="setup-done-row">
           <span class="setup-done-check">OK</span> Ghidra analysis engine initialized
@@ -130,6 +143,14 @@
       }
     };
 
+    window.updateBackendFields = function updateBackendFields() {
+      const codex = document.getElementById('backend').value === 'codex';
+      document.getElementById('api-fields').hidden = codex;
+      document.getElementById('codex-hint').hidden = !codex;
+      document.getElementById('test-result').hidden = true;
+      document.getElementById('next-1').disabled = true;
+    };
+
     // ── Step navigation ──────────────────────────────────────────────── //
 
     window.goStep = function goStep(n) {
@@ -162,19 +183,20 @@
     };
 
     window.testConnection = async function testConnection() {
+      const backend = document.getElementById('backend').value;
       const keyVal = document.getElementById('api-key').value.trim();
       const modelVal = document.getElementById('model').value.trim();
       const result = document.getElementById('test-result');
       const nextBtn = document.getElementById('next-1');
 
-      if (!modelVal) {
+      if (backend === 'inspect' && !modelVal) {
         result.hidden = false;
         result.className = 'setup-test-result error';
         result.textContent = 'Please enter a model.';
         return;
       }
 
-      if (!keyVal) {
+      if (backend === 'inspect' && !keyVal) {
         result.hidden = false;
         result.className = 'setup-test-result error';
         result.textContent = 'Please enter an API key.';
@@ -186,17 +208,31 @@
       result.textContent = 'Testing...';
 
       try {
+        if (backend === 'codex') {
+          const status = await api('GET', '/api/setup/codex-status');
+          if (!status.ok) throw new Error(status.error || 'Codex login unavailable');
+          const saved = await api('POST', '/api/settings/configs', {
+            name: 'Codex (existing login)', backend: 'codex', model: '',
+          });
+          if (!saved.ok) throw new Error(saved.error || 'Could not save Codex configuration');
+          result.className = 'setup-test-result ok';
+          result.textContent = 'Codex login found and configuration saved.';
+          nextBtn.disabled = false;
+          return;
+        }
         const res = await api('POST', '/api/setup/test-key', {
           api_key: keyVal,
           model: modelVal || 'openai/gpt-5.5',
         });
+        if (!res.ok) throw new Error(res.error || 'Connection failed');
 
         // Save as a model config on success
-        await api('POST', '/api/settings/configs', {
+        const saved = await api('POST', '/api/settings/configs', {
           name: modelVal,
           model: modelVal || 'openai/gpt-5.5',
           api_key: keyVal,
         });
+        if (!saved.ok) throw new Error(saved.error || 'Could not save model');
 
         if (res.warning) {
           result.className = 'setup-test-result ok';
@@ -242,26 +278,34 @@
       // Stream logs via SSE
       const es = new EventSource('/api/setup/init-ghidra/events');
 
-      es.addEventListener('log', (e) => {
-        logEl.textContent += e.data + '\n';
-        logEl.scrollTop = logEl.scrollHeight;
-      });
-
-      es.addEventListener('progress', (e) => {
-        const pct = Number(e.data);
-        fill.style.width = pct + '%';
-      });
-
-      es.addEventListener('phase', (e) => {
-        phase.textContent = e.data;
-      });
-
-      es.addEventListener('done', () => {
-        es.close();
-        phase.textContent = 'Complete';
-        fill.style.width = '100%';
-        nextBtn.disabled = false;
-      });
+      es.onmessage = (e) => {
+        let event;
+        try {
+          event = JSON.parse(e.data);
+        } catch {
+          return;
+        }
+        if (event.t === 'log' || event.t === 'jvm_log' || event.t === 'error') {
+          logEl.textContent += (event.msg || '') + '\n';
+          logEl.scrollTop = logEl.scrollHeight;
+        }
+        if (event.t === 'phase') {
+          phase.textContent = event.msg || event.phase;
+          const progress = {jvm_start: 25, jvm_ready: 65, analysis_start: 80, analysis_done: 95};
+          if (progress[event.phase]) fill.style.width = progress[event.phase] + '%';
+        }
+        if (event.t === 'done') {
+          es.close();
+          if (event.ok) {
+            phase.textContent = 'Complete';
+            fill.style.width = '100%';
+            nextBtn.disabled = false;
+          } else {
+            phase.textContent = 'Failed';
+            btn.disabled = false;
+          }
+        }
+      };
 
       es.addEventListener('error', (e) => {
         // SSE error can be a real failure or just stream end
@@ -287,6 +331,7 @@
     // ── Init ─────────────────────────────────────────────────────────── //
     updateDots();
     window.updateProviderHint();
+    window.updateBackendFields();
   </script>
 </body>
 </html>

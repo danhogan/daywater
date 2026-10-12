@@ -308,7 +308,18 @@ class DolphinSession:
 
     def is_running(self) -> bool:
         """Check if Dolphin is still running."""
-        return self.proc.poll() is None
+        if self.proc.poll() is None:
+            return True
+        return self._child_is_dolphin()
+
+    def _child_is_dolphin(self) -> bool:
+        """Check the child PID without mistaking a reused PID for Dolphin."""
+        if self.pid == self.proc.pid:
+            return False
+        try:
+            return b"dolphin-emu" in (Path(f"/proc/{self.pid}") / "cmdline").read_bytes()
+        except OSError:
+            return False
 
     def terminate(self, timeout: float = 10.0) -> int:
         """Send SIGTERM, wait, escalate to SIGKILL if needed.
@@ -317,7 +328,7 @@ class DolphinSession:
         """
         # When launched via xvfb-run, self.proc is the wrapper and self.pid
         # is the real dolphin-emu child. Kill the child first to avoid orphans.
-        if self.pid != self.proc.pid:
+        if self._child_is_dolphin():
             try:
                 os.kill(self.pid, signal.SIGTERM)
             except OSError:
@@ -331,7 +342,7 @@ class DolphinSession:
                 self.proc.wait(timeout=timeout)
             except subprocess.TimeoutExpired:
                 # Escalate: SIGKILL both child and wrapper
-                if self.pid != self.proc.pid:
+                if self._child_is_dolphin():
                     try:
                         os.kill(self.pid, signal.SIGKILL)
                     except OSError:
@@ -339,6 +350,18 @@ class DolphinSession:
                 self.proc.kill()
                 self.proc.wait(timeout=5)
             rc = self.proc.returncode if self.proc.returncode is not None else -1
+
+        # xvfb-run may exit before Dolphin does. Wait for the child itself,
+        # then force it down if it ignored SIGTERM.
+        if self.pid != self.proc.pid:
+            child_deadline = time.monotonic() + min(timeout, 2.0)
+            while self._child_is_dolphin() and time.monotonic() < child_deadline:
+                time.sleep(0.1)
+            if self._child_is_dolphin():
+                try:
+                    os.kill(self.pid, signal.SIGKILL)
+                except OSError:
+                    pass
 
         # Wait for input thread to finish
         if self._input_thread is not None and self._input_thread.is_alive():
@@ -455,11 +478,18 @@ class DolphinSession:
 
         dolphin_ini = DEFAULT_DOLPHIN_INI
         if gdb_port is not None:
-            # Inject GDB stub config — Dolphin reads GDBPort from [General]
+            # Dolphin's execution-breakpoint checks require debugger mode in
+            # addition to a listening GDB stub. Keep this scoped to sessions
+            # that explicitly request GDB.
             dolphin_ini = dolphin_ini.replace(
                 "[General]\n",
                 f"[General]\nGDBPort = {gdb_port}\n",
             )
+            dolphin_ini += "\n[Interface]\nDebugModeEnabled = True\n"
+        if pipe_input:
+            # Headless pipe-controlled sessions may not own the focused
+            # window. Let Dolphin accept their controller input regardless.
+            dolphin_ini += "\n[Input]\nBackgroundInput = True\n"
         (user_dir / "Config" / "Dolphin.ini").write_text(dolphin_ini)
         (user_dir / "Config" / "GFX.ini").write_text(DEFAULT_GFX_INI)
 
