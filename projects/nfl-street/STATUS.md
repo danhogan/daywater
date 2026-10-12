@@ -6,6 +6,23 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
+**Latest: connected factory and model binding.** Native creation now owns the
+fresh object's clearing/header and routes model binding into reconstructed
+command headers, model copies, index buffers/remapping and shared-model state.
+Root independently rebuilt and passed3,072 joined comparisons through the
+actual original factory, constructor, appearance and binding bodies. All actor
+bytes, allocation storage, registries, source-view mutations and2,172 ordered
+requests agree;2,070 requests are name comparisons, not gameplay frames.
+Separate factory and binding gates pass576 and96 comparisons, and the earlier
+constructor-only gate still passes1,536. Protected originals are unchanged.
+
+Reference resources and inverse descriptors are still supplied, as are cache,
+query, texture/node and renderer operations. Fresh selected-resource pools,
+descriptor assembly, resource lifetime and playable match startup remain open.
+Existing roster resolution and verified base-body archive binding will be
+reused. See [joined evidence](reconstruction/native_assets/player_bound_startup.md)
+and [remaining loading boundary](reconstruction/native_assets/player_resource_loading.md).
+
 **Connected player initialization — 2026-10-12:** native code now joins the
 model/channel initializer, tail reset and appearance state setup. It matches
 1,536 original constructor-through-appearance comparisons across three saved

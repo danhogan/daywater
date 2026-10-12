@@ -9,4 +9,4 @@ headers=${DAYWATER_MODERNGEKKO_HEADERS:-/mnt/w/Daywater/tools/ModernGekko-Templa
 export ZIG_GLOBAL_CACHE_DIR=${ZIG_GLOBAL_CACHE_DIR:-/tmp/daywater-zig-cache}
 "$zig" cc -target x86_64-windows-gnu -std=c11 -O2 -Wall -Wextra -Werror -ffp-contract=off \
  -I "$headers" "$root/player_startup_original_check.c" "$root/player_startup.c" \
- "$root/player_appearance_init.c" "$root/player_constructor.c" "$root/actor_model_init.c" "$root/actor_tail_init.c" -o "$out/player-startup-original-check.exe"
+ "$root/player_appearance_init.c" "$root/player_constructor.c" "$root/actor_model_init.c" "$root/actor_tail_init.c" "$root/actor_factory.c" -o "$out/player-startup-original-check.exe"

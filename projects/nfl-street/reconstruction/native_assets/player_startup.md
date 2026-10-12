@@ -6,7 +6,12 @@ storage; it does not copy a saved actor. The native code has no dependency on
 Dolphin, ModernGekko or original RAM addresses. Original game data enters as
 bounded resource views and catalog words supplied by the caller.
 
-The factory header and resource lifetime still belong to the caller. Complex
+The connected `nflstreet_player_create` API now supplies factory clearing and
+header ownership before this initialization. Its separate 1,536-case gate
+enters through the actual original factory. See [factory evidence](actor_factory.md).
+
+Direct `nflstreet_player_initialize` leaves the factory header with its caller;
+`nflstreet_player_create` owns that header. Resource lifetime remains external. Complex
 model, texture and node binding operations are required services. A rejected
 service returns zero with earlier writes retained. This is a checked player
 initialization path, not complete selected-player asset loading or a playable
