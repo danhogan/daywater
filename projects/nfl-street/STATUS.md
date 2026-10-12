@@ -6,7 +6,23 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: independently relocated base bodies.** All nine decoded base-body
+**Latest: selected roster to processed face/body resources.** Native assembly
+now resolves a team/DIGP, loads its adjacent face-model pair and borrows an
+explicit processed body variant. All402 regular-roster rows pass each of three
+explicit variants:1,206 assemblies and2,412 processed face models per fresh
+Windows process, with no snapshot or original module as runtime input. A
+separate original face acquisition check matches12 complete files,12 views and
+12 pool-4 selections across three contexts and two fresh processes. Root
+independently rebuilds and repeats both gates; protected inputs are unchanged.
+
+The face check controls the optional original postattachment stage to zero;
+it is not full face activation. Hair, textures/materials, fresh descriptors,
+postattachment/resource-to-actor binding and playable selected-match startup
+remain unfinished. Current menus and the controllable reference scene work;
+the new resources are not yet substituted into fresh match actors. See
+[selected resources and limits](reconstruction/native_assets/selected_player_resources.md).
+
+**Earlier: independently relocated base bodies.** All nine decoded base-body
 assets now process through owned native directory dispatch and chunk handlers,
 then form their complete processed model views.216 whole-file comparisons,
 216 repeat no-op calls and216 resulting views, plus54 joined pooled assets,
