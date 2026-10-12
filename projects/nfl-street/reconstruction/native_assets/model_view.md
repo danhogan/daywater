@@ -27,7 +27,8 @@ in order. A first nonempty matching row wins; empty rows are skipped. Missing
 tags preserve earlier view contents. Word +1C is untouched. A direct lookup of
 an unknown tag reports success when a nonempty row exists but writes no slot.
 Fresh catalog views start with zeroed storage. The bounded API validates header,
-directory and chunk spans before attachment writes and rejects relocated inputs;
+directory and chunk spans before attachment writes. The subsequent relocation
+milestone extends it to processed directories using the supplied resource token;
 original malformed-input behavior is not claimed.
 
 ## Original comparison
@@ -77,6 +78,10 @@ Tag labels identify source sections; they do not establish every section's
 runtime layout, material semantics or animation interpretation.
 
 ## Remaining boundary
+
+The subsequent [model relocation](model_relocate.md) now processes all nine
+owned body assets and attaches their namespace references. The raw gate above
+still passes after that extension.
 
 The fresh catalog replaces reference-state extraction for these raw body views.
 It is not the complete original resource-pool registration or a relocated

@@ -15,6 +15,7 @@ def main():
     entries = ('native_assets/model_view.c', 'native_assets/body_resource_pool.c',
                'native_assets/model_view_original_check.c', 'native_assets/actor_model_init.c',
                'native_assets/archive.c', 'native_assets/lzh1.c',
+               'native_assets/model_relocate.c', 'native_assets/model_chunk_relocate.c',
                'menus/team_player_body_binding.c', 'native_assets/build_windows_model_view_original_check.sh')
     record = {'status': 'running', 'boundary':
               'Original801C67E4/801C6644 and lookup helpers with actual independently decoded '

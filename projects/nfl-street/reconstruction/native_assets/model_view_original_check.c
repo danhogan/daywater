@@ -18,6 +18,7 @@ static int original_view(const ModernGekkoModuleDesc *m,uint8_t *ram,const uint8
     for(unsigned step=0;c.pc&&step<100000;++step){c.downcount=-1000000000;m->dispatch(&c,c.pc);if(c.exception)return 0;}
     *found=c.gpr[3];return !c.pc;
 }
+#ifndef NFLSTREET_MODEL_VIEW_HELPERS_ONLY
 int main(int argc,char **argv){
     if(argc!=4)return 2;HMODULE h=LoadLibraryA(argv[1]);if(!h)return 3;
     ModernGekkoGetModuleFn get=(ModernGekkoGetModuleFn)GetProcAddress(h,MODERNGEKKO_GET_MODULE_SYMBOL);
@@ -49,3 +50,4 @@ int main(int argc,char **argv){
     printf("Fresh body model views: %u full attachment cases +%u direct tag cases +9 pooled views +3 alias queries exact.\n",cases,cases*4);
     nflstreet_body_resource_pool_close(&pool);free(baseline);free(archive);FreeLibrary(h);return 0;
 }
+#endif

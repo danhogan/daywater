@@ -6,7 +6,21 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: fresh base-body resource views.** Native code now decodes all nine
+**Latest: independently relocated base bodies.** All nine decoded base-body
+assets now process through owned native directory dispatch and chunk handlers,
+then form their complete processed model views.216 whole-file comparisons,
+216 repeat no-op calls and216 resulting views, plus54 joined pooled assets,
+match actual original relocation and attachment across three contexts and two
+fresh Windows processes each. The existing raw-view gate still passes. No
+relocation callbacks are stubbed in this check; protected originals are unchanged.
+
+This supplies checked resource namespace references for the base-body catalog.
+Face/hair/texture/material acquisition, fresh descriptors and replacing the
+reference resource inputs in player creation remain unfinished, as does fresh
+match startup. Untested chunk-handler branches remain outside the verified
+scope. See [relocation evidence](reconstruction/native_assets/model_relocate.md).
+
+**Earlier: fresh base-body resource views.** Native code now decodes all nine
 verified base-body archive entries and owns their complete raw model views.
 No saved actor record is copied into this catalog. Across three contexts and
 two fresh Windows processes each,432 full attachments and1,728 direct tag

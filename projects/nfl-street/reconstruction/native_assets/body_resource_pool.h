@@ -1,6 +1,7 @@
 #ifndef NFLSTREET_BODY_RESOURCE_POOL_H
 #define NFLSTREET_BODY_RESOURCE_POOL_H
 #include "model_view.h"
+#include "model_relocate.h"
 #include "../menus/team_player_body_binding.h"
 typedef struct {
     nflstreet_team_body_binding assets[9];
@@ -13,6 +14,9 @@ typedef struct {
 int nflstreet_body_resource_pool_open(const uint8_t *, size_t, uint32_t identity_base,
     nflstreet_body_resource_pool *);
 void nflstreet_body_resource_pool_close(nflstreet_body_resource_pool *);
+/* Relocate each owned asset using its namespace identity, then attach its
+   processed view. Rejection retains earlier changes; caller may close pool. */
+int nflstreet_body_resource_pool_process(nflstreet_body_resource_pool *);
 /* TBYP7 aliases key2, matching the existing verified body binder. Returned
    views/assets remain borrowed until close. No automatic variant policy. */
 int nflstreet_body_resource_pool_get(const nflstreet_body_resource_pool *, uint32_t tbyp,

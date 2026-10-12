@@ -45,3 +45,18 @@ int nflstreet_body_resource_pool_get(const nflstreet_body_resource_pool *pool,
     *view = pool->views[i];
     return 1;
 }
+
+int nflstreet_body_resource_pool_process(nflstreet_body_resource_pool *pool)
+{
+    if(!pool)return 0;
+    size_t count=0;
+    const nflstreet_model_chunk_registration *registry=nflstreet_model_default_registry(&count);
+    for(unsigned i=0;i<9;++i){
+        nflstreet_team_body_binding *asset=pool->assets+i;
+        if(!asset->bytes||!pool->tokens[i]||
+           !nflstreet_model_relocate(asset->bytes,asset->size,pool->tokens[i],registry,count))return 0;
+        nflstreet_model_view_source source={asset->bytes,asset->size,pool->tokens[i]};
+        if(!nflstreet_model_view_attach(pool->views[i],sizeof pool->views[i],&source))return 0;
+    }
+    return 1;
+}
