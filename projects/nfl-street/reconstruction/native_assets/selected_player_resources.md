@@ -13,13 +13,16 @@ outlive the resource object. Namespace ranges must not overlap. Invalid player,
 unsupported body variant or overlapping identities reject without changing
 caller output, releasing any newly decoded face buffers. This API does not
 choose original gameplay variants, acquire a selected hair model, bind materials
-or textures, apply the original postattachment stage, or construct an actor.
+or textures, or construct an actor. The separate `face_postattach` adapter now
+binds both owned face models to a freshly loaded SKL1 target.
 
 ## Native real-data coverage
 
 **Verified native assembly coverage:** all402 regular-team PLAY rows from32
 private DB blocks succeed for each of three explicitly selected body variants:
-1,206 assemblies and2,412 processed face models in each fresh process. Both
+1,206 assemblies and2,412 bound face models in each fresh process. Entry95
+from `animdata.dat` is decoded/relocated afresh; every pair makes six temporary
+allocations/releases and a repeated bind makes no additional requests. Both
 fresh Windows process logs agree. The checked face indices equal the separately
 verified manifest index and its adjacent entry; each processed file has bounded
 Info/Geom spans. The body choice agrees with the verified key/variant archive
@@ -38,6 +41,7 @@ prove complete face activation or all402 original acquisition paths.
 ```bash
 python3 projects/nfl-street/reconstruction/native_assets/verify_selected_player_resources.py
 python3 projects/nfl-street/reconstruction/native_assets/verify_face_resource_pair.py
+python3 projects/nfl-street/reconstruction/native_assets/verify_face_bound_resource.py
 ```
 
 Private reports:
@@ -61,9 +65,12 @@ and [face acquisition](face_resource_pair.md).
 
 An early comparison exposed the optional original `801C6B38` postattachment
 stage selected by the saved input at r13-7220. With that stage active, the
-result differs from the relocation-only resource view. It remains a separate
-required reconstruction step; the native pair does not silently claim its
-effects. Hair/texture/material ownership, fresh constructor descriptors,
+result differs from the relocation-only resource view. It is now implemented and verified in a
+[connected original acquisition comparison](model_postattach.md):12 complete
+files/views and12 pool queries with binding active, using a fresh target.
+The earlier relocation-only gate still passes. These checks preserve the
+reference material-remap input of zero; full original appearance activation
+remains outside their scope. Hair/texture/material ownership, fresh constructor descriptors,
 resource-to-actor binding and original draw behavior also remain unfinished.
 Menus and the controllable reference scene still work, but these assembled
 resources have not yet replaced reference-player resources in a fresh match.

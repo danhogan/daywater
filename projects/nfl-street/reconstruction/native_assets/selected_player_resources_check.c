@@ -1,4 +1,5 @@
 #include "selected_player_resources.h"
+#include "face_postattach.h"
 #include "../menus/team_catalog.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,15 +9,28 @@ static uint8_t *load(const char *path,size_t *size){
  long n=ftell(f);if(n<16||fseek(f,0,SEEK_SET)){fclose(f);return NULL;}uint8_t *b=malloc((size_t)n);
  if(!b||fread(b,1,(size_t)n,f)!=(size_t)n){free(b);fclose(f);return NULL;}fclose(f);*size=(size_t)n;return b;
 }
+typedef struct {void *bytes[6];uint32_t tokens[6];unsigned made,freed;} temporaries;
+static int allocate_temporary(void *opaque,uint32_t count,uint32_t width,nflstreet_model_postattach_segment *out){
+ temporaries *t=opaque;if(t->made>=6||(uint64_t)count*width>0x10000u)return 0;
+ unsigned i=t->made++;size_t size=(size_t)count*width;t->bytes[i]=malloc(size?size:1);
+ if(!t->bytes[i])return 0;t->tokens[i]=0x40000000u+i*0x10000u;
+ *out=(nflstreet_model_postattach_segment){t->tokens[i],t->bytes[i],size};return 1;
+}
+static void release_temporary(void *opaque,uint32_t token){
+ temporaries *t=opaque;for(unsigned i=0;i<t->made;++i)if(t->tokens[i]==token&&t->bytes[i]){
+  free(t->bytes[i]);t->bytes[i]=NULL;++t->freed;return;}
+}
 int main(int argc,char **argv){
- if(argc!=5)return 2;size_t fn=0,hn=0,bn=0;
+ if(argc!=6)return 2;size_t fn=0,hn=0,bn=0,an=0;
  uint8_t *face=load(argv[1],&fn),*hair=load(argv[2],&hn),*body=load(argv[3],&bn);
+ uint8_t *anim=load(argv[4],&an);nflstreet_archive animation;nflstreet_skeleton_resource target={0};
+ if(!anim||!nflstreet_archive_open(anim,an,&animation)||!nflstreet_skeleton_resource_open(&animation,95,0x30000000u,&target))return 3;
  nflstreet_team_player_resolver resolver;nflstreet_body_resource_pool bodies={0};
  if(!face||!hair||!body||!nflstreet_team_player_resolver_open(face,fn,hair,hn,&resolver)||
   !nflstreet_body_resource_pool_open(body,bn,0x20000000u,&bodies)||!nflstreet_body_resource_pool_process(&bodies))return 3;
  unsigned rows=0,assemblies=0,models=0,guards=0;
  for(unsigned entry=1;entry<=32;++entry){
-  char path[4096];size_t size=0;int n=snprintf(path,sizeof path,"%s/db_teams/%05u.bin",argv[4],entry);
+  char path[4096];size_t size=0;int n=snprintf(path,sizeof path,"%s/db_teams/%05u.bin",argv[5],entry);
   if(n<0||n>=(int)sizeof path)return 4;uint8_t *db=load(path,&size);nflstreet_team_table table;
   if(!db||!nflstreet_team_table_open_tag(db,size,0x59414c50u,&table))return 4;
   unsigned team_field=UINT32_MAX,player_field=UINT32_MAX;
@@ -46,13 +60,18 @@ int main(int argc,char **argv){
       nflstreet_model_view_find(&source,0x47656f6du,&geom)!=1||!info.size||geom.size<24)return 5;
      ++models;
     }
+    temporaries temporary={0};
+    if(!nflstreet_face_resource_pair_bind(&r.face,&target,0x18000000u,allocate_temporary,release_temporary,&temporary)||
+       temporary.made!=6||temporary.freed!=6||
+       !nflstreet_face_resource_pair_bind(&r.face,&target,0x18000000u,allocate_temporary,release_temporary,&temporary)||
+       temporary.made!=6||temporary.freed!=6)return 8;
     ++assemblies;nflstreet_selected_player_resources_close(&r);
    }
    ++rows;
   }free(db);
  }
- nflstreet_body_resource_pool_close(&bodies);free(face);free(hair);free(body);
+ nflstreet_skeleton_resource_close(&target);nflstreet_body_resource_pool_close(&bodies);free(face);free(hair);free(body);free(anim);
  if(rows!=402||assemblies!=1206||models!=2412||guards!=3)return 6;
- printf("Selected native resources: %u roster rows, %u explicit body-variant assemblies, %u processed face models, %u ownership/input guards; no snapshot/module input.\n",rows,assemblies,models,guards);
+ printf("Selected native resources: %u roster rows, %u explicit body-variant assemblies, %u bound face models, %u ownership/input guards; fresh target and repeated binding, no snapshot/module input.\n",rows,assemblies,models,guards);
  return 0;
 }

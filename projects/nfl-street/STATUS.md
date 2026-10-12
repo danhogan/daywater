@@ -6,21 +6,26 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: selected roster to processed face/body resources.** Native assembly
-now resolves a team/DIGP, loads its adjacent face-model pair and borrows an
-explicit processed body variant. All402 regular-roster rows pass each of three
-explicit variants:1,206 assemblies and2,412 processed face models per fresh
-Windows process, with no snapshot or original module as runtime input. A
-separate original face acquisition check matches12 complete files,12 views and
-12 pool-4 selections across three contexts and two fresh processes. Root
-independently rebuilds and repeats both gates; protected inputs are unchanged.
+**Latest: fresh skeleton loading and connected face binding.** Native code
+now loads skeleton resources directly from `animdata.dat` and binds each
+selected face pair to that owned target. Six resources match the original
+relocation helper across36 whole-file checks and36 repeated no-ops. The
+connected original face acquisition path now runs its optional binding stage:
+12 acquired files,12 views and12 pool queries match across three contexts,
+twice in fresh Windows processes. The relocation-only gate still passes.
 
-The face check controls the optional original postattachment stage to zero;
-it is not full face activation. Hair, textures/materials, fresh descriptors,
-postattachment/resource-to-actor binding and playable selected-match startup
-remain unfinished. Current menus and the controllable reference scene work;
-the new resources are not yet substituted into fresh match actors. See
-[selected resources and limits](reconstruction/native_assets/selected_player_resources.md).
+All402 regular-roster players pass native assembly and binding for three
+explicit body variants:1,206 assemblies and2,412 bound faces per fresh process,
+with no snapshot or original module at runtime. This closes the previously
+excluded skeleton/cluster binding stage. Protected originals are unchanged.
+See [binding evidence and limits](reconstruction/native_assets/model_postattach.md)
+and [fresh skeleton loading](reconstruction/native_assets/skeleton_resource.md).
+
+Hair, textures/materials, game-specific skeleton edits, fresh descriptors and
+resource-to-actor binding remain unfinished. Menus and the controllable reference
+scene work; these resources are not yet substituted into fresh match actors.
+The next connection is remaining appearance resources into checked player
+creation, followed by playable selected-match startup.
 
 **Earlier: independently relocated base bodies.** All nine decoded base-body
 assets now process through owned native directory dispatch and chunk handlers,
