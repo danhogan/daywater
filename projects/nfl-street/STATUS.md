@@ -6,7 +6,25 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: complete fresh skeleton startup.** Native code now owns all six
+**Latest: selected face textures and joined appearance ownership.** All402
+regular-roster players now load owned raw/processed face MMAP data and an
+inspection plane;15 use the original template fallback. Actual original
+formatting, HSH1 lookup and complete request-record comparisons pass1,208
+cases per process. All388 distinct processed MMAP files and repeat no-ops match
+original relocation across three contexts twice.
+
+A reusable owner joins selected geometry and face texture across1,206 explicit
+body-variant assemblies, with prepared skeleton binding and namespace rejection.
+This supplies the first selected appearance texture; decoded inspection pixels
+are not an original GPU/material comparison. See
+[face texture evidence and limits](reconstruction/native_assets/face_texture.md).
+
+Menus and the reference scene work. Remaining texture keys, palettes/material
+application, resource-pool activation, descriptors and fresh actor creation
+still need connecting before a selected match is playable. Protected originals
+are unchanged; assets, decoded pixels and diagnostics remain private on W:.
+
+**Earlier: complete fresh skeleton startup.** Native code now owns all six
 original startup resources, including position records, scale writes, paired
 mirroring and derived vector words. The actual original80041108 caller matches
 36 complete initialized files,36 published references and36 vector words across
