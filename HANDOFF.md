@@ -1,7 +1,7 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-12. Latest work: original face image/palette application on
-`nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
+Updated: 2026-10-12. Latest work: selected gear texture plans (original
+`800DE3B8`) on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
 ## Goal and current reality
@@ -51,9 +51,10 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/texture_apply.md` and
-   `face_texture.md` in that directory — latest
-   selected appearance owner, exact evidence and rendering limits.
+3. `projects/nfl-street/reconstruction/native_assets/gear_texture.md` — latest:
+   the 25-slot gear texture plan, field provenance and supplied services. Then
+   `texture_apply.md` and `face_texture.md` in that directory — selected face
+   appearance owner, exact evidence and rendering limits.
 4. `projects/nfl-street/reconstruction/native_assets/skeleton_startup.md`.
 5. `projects/nfl-street/reconstruction/native_assets/headwear_state.md` and
    `hair_postattach.md` in the same directory.
@@ -86,6 +87,7 @@ the original DLL separately as an oracle.
 | Face/hair binding | `face_postattach.*`, `hair_postattach.*`, `model_postattach.*` | Original skeleton-name/cluster/parent remapping with bounded namespace identities |
 | Face texture | `face_texture.*` | Named lookup/template fallback, owned raw and processed MMAPv2, inspection plane0, literal texture-request record writes |
 | Face application | `texture_apply.*` | Original image/palette copies into owned templates; explicit cache/upload services, not original GPU verification |
+| Gear texture plan | `gear_texture.*` | Original `800DE3B8`: GEAR records, player record fields, 25 slot index/palette pairs, color requests, slot0 fallback; team-level record bytes captured |
 | Joined appearance owner | `selected_appearance_assets.*` | Geometry plus face texture, lifetime cleanup and namespace collision checks; not complete material application |
 | Actor creation | `player_bound_startup.*` and its dependencies | Connected factory → constructor → appearance → model binding; resource/catalog/render services still supplied |
 
@@ -108,7 +110,18 @@ matches 831 distinct files/views and 2,493 exact temporary allocation/storage/
 release sequences per original process. Connected actor creation matches 3,072
 controlled initialization cases, not gameplay frames.
 
-Latest additional connection: all 402 selected faces match complete original
+Latest connection: `gear_texture.c` reconstructs original `800DE3B8`. Per
+original process, 930 complete plans (402 roster rows × 2 captured team
+contexts, 14 captured records, 112 controlled variants) match every
+`800E2E48` slot write (24,180), `800E217C` color request (26,538), GEAR search
+(11,160) and the `+65` byte. 564 GEAR records match original `8014B918`;
+12,462 player-record fields match `8014F60C`/`800DE000` getters/`800DDEBC`/
+`800DDF44`; `800DDBE8` and `800E3218` are swept completely. Eight deliberate
+faults are rejected. Three faults in the earlier uncommitted draft (CFRP vs
+IKSP at `+40`, missing GEAR text terminator, missing slot 18–22 seeding) were
+fixed. Read `gear_texture.md`.
+
+Previous connection: all 402 selected faces match complete original
 template destinations after image/palette application and reapplication, with
 2,412 ordered cache requests per original process. The joined owner retains
 1,206 applied destinations. Read `texture_apply.md`; cache/GPU effects and
@@ -118,10 +131,13 @@ remaining palette composition/material consumers are still explicit boundaries.
 
 Continue from `selected_appearance_assets`, rather than rebuilding asset loaders.
 
-1. Reconstruct remaining selected appearance texture keys and their input data.
-   Start with original `800DD720`, its caller/input owners, and the existing
-   PLAY/GEAR/LCGP parsing. Do not infer field meanings or choose variants from
-   filenames alone.
+1. Gear texture keys (`800DD720`/`800DE3B8`) are done; do not redo them. Remaining
+   record inputs: `800DE000` team/STAT queries for `+3C/+3E`, `8014FB4C`/
+   `800DD64C`/`800DD6CC` for `+4C..+63`, `8014F9D8` for `+5E`, and the side flag
+   from `800DE6C8`. These are currently taken from captured records. Then feed
+   the planned slots through `800E2E48` request records (`nflstreet_texture_request`
+   in `face_texture.h`) into texture acquisition. Do not infer field meanings
+   or choose variants from filenames alone.
 2. Direct `80164CE4` image/palette application is now reconstructed and
    verified; do not redo it. Connect remaining composition/material consumers.
    Useful source routines:
@@ -157,8 +173,12 @@ Repository: `/home/dan/daywater` in WSL. Windows storage:
 - Saved oracle contexts: `/mnt/w/Daywater/research-temp/position-neutral-14.mem1`,
   `position-neutral-15.mem1`, `position-neutral-16.mem1` (24 MiB each).
   Their source Dolphin build was 2603a.
-- Latest report: `/mnt/w/Daywater/research-temp/nflstreet-texture-apply-20261012/verification.json`.
-  The prior face-texture report remains under `nflstreet-face-texture-20261012`.
+- Latest report: `/mnt/w/Daywater/research-temp/nflstreet-gear-texture-plan-20261012/verification.json`
+  (gate `verify_gear_texture.py`; private catalog `native/gear-texture.gtc2`).
+  The stale draft outputs `nflstreet-gear-texture-20261012` and
+  `native/gear-texture.gtc1` are superseded and unused.
+  The face application report remains under `nflstreet-texture-apply-20261012`
+  and the face-texture report under `nflstreet-face-texture-20261012`.
   Other reports use `nflstreet-skeleton-startup-20261012`,
   `nflstreet-hair-binding-20261012`, `nflstreet-headwear-state-20261012` and
   `nflstreet-hair-resources-20261012` below `research-temp`.
@@ -205,7 +225,7 @@ PYTHONPATH=projects/nfl-street/reconstruction/menus \
   python3 projects/nfl-street/reconstruction/native_assets/verify_face_texture.py
 ```
 
-Latest application gate: `verify_texture_apply.py`.
+Latest gate: `verify_gear_texture.py`. Face application gate: `verify_texture_apply.py`.
 Other targeted gates in that directory:
 `verify_skeleton_startup.py`, `verify_hair_binding.py`,
 `verify_headwear_state.py`, `verify_hair_resources.py`,
@@ -236,6 +256,7 @@ All project checkpoint commits are local; nothing was pushed.
 
 Recent checkpoints, newest first:
 
+- `a253c65`: original face image/palette application.
 - `36c9982`: owned selected face textures and joined appearance assembly.
 - `4a1f9aa`: complete skeleton startup and prepared geometry binding.
 - `db1445f`: selected hair binding to fresh target101.

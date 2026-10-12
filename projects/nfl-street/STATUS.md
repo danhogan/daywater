@@ -6,7 +6,23 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: original face image/palette application.** Native code now copies
+**Latest: selected gear texture plans.** Native code now reconstructs original
+`800DE3B8`: from a selected player's appearance record it joins 12 GEAR rows,
+builds `PLATEX`/`PLADYNCLUT` keys, fixed-index and default slots and the slot0
+fallback, producing all 25 texture slot index/palette pairs plus ordered color
+requests. The actual original routine matches 930 complete plans per process:
+24,180 slot writes, 26,538 color requests and 11,160 GEAR searches, across
+three contexts twice. GEAR records and player-record fields also match the
+original builders (564 and 12,462 comparisons), and full sweeps cover two
+helpers. Three faults in an earlier uncommitted draft were corrected.
+
+Team-level record bytes still come from captured contexts, and color/request
+effects are recorded rather than executed. See
+[gear texture evidence and limits](reconstruction/native_assets/gear_texture.md).
+Menus and the reference scene work; texture acquisition for these slots,
+materials and fresh actor startup remain before a selected match is playable.
+
+**Earlier: original face image/palette application.** Native code now copies
 selected face images and palette into an owned template destination. All402
 roster selections match the original complete destination and reapplication,
 including ordered cache notifications. Per original process:402 initial files,
