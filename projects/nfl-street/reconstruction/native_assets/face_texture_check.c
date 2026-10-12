@@ -41,6 +41,9 @@ int main(int argc,char **argv){
    #ifdef NFLSTREET_SELECTED_ASSETS
    if(!check_joined_assets(&resolver,&textures,db,size,team,player))return 9;
 #endif
+   #ifdef NFLSTREET_FACE_APPLY
+   if(!check_texture_application(&textures,&resource))return 10;
+#endif
    ++rows;fallbacks+=resource.plan.fallback;pixels+=(uint64_t)resource.inspection_plane.width*resource.inspection_plane.height;
    nflstreet_face_texture_resource_close(&resource);
   }free(db);
@@ -52,6 +55,12 @@ int main(int argc,char **argv){
 #endif
  #ifdef NFLSTREET_SELECTED_ASSETS
  printf("Joined selected assets: %u geometry/face-texture assemblies, %u texture namespace guards; prepared skeleton binding and request writes, no runtime DOL/module/snapshot.\n",asset_assemblies,asset_guards);close_assets();
+#ifdef NFLSTREET_APPLIED_ASSETS
+ printf("Joined face application: %u owned destinations, %u ordered flush requests, %u replacement guards.\n",applied_assets,applied_flushes,application_guards);
+#endif
+#endif
+ #ifdef NFLSTREET_FACE_APPLY
+ printf("Face texture application: %u whole destination files/reapplies, %u ordered flush requests; original GPU effects excluded.\n",application_cases,application_flushes);
 #endif
  free(f);free(h);free(t);return rows==402?0:8;
 }

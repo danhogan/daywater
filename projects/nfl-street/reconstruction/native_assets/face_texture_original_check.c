@@ -78,4 +78,7 @@ static int original_texture_guards(const nflstreet_archive *archive){
  if(c.pc||memcmp(before,ptr(texture_ram,dest,24),24))return 0;++texture_cases;return 1;
 }
 #define NFLSTREET_FACE_TEXTURE_ORACLE 1
+#ifdef NFLSTREET_FACE_APPLY
+#include "texture_apply_check_helpers.h"
+#endif
 #include "face_texture_check.c"

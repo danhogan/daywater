@@ -1,7 +1,7 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-12. Last project milestone: `36c9982` on
-`nflstreet-foundation`. Read `AGENTS.md` first; this document summarizes current
+Updated: 2026-10-12. Latest work: original face image/palette application on
+`nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
 ## Goal and current reality
@@ -51,7 +51,8 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/face_texture.md` — latest
+3. `projects/nfl-street/reconstruction/native_assets/texture_apply.md` and
+   `face_texture.md` in that directory — latest
    selected appearance owner, exact evidence and rendering limits.
 4. `projects/nfl-street/reconstruction/native_assets/skeleton_startup.md`.
 5. `projects/nfl-street/reconstruction/native_assets/headwear_state.md` and
@@ -84,6 +85,7 @@ the original DLL separately as an oracle.
 | Skeleton startup | `skeleton_startup.*` | Six fresh SKL1 entries, relocation, original position/scale edits, mirroring and six vector outputs |
 | Face/hair binding | `face_postattach.*`, `hair_postattach.*`, `model_postattach.*` | Original skeleton-name/cluster/parent remapping with bounded namespace identities |
 | Face texture | `face_texture.*` | Named lookup/template fallback, owned raw and processed MMAPv2, inspection plane0, literal texture-request record writes |
+| Face application | `texture_apply.*` | Original image/palette copies into owned templates; explicit cache/upload services, not original GPU verification |
 | Joined appearance owner | `selected_appearance_assets.*` | Geometry plus face texture, lifetime cleanup and namespace collision checks; not complete material application |
 | Actor creation | `player_bound_startup.*` and its dependencies | Connected factory → constructor → appearance → model binding; resource/catalog/render services still supplied |
 
@@ -106,6 +108,12 @@ matches 831 distinct files/views and 2,493 exact temporary allocation/storage/
 release sequences per original process. Connected actor creation matches 3,072
 controlled initialization cases, not gameplay frames.
 
+Latest additional connection: all 402 selected faces match complete original
+template destinations after image/palette application and reapplication, with
+2,412 ordered cache requests per original process. The joined owner retains
+1,206 applied destinations. Read `texture_apply.md`; cache/GPU effects and
+remaining palette composition/material consumers are still explicit boundaries.
+
 ## Next concrete work
 
 Continue from `selected_appearance_assets`, rather than rebuilding asset loaders.
@@ -114,7 +122,9 @@ Continue from `selected_appearance_assets`, rather than rebuilding asset loaders
    Start with original `800DD720`, its caller/input owners, and the existing
    PLAY/GEAR/LCGP parsing. Do not infer field meanings or choose variants from
    filenames alone.
-2. Connect original palette/material application. Useful source routines:
+2. Direct `80164CE4` image/palette application is now reconstructed and
+   verified; do not redo it. Connect remaining composition/material consumers.
+   Useful source routines:
    `800E27F8` (texture acquisition/application), `80164CE4` (image/palette copy),
    `801C588C`, `801C58C0`, `801C5958`, and later composition helpers.
    `800E3104` is the verified named face path; `800E318C` is a separate cap path,
@@ -147,7 +157,8 @@ Repository: `/home/dan/daywater` in WSL. Windows storage:
 - Saved oracle contexts: `/mnt/w/Daywater/research-temp/position-neutral-14.mem1`,
   `position-neutral-15.mem1`, `position-neutral-16.mem1` (24 MiB each).
   Their source Dolphin build was 2603a.
-- Latest report: `/mnt/w/Daywater/research-temp/nflstreet-face-texture-20261012/verification.json`.
+- Latest report: `/mnt/w/Daywater/research-temp/nflstreet-texture-apply-20261012/verification.json`.
+  The prior face-texture report remains under `nflstreet-face-texture-20261012`.
   Other reports use `nflstreet-skeleton-startup-20261012`,
   `nflstreet-hair-binding-20261012`, `nflstreet-headwear-state-20261012` and
   `nflstreet-hair-resources-20261012` below `research-temp`.
@@ -194,6 +205,7 @@ PYTHONPATH=projects/nfl-street/reconstruction/menus \
   python3 projects/nfl-street/reconstruction/native_assets/verify_face_texture.py
 ```
 
+Latest application gate: `verify_texture_apply.py`.
 Other targeted gates in that directory:
 `verify_skeleton_startup.py`, `verify_hair_binding.py`,
 `verify_headwear_state.py`, `verify_hair_resources.py`,
@@ -218,7 +230,8 @@ Opaque namespace identities chosen by a checker are not discovered game addresse
 
 ## Git and privacy
 
-The working tree was clean after `36c9982`, before creating this handoff.
+The initial handoff was committed as `8cd3aa4`. It is updated alongside later
+project milestones; inspect current status instead of assuming a clean tree.
 All project checkpoint commits are local; nothing was pushed.
 
 Recent checkpoints, newest first:

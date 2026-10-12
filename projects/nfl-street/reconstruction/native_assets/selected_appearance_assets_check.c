@@ -25,6 +25,11 @@ static int allocate_asset(void *opaque,uint32_t n,uint32_t width,nflstreet_model
  *out=(nflstreet_model_postattach_segment){t->tokens[i],t->bytes[i],size};return 1;
 }
 static void release_asset(void *opaque,uint32_t token){temporary *t=opaque;for(unsigned i=0;i<t->count;++i)if(t->tokens[i]==token&&t->bytes[i]){free(t->bytes[i]);t->bytes[i]=NULL;++t->frees;return;}}
+#ifdef NFLSTREET_APPLIED_ASSETS
+static unsigned applied_assets,applied_flushes,application_guards;
+static int reject_upload(void *opaque,uint32_t token,uint32_t size){(void)opaque;(void)token;(void)size;return 0;}
+static int asset_flush(void *opaque,uint32_t token,uint32_t size){(void)opaque;if(!token||!size)return 0;++applied_flushes;return 1;}
+#endif
 static int check_joined_assets(const nflstreet_team_player_resolver *resolver,const nflstreet_archive *textures,
  const uint8_t *db,size_t size,uint32_t team,uint32_t player){
  nflstreet_selected_appearance_context context={resolver,&owned_bodies,&gear,&local_hair,textures,0,0x10000000u,0x50000000u,0x60000000u};
@@ -40,6 +45,17 @@ static int check_joined_assets(const nflstreet_team_player_resolver *resolver,co
      !nflstreet_hair_resources_bind(&r.geometry.hair,skeletons.resources+5,0x19000000u,allocate_asset,release_asset,&t)||t.count!=t.frees)return 0;
   uint8_t request[24];memset(request,0xa5,24);
   if(!nflstreet_texture_request(request,24,r.face_texture.plan.index,UINT32_MAX,0)||request[12]!=1||request[13]!=0)return 0;
+  #ifdef NFLSTREET_APPLIED_ASSETS
+  if(!nflstreet_selected_appearance_assets_apply_face(&r,&context,0x62000000u,asset_flush,NULL))return 0;
+  if(!applied_assets){nflstreet_applied_face_texture saved=r.applied_face;uint8_t *saved_bytes=malloc(saved.size);
+   if(!saved_bytes)return 0;memcpy(saved_bytes,saved.bytes,saved.size);
+   if(nflstreet_selected_appearance_assets_apply_face(&r,&context,context.texture_identity,asset_flush,NULL)||
+      memcmp(&r.applied_face,&saved,sizeof saved)||memcmp(saved.bytes,saved_bytes,saved.size))return 0;++application_guards;
+   if(nflstreet_selected_appearance_assets_apply_face(&r,&context,0x62000000u,reject_upload,NULL)||
+      memcmp(&r.applied_face,&saved,sizeof saved)||memcmp(saved.bytes,saved_bytes,saved.size))return 0;++application_guards;free(saved_bytes);
+  }
+  ++applied_assets;
+#endif
   ++asset_assemblies;nflstreet_selected_appearance_assets_close(&r);
  }return 1;
 }

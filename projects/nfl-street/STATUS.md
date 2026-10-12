@@ -6,7 +6,23 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: selected face textures and joined appearance ownership.** All402
+**Latest: original face image/palette application.** Native code now copies
+selected face images and palette into an owned template destination. All402
+roster selections match the original complete destination and reapplication,
+including ordered cache notifications. Per original process:402 initial files,
+402 reapplies and2,412 requests; three contexts repeat twice. GPU/cache effects
+remain explicit host services, not verified original rendering.
+
+The selected appearance owner retains1,206 applied destinations across three
+explicit body variants. Namespace and rejected-upload guards preserve prior
+host storage. The earlier face-texture gate still passes. See
+[application evidence and limits](reconstruction/native_assets/texture_apply.md).
+
+Menus and the reference scene work. Remaining texture keys, composition/material
+binding, pool activation, descriptors and actor creation remain before a fresh
+selected match is playable. Protected originals and private inputs are unchanged.
+
+**Earlier: selected face textures and joined appearance ownership.** All402
 regular-roster players now load owned raw/processed face MMAP data and an
 inspection plane;15 use the original template fallback. Actual original
 formatting, HSH1 lookup and complete request-record comparisons pass1,208

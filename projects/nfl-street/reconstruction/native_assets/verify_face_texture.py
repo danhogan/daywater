@@ -10,7 +10,7 @@ def main():
  out=private(PRIVATE/'research-temp/nflstreet-face-texture-20261012');out.mkdir(parents=True,exist_ok=True)
  data=private(PRIVATE/'private/nflstreet/GNNE69-r0');report=out/'verification.json'
  entries=tuple('native_assets/'+name for name in (
-  'face_texture.c','face_texture_check.c','face_texture_original_check.c','texture.c',
+  'texture_apply.c','face_texture.c','face_texture_check.c','face_texture_original_check.c','texture.c',
   'selected_appearance_assets.c','selected_appearance_assets_check.c',
   'skeleton_startup.c','skeleton_resource.c','selected_player_geometry.c','selected_player_resources.c',
   'headwear_state.c','hair_resources.c','hair_postattach.c','face_resource_pair.c','face_postattach.c',
