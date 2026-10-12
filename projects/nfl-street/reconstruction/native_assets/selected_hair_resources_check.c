@@ -1,6 +1,10 @@
 #include "selected_player_resources.h"
 #include "face_postattach.h"
 #include "hair_resources.h"
+#ifdef NFLSTREET_AUTOMATIC_HEADWEAR
+#include "headwear_state.h"
+#include "selected_player_geometry.h"
+#endif
 #include "../menus/team_catalog.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,12 +26,25 @@ static void release_temporary(void *opaque,uint32_t token){
   free(t->bytes[i]);t->bytes[i]=NULL;++t->freed;return;}
 }
 int main(int argc,char **argv){
+#ifdef NFLSTREET_AUTOMATIC_HEADWEAR
+ #ifdef NFLSTREET_AUTOMATIC_HEADWEAR_ORACLE
+ if(argc!=10)return 2;
+#else
+ if(argc!=8)return 2;
+#endif
+ size_t gn=0;uint8_t *gear_bytes=load(argv[7],&gn);nflstreet_headwear_catalog gear_catalog;
+ if(!gear_bytes||!nflstreet_headwear_catalog_open(gear_bytes,gn,&gear_catalog))return 3;
+#ifdef NFLSTREET_AUTOMATIC_HEADWEAR_ORACLE
+ if(!initialize_headwear_oracle(argv[8],argv[9],&gear_catalog))return 3;
+#endif
+#else
  #ifdef NFLSTREET_HAIR_ORACLE
  if(argc!=9||!initialize_oracle(argv[7],argv[8]))return 2;
 #else
  if(argc!=7)return 2;
 #endif
-size_t ln=0;uint8_t *local_bytes=load(argv[6],&ln);nflstreet_archive local;
+#endif
+ size_t ln=0;uint8_t *local_bytes=load(argv[6],&ln);nflstreet_archive local;
  if(!local_bytes||!nflstreet_archive_open(local_bytes,ln,&local))return 3;size_t fn=0,hn=0,bn=0,an=0;
  uint8_t *face=load(argv[1],&fn),*hair=load(argv[2],&hn),*body=load(argv[3],&bn);
  uint8_t *anim=load(argv[4],&an);nflstreet_archive animation;nflstreet_skeleton_resource target={0};
@@ -48,6 +65,14 @@ size_t ln=0;uint8_t *local_bytes=load(argv[6],&ln);nflstreet_archive local;
    if(!nflstreet_team_table_number(&table,row,team_field,&team)||!nflstreet_team_table_number(&table,row,player_field,&player))return 4;
    if(!team)continue;
    if(!rows){
+#ifdef NFLSTREET_AUTOMATIC_HEADWEAR
+    nflstreet_selected_player_geometry marker={0},rejected;
+    marker.base.manifest.player_id=0x12345678u;
+    for(unsigned collision=0;collision<2;++collision){rejected=marker;
+      if(nflstreet_selected_player_geometry_open(&resolver,db,size,team,player,&bodies,0,
+          &gear_catalog,&local,0x10000000u,collision?0x20000000u:0x10000000u,&rejected)||
+          memcmp(&rejected,&marker,sizeof marker))return 15;}
+#endif
     nflstreet_selected_player_resources saved={0};saved.manifest.player_id=0x12345678u;
     nflstreet_selected_player_resources out=saved;
     if(nflstreet_selected_player_resources_open(&resolver,db,size,team,UINT32_MAX,&bodies,0,0x10000000u,&out)||memcmp(&out,&saved,sizeof out))return 7;++guards;
@@ -55,8 +80,15 @@ size_t ln=0;uint8_t *local_bytes=load(argv[6],&ln);nflstreet_archive local;
     if(nflstreet_selected_player_resources_open(&resolver,db,size,team,player,&bodies,0,0x20000000u,&out)||memcmp(&out,&saved,sizeof out))return 7;++guards;
    }
    for(unsigned variant=0;variant<3;++variant){nflstreet_selected_player_resources r={0};
+#ifdef NFLSTREET_AUTOMATIC_HEADWEAR
+    nflstreet_selected_player_geometry joined={0};
+    if(!nflstreet_selected_player_geometry_open(&resolver,db,size,team,player,&bodies,variant,
+        &gear_catalog,&local,0x10000000u,0x50000000u,&joined))return 14;
+    r=joined.base;
+#else
     if(!nflstreet_selected_player_resources_open(&resolver,db,size,team,player,&bodies,variant,0x10000000u,&r)){
      fprintf(stderr,"Selected resources failed team%u player%u variant%u\n",team,player,variant);return 5;}
+#endif
     if(r.manifest.play_row!=row||r.manifest.team_id!=team||r.manifest.player_id!=player||r.body_variant!=variant||
      r.face.indices[0]!=(unsigned)r.manifest.head_runtime_index||r.face.indices[1]!=r.face.indices[0]+1||
      r.body->archive_index!=1+r.body->pool_key*3+variant)return 5;
@@ -73,7 +105,16 @@ size_t ln=0;uint8_t *local_bytes=load(argv[6],&ln);nflstreet_archive local;
        !nflstreet_face_resource_pair_bind(&r.face,&target,0x18000000u,allocate_temporary,release_temporary,&temporary)||
        temporary.made!=6||temporary.freed!=6)return 8;
     ++assemblies;
+    #ifdef NFLSTREET_AUTOMATIC_HEADWEAR
+    nflstreet_headwear_selection selection=joined.headwear;
+    if(selection.play_row!=row)return 12;
+    #ifdef NFLSTREET_AUTOMATIC_HEADWEAR_ORACLE
+    if(!variant&&!original_selection(db,size,&selection))return 13;
+#endif
+    if(!variant){unsigned state=selection.state;
+#else
     if(!variant)for(unsigned state=0;state<2;++state){
+#endif
       nflstreet_hair_plan plan;nflstreet_hair_resources hair_resources={0};
       if(!nflstreet_hair_plan_make(&resolver.hair,r.manifest.normalized_name,(uint16_t)r.manifest.plht,
           (uint16_t)(r.manifest.phar==63?12:r.manifest.phar),(uint16_t)state,&plan)||
@@ -92,7 +133,11 @@ size_t ln=0;uint8_t *local_bytes=load(argv[6],&ln);nflstreet_archive local;
       ++hair_plans;for(unsigned k=0;k<3;++k)if(hair_resources.bytes[k])++hair_models;
       nflstreet_hair_resources_close(&hair_resources);
     }
+    #ifdef NFLSTREET_AUTOMATIC_HEADWEAR
+    nflstreet_selected_player_geometry_close(&joined);
+#else
     nflstreet_selected_player_resources_close(&r);
+#endif
    }
    ++rows;
   }free(db);
@@ -100,7 +145,18 @@ size_t ln=0;uint8_t *local_bytes=load(argv[6],&ln);nflstreet_archive local;
  nflstreet_skeleton_resource_close(&target);nflstreet_body_resource_pool_close(&bodies);free(face);free(hair);free(body);free(anim);
  if(rows!=402||assemblies!=1206||models!=2412||guards!=3)return 6;
  printf("Selected native resources: %u roster rows, %u explicit body-variant assemblies, %u bound face models, %u ownership/input guards; fresh target and repeated binding, no snapshot/module input.\n",rows,assemblies,models,guards);
- printf("Hair resources: %u explicit-state plans, %u processed models across %u roster rows; state selection and rendering remain outside scope.\n",hair_plans,hair_models,rows);free(local_bytes);
+ #ifdef NFLSTREET_AUTOMATIC_HEADWEAR
+ printf("Automatic hair resources: %u derived plans, %u processed models across %u roster rows; rendering remains outside scope.\n",hair_plans,hair_models,rows);
+#else
+ printf("Hair resources: %u explicit-state plans, %u processed models across %u roster rows; state selection and rendering remain outside scope.\n",hair_plans,hair_models,rows);
+#endif
+ free(local_bytes);
+#ifdef NFLSTREET_AUTOMATIC_HEADWEAR
+ free(gear_bytes);
+#ifdef NFLSTREET_AUTOMATIC_HEADWEAR_ORACLE
+ printf("Headwear original checks: %u extracted fields, %u selectors, %u mapped values; fresh GEAR query services supplied.\n",field_checks,selector_checks,map_checks);free(hw_ram);
+#endif
+#endif
 #ifdef NFLSTREET_HAIR_ORACLE
  printf("Original hair checks: %u plans, %u unique complete models/views; archive queries supplied.\n",original_plans,original_models);free(hair_ram);
 #endif

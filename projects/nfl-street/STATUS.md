@@ -6,7 +6,22 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: owned selected-player hair resources.** Native code now plans and
+**Latest: automatic headwear selection and joined geometry ownership.**
+Selected PLAY fields now join the original GEAR table to derive headwear state,
+then load the selected hair triplet. All 402 regular-roster players succeed.
+A reusable owner joins face/body/hair resources across 1,206 explicit body
+variant assemblies. Controlled original comparisons match 1,650 extracted
+fields, 402 decisions and all 64 mapping inputs per process, repeated across
+three contexts twice. GEAR query services are supplied from fresh,
+original-extracted records; full database startup is outside this check.
+See [automatic selection evidence](reconstruction/native_assets/headwear_state.md).
+
+This removes the manually supplied headwear state from selected geometry
+assembly. Menus and the reference scene work; hair/texture/material binding,
+fresh descriptors and actor creation still need connecting before selected
+teams can start a fresh playable match. Protected originals are unchanged.
+
+**Earlier: owned selected-player hair resources.** Native code now plans and
 loads all three hair-model slots from the local and roster archives, preserving
 named lookup fallbacks and special-state branches. Across402 regular-roster
 players, two explicitly supplied headwear states load2,412 processed models.
