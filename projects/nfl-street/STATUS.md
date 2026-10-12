@@ -6,7 +6,21 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: fresh skeleton loading and connected face binding.** Native code
+**Latest: owned selected-player hair resources.** Native code now plans and
+loads all three hair-model slots from the local and roster archives, preserving
+named lookup fallbacks and special-state branches. Across402 regular-roster
+players, two explicitly supplied headwear states load2,412 processed models.
+Original planning matches1,608 controlled cases per process, and all1,634
+unique used model files/views match original relocation and attachment.
+Verification repeats across three saved contexts and fresh Windows processes.
+See [hair resource evidence and limits](reconstruction/native_assets/hair_resources.md).
+
+This adds remaining geometry ownership alongside fresh face/body resources.
+Headwear-state derivation, hair postattachment, texture/material ownership and
+fresh actor descriptors still need connecting. Menus and the controllable
+reference scene work; fresh selected-match startup remains unfinished.
+
+**Earlier: fresh skeleton loading and connected face binding.** Native code
 now loads skeleton resources directly from `animdata.dat` and binds each
 selected face pair to that owned target. Six resources match the original
 relocation helper across36 whole-file checks and36 repeated no-ops. The
