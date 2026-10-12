@@ -11,8 +11,11 @@
    802714F0..80271D58 (defaults, selectors, suffixes, initial color list,
    channel lists, 80271BC8/80271C58 GRSI tables), 802859F8 categories,
    80285968 GEAR query tags, the 80252CF8 excluded palette name and the 25
-   initial 802799EC slot request indices (slot templates). */
-typedef struct {const uint8_t *window,*categories,*tags;const char *excluded_dynamic_name;const uint8_t *templates;} nflstreet_gear_texture_catalog;
+   initial 802799EC slot request indices (slot templates), the 24 dynclut color
+   names (8027132C, 15 bytes each), 4 level names (80271494) and the 13 field
+   tags of the 8028575C color-table query. */
+typedef struct {const uint8_t *window,*categories,*tags;const char *excluded_dynamic_name;
+ const uint8_t *templates,*color_names,*level_names,*color_tags;} nflstreet_gear_texture_catalog;
 int nflstreet_gear_texture_catalog_open(const uint8_t *,size_t,nflstreet_gear_texture_catalog *);
 /* Initial request index (template entry) of one slot; UINT32_MAX if out of range. */
 uint32_t nflstreet_gear_texture_template(const nflstreet_gear_texture_catalog *,unsigned slot);

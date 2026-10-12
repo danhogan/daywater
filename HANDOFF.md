@@ -1,7 +1,7 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-12. Latest work: owned selected slot textures (original
-`800E2958`/`800E2AF0`/`800E2CAC`) on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
+Updated: 2026-10-12. Latest work: original palette recoloring (`800D9C0C`)
+on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
 ## Goal and current reality
@@ -51,7 +51,9 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/slot_textures.md` — latest:
+3. `projects/nfl-street/reconstruction/native_assets/palette_recolor.md` — latest:
+   color table, dynclut op lists and recoloring; all 350 live slots match. Then
+   `slot_textures.md` —
    owned 25-slot texture destinations and the live-match comparison. Then
    `gear_texture.md` —
    the 25-slot gear texture plan, field provenance and supplied services. Then
@@ -91,6 +93,7 @@ the original DLL separately as an oracle.
 | Face application | `texture_apply.*` | Original image/palette copies into owned templates; explicit cache/upload services, not original GPU verification |
 | Gear texture plan | `gear_texture.*` | Original `800DE3B8`: GEAR records, player record fields, 25 slot index/palette pairs, color requests, slot0 fallback; team-level record bytes captured |
 | Slot textures | `slot_textures.*` | Original 800E2958 layout, 800E2AF0 templates, 800E2CAC/800E27F8 loads; `800D9C0C` recolor reported, not executed |
+| Palette recolor | `palette_recolor.*` | 80148A88 color table, 800D8918 dynclut parsing, 800D9948 ops, 800D9C0C composition; color state captured |
 | Joined appearance owner | `selected_appearance_assets.*` | Geometry plus face texture, lifetime cleanup and namespace collision checks; not complete material application |
 | Actor creation | `player_bound_startup.*` and its dependencies | Connected factory → constructor → appearance → model binding; resource/catalog/render services still supplied |
 
@@ -113,7 +116,11 @@ matches 831 distinct files/views and 2,493 exact temporary allocation/storage/
 release sequences per original process. Connected actor creation matches 3,072
 controlled initialization cases, not gameplay frames.
 
-Latest connection: `slot_textures.c` loads the planned slots into owned
+Latest connection: `palette_recolor.c` completes slot textures. All 350 live
+slots of the 14 captured players are byte-identical; the original
+`800D9C0C` matches 4,163 compositions and 3,072 op sweeps per process.
+
+Previous connection: `slot_textures.c` loads the planned slots into owned
 destinations. The original pipeline matches 819 players per process, and the
 14 captured live players match outside palette record 0 data (69 slots await
 `800D9C0C`). Gear plans equal the live `800E2E48` records in all 336 non-face
@@ -140,11 +147,10 @@ remaining palette composition/material consumers are still explicit boundaries.
 
 Continue from `selected_appearance_assets`, rather than rebuilding asset loaders.
 
-1. Gear plans and slot loading are done; do not redo them. Next is `800D9C0C`
-   palette recolor: the `800D9948` eight-operation dispatch, pladyncl CLUT
-   data via `r13-5B48`, the `8030A898` color table and color state from record
-   `+4C..+63`. The 69 live palette-only differences give an exact target.
-   Gear texture keys (`800DD720`/`800DE3B8`) are done. Remaining
+1. Gear plans, slot loading and recoloring are done; do not redo them. Next:
+   compute record `+3C/+3E/+4C..+63/+5E/+64` natively (`800DE000` team/STAT
+   queries, `8014FB4C`/`800DD64C`/`800DD6CC`, `8014F9D8`, `800DE6C8`), then
+   `800E2BE8`/`801EBD38` material binding of slot destinations. Remaining
    record inputs: `800DE000` team/STAT queries for `+3C/+3E`, `8014FB4C`/
    `800DD64C`/`800DD6CC` for `+4C..+63`, `8014F9D8` for `+5E`, and the side flag
    from `800DE6C8`. These are currently taken from captured records. Then feed
@@ -189,9 +195,9 @@ Repository: `/home/dan/daywater` in WSL. Windows storage:
 - Latest report: `/mnt/w/Daywater/research-temp/nflstreet-slot-textures-20261012/verification.json`
   (gate `verify_slot_textures.py`). Gear plan report:
   `nflstreet-gear-texture-plan-20261012` (gate `verify_gear_texture.py`). Both
-  use private catalog `native/gear-texture.gtc3`. The stale outputs
-  `nflstreet-gear-texture-20261012`, `native/gear-texture.gtc1` and `.gtc2`
-  are superseded and unused.
+  use private catalog `native/gear-texture.gtc4`. The stale outputs
+  `nflstreet-gear-texture-20261012` and `native/gear-texture.gtc1/2/3` are
+  superseded and unused.
   The face application report remains under `nflstreet-texture-apply-20261012`
   and the face-texture report under `nflstreet-face-texture-20261012`.
   Other reports use `nflstreet-skeleton-startup-20261012`,
@@ -271,6 +277,7 @@ All project checkpoint commits are local; nothing was pushed.
 
 Recent checkpoints, newest first:
 
+- `f25ce4d`: owned selected slot textures.
 - `4d4f8b8`: selected gear texture plans.
 - `a253c65`: original face image/palette application.
 - `36c9982`: owned selected face textures and joined appearance assembly.

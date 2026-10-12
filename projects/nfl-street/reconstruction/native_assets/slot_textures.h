@@ -23,9 +23,10 @@ void nflstreet_slot_textures_close(nflstreet_slot_textures *);
 static inline uint8_t *nflstreet_slot_texture_bytes(const nflstreet_slot_textures *t,unsigned slot){
  return t->block+t->slots[slot].offset;
 }
-/* 800D9C0C boundary: palette composition of destination palette record0 with
-   the player's 24-byte color state. Reported, not executed. */
-typedef int (*nflstreet_slot_palette)(void *,unsigned slot,uint32_t palette);
+/* 800D9C0C step for one slot with a palette request: the callback receives the
+   applied destination (relocated at token) and the pladyncl entry. See
+   nflstreet_palette_compose_slot in palette_recolor.h. */
+typedef int (*nflstreet_slot_palette)(void *,unsigned slot,uint32_t palette,uint8_t *destination,size_t size,uint32_t token);
 /* Fresh 800E2CAC/800E27F8 pass for one player after a boot-time 800E2958:
    every slot is pending, so a slot whose request is -1 reloads its template
    with palette -1. Each request is decoded (at most scratch_capacity bytes,
@@ -33,5 +34,5 @@ typedef int (*nflstreet_slot_palette)(void *,unsigned slot,uint32_t palette);
    80164CE4 rules; flush receives the original cache-flush order per slot. */
 int nflstreet_slot_textures_apply(nflstreet_slot_textures *,const nflstreet_archive *textures,
  const int32_t indices[NFLSTREET_GEAR_TEXTURE_SLOTS],const uint32_t palettes[NFLSTREET_GEAR_TEXTURE_SLOTS],
- uint32_t scratch_token,nflstreet_texture_flush,nflstreet_slot_palette,void *);
+ uint32_t scratch_token,nflstreet_texture_flush,void *flush_opaque,nflstreet_slot_palette,void *palette_opaque);
 #endif

@@ -64,7 +64,7 @@ def main() -> None:
     try:
         before = baseline_hashes()
         sources = source_hashes(root, entries)
-        catalog = data / "native/gear-texture.gtc3"
+        catalog = data / "native/gear-texture.gtc4"
         catalog_sha = export(catalog)
         archives = [data / "assets" / f"{name}.dat" for name in ("platex", "pladyncl")]
         contexts = [PRIVATE / f"research-temp/position-neutral-{i}.mem1" for i in (14, 15, 16)]

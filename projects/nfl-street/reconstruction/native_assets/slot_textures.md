@@ -60,9 +60,10 @@ match:
   (this check is in `verify_gear_texture.py`).
 - All 350 destination tokens and the 25 template sizes equal the live
   `802AB8F4`/`802ABFBC` values.
-- 281 slots are byte-identical to the live destinations.
-- The other 69 all carry a palette, and they match exactly outside palette
-  record 0's data. That data is the pending `800D9C0C` recolor.
+- All 350 slots are byte-identical to the live destinations once recoloring
+  (`palette_recolor.md`) runs; 70 of them are recolored. Before recoloring
+  existed, 281 matched, and the other 69 differed only inside palette
+  record 0's data.
 
 **Verified controlled original comparison, per process.** 819 players are
 compared: 14 captured, 1 controlled, and 402 roster rows × 2 captured team
@@ -71,8 +72,9 @@ contexts. Each one runs the actual original pipeline:
 - `800E2958`: layout, sizes, record fields and scratch size.
 - `800E2AF0`: every template destination.
 - `800E2E48`: the 25 requests.
-- `800E2CAC`/`800E27F8`: 18,860 loads, 81,081 `801F0BD0` flushes in
-  per-slot order and 4,163 `800D9C0C` requests, with exact arguments,
+- `800E2CAC`/`800E27F8`: 18,860 loads, 85,244 `801F0BD0` flushes in
+  per-slot order (palette flushes included) and 4,163 original `800D9C0C`
+  recolorings, with exact arguments,
   final destinations and cleared records.
 
 The controlled player puts palettes on −1 slots, and both sides ignore them.
@@ -91,7 +93,8 @@ formula.
   from fresh native decoding.
 - Allocations return the compared tokens.
 - Synchronization helpers are stubbed to return.
-- `800D9C0C` is recorded only.
+- `800D9C0C` runs in the original, using the native-built color table and op
+  lists installed in RAM; its `8020380C` GX FIFO padding is counted only.
 
 Relocation, sorting, the `80164CE4` copy and cache-flush requests all execute
 in the original module.
@@ -101,11 +104,10 @@ Private report:
 
 ## Remaining connections
 
-- **`800D9C0C` palette composition.** It runs eight recolor operations
-  (`800D9948` dispatch) over pladyncl CLUT descriptions (`r13-5B48`), the
-  `8030A898` color table and the color state. The color state comes from
-  record `+4C..+63` via `800E3020` and is still captured, not computed. This
-  is the only byte difference left against the live match.
+- `800D9C0C` palette composition is now reconstructed in
+  `palette_recolor.md`. With it, all 350 live slots are byte-identical, and the
+  slot gate runs the original composition instead of recording it. The color
+  state (record `+4C..+63`) still comes from captured team records.
 - **`800E2BE8`/`801EBD38`** material binding of the destinations.
 - The face/cap choice for slot 1 for roster rows.
 - Fresh actor startup that consumes the result.

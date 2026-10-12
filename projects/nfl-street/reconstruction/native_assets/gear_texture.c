@@ -4,7 +4,7 @@
 #include <string.h>
 #define WINDOW_START 0x802714f0u
 #define WINDOW_SIZE 0x868u
-#define CATALOG_SIZE (16u+WINDOW_SIZE+48u+104u+32u+100u)
+#define CATALOG_SIZE (16u+WINDOW_SIZE+48u+104u+32u+100u+360u+60u+52u)
 #define DEFAULT_NAMES 0x802714f0u
 #define SELECTORS 0x80271668u
 #define SUFFIXES 0x802716ccu
@@ -25,9 +25,11 @@ static const char *default_name(const nflstreet_gear_texture_catalog *c,unsigned
 static const char *suffix(const nflstreet_gear_texture_catalog *c,unsigned selector){return(const char*)at(c,SUFFIXES+15u*selector,15);}
 static uint32_t selector(const nflstreet_gear_texture_catalog *c,unsigned slot){return word(at(c,SELECTORS+4u*slot,4));}
 int nflstreet_gear_texture_catalog_open(const uint8_t *b,size_t n,nflstreet_gear_texture_catalog *out){
- if(!b||!out||n!=CATALOG_SIZE||memcmp(b,"GTC3",4)||word(b+4)!=3||word(b+8)!=WINDOW_START||word(b+12)!=WINDOW_SIZE)return 0;
- nflstreet_gear_texture_catalog c={b+16,b+16+WINDOW_SIZE,b+16+WINDOW_SIZE+48,(const char*)b+16+WINDOW_SIZE+152,b+16+WINDOW_SIZE+184};
+ if(!b||!out||n!=CATALOG_SIZE||memcmp(b,"GTC4",4)||word(b+4)!=4||word(b+8)!=WINDOW_START||word(b+12)!=WINDOW_SIZE)return 0;
+ nflstreet_gear_texture_catalog c={b+16,b+16+WINDOW_SIZE,b+16+WINDOW_SIZE+48,(const char*)b+16+WINDOW_SIZE+152,b+16+WINDOW_SIZE+184,
+  b+16+WINDOW_SIZE+284,b+16+WINDOW_SIZE+644,b+16+WINDOW_SIZE+704};
  if(!memchr(c.excluded_dynamic_name,0,32))return 0;
+ for(unsigned i=0;i<28;++i)if(!memchr((i<24?c.color_names+15*i:c.level_names+15*(i-24)),0,15))return 0;
  for(unsigned i=0;i<NFLSTREET_GEAR_TEXTURE_SLOTS;++i){uint32_t v=selector(&c,i);if((v!=NO_SELECTOR&&v>=16)||!memchr(default_name(&c,i),0,15))return 0;}
  for(unsigned i=0;i<16;++i)if(!memchr(suffix(&c,i),0,15))return 0;
  for(uint32_t a=INITIAL_COLORS;;a+=4){const uint8_t *p=at(&c,a,6);if(!p)return 0;if(half(p+4)==0xffffu)break;}

@@ -6,7 +6,17 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: owned selected slot textures.** Native code now loads each selected
+**Latest: original palette recoloring.** Native code now rebuilds the boot
+color table (template DB `CPAL`/`CPHR`) and parses all 129 `pladyncl`
+recolor documents. It applies the original eight palette operations after
+each slot texture is loaded. For all 14 players in the captured match, every
+one of the 350 texture slots now equals the live game's memory byte for byte,
+70 of them recolored. The actual original recolor routine matches 4,163
+compositions per process plus 3,072 operation sweeps, across three contexts
+twice. Team color state still comes from captured records. See
+[recolor evidence](reconstruction/native_assets/palette_recolor.md).
+
+**Earlier: owned selected slot textures.** Native code now loads each selected
 player's 25 gear/body texture slots into owned, relocated destinations,
 following the original boot-to-match pipeline (`800E2958` layout,
 `800E2AF0` templates, `800E2CAC`/`800E27F8` loader). The actual original

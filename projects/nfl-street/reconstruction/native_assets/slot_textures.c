@@ -29,7 +29,7 @@ done:
 }
 int nflstreet_slot_textures_apply(nflstreet_slot_textures *t,const nflstreet_archive *a,
  const int32_t indices[NFLSTREET_GEAR_TEXTURE_SLOTS],const uint32_t palettes[NFLSTREET_GEAR_TEXTURE_SLOTS],
- uint32_t scratch_token,nflstreet_texture_flush flush,nflstreet_slot_palette palette,void *opaque){
+ uint32_t scratch_token,nflstreet_texture_flush flush,void *opaque,nflstreet_slot_palette palette,void *palette_opaque){
  if(!t||!t->block||!a||!indices||!palettes||!scratch_token||!flush||!palette)return 0;
  for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s){nflstreet_slot_texture *slot=t->slots+s;
   /* 800E2E48 keeps the template request (palette -1) when the plan is -1. */
@@ -39,7 +39,7 @@ int nflstreet_slot_textures_apply(nflstreet_slot_textures *t,const nflstreet_arc
   int ok=size<=t->scratch_capacity&&size<=UINT32_MAX-scratch_token&&nflstreet_mmap_relocate(scratch,size,scratch_token)&&
    nflstreet_texture_apply(t->block+slot->offset,slot->template_size,slot->token,scratch,size,scratch_token,flush,opaque);
   free(scratch);if(!ok)return 0;
-  if(pal!=UINT32_MAX&&!palette(opaque,s,pal))return 0;
+  if(pal!=UINT32_MAX&&!palette(palette_opaque,s,pal,t->block+slot->offset,slot->template_size,slot->token))return 0;
   slot->applied_index=(int32_t)index;slot->applied_palette=pal;
  }
  return 1;

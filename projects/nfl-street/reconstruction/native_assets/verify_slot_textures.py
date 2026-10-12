@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify owned selected slot textures against the original 800E2958/800E2AF0/800E2CAC pipeline and live state."""
+"""Verify owned, recolored slot textures against the original loader/recolor pipeline and live state."""
 
 import json
 from pathlib import Path
@@ -10,15 +10,16 @@ from verify_player_startup import source_hashes
 
 NATIVE = (
     "Selected slot textures: 819 players (14 captured, 1 controlled, 402 roster rows x2 contexts); "
-    "350 live slots match layout/size, 281 byte-identical, 69 differ only in palette record0 pending 800D9C0C; "
-    "81081 cache flushes, 4163 palette compositions reported; digest b5175da9."
+    "140 color entries and 129 pladyncl op lists (722 ops) match live; 350 live slots match layout/size, "
+    "350 byte-identical (70 recolored); 85244 cache flushes, 4163 palette compositions; digest 19439b8f."
 )
 ORIGINAL = (
-    "Original slot texture checks: 819 800E2958 layouts, 819 800E2AF0 template sets, 819 800E2CAC players "
-    "(18860 slot loads, 81081 flushes, 4163 800D9C0C requests); archive acquisition supplied."
+    "Original slot texture checks: 3072 800D9948 sweep cases; 819 800E2958 layouts, 819 800E2AF0 template sets, "
+    "819 800E2CAC players (18860 slot loads, 85244 flushes, 4163 800D9C0C compositions); archive acquisition supplied."
 )
 SOURCES = (
     "slot_textures.c",
+    "palette_recolor.c",
     "slot_textures_check.c",
     "slot_textures_original_check.c",
     "texture_apply.c",
@@ -36,11 +37,13 @@ SOURCES = (
     "verify_slot_textures.py",
 )
 BOUNDARY = (
-    "Owned selected slot textures: original 800E2958 layout/sizing, 800E2AF0 template destinations, 800E2E48 "
-    "requests and the 800E2CAC/800E27F8 loader with 80164CE4 copies and 801F0BD0 flush order compared per slot. "
-    "Archive acquisition (801A824C size, 801A75B0 decode) is supplied from fresh native decoding; 800D9C0C palette "
-    "composition is recorded, not executed. The 14 captured players also match live destinations in the snapshot "
-    "outside palette record0 data; slot1 uses the live face request for them and the template for roster rows."
+    "Owned, recolored selected slot textures: original 800E2958 layout, 800E2AF0 templates, 800E2E48 requests, "
+    "the 800E2CAC/800E27F8 loader with 80164CE4 copies and 800D9C0C recoloring compared per slot, including "
+    "801F0BD0 flush order; 800D9948 swept over all 8 operations and 3 palette formats. Archive acquisition "
+    "(801A824C, 801A75B0) is supplied from fresh native decoding; native-built 8030A898 color table and r13-5B48 "
+    "op lists are installed for the original; 8020380C GX FIFO flushes are counted only. Live snapshot: color "
+    "table, all pladyncl op lists and all 350 captured-player slot destinations match byte for byte. Color state "
+    "is record +4C..+63 from captured team records; slot1 uses the live face request for captured players."
 )
 
 
@@ -63,7 +66,7 @@ def main() -> None:
     try:
         before = baseline_hashes()
         sources = source_hashes(root, entries)
-        catalog = data / "native/gear-texture.gtc3"
+        catalog = data / "native/gear-texture.gtc4"
         catalog_sha = export(catalog)
         archives = [data / "assets" / f"{name}.dat" for name in ("platex", "pladyncl")]
         contexts = [PRIVATE / f"research-temp/position-neutral-{i}.mem1" for i in (14, 15, 16)]
@@ -114,12 +117,16 @@ def main() -> None:
             original_log_sha256=original_logs,
             executable_sha256={path.name: digest(path) for path in (plain, original)},
             players_per_process=819,
+            live_color_entries=140,
+            live_dynclut_entries=129,
+            live_dynclut_ops=722,
             live_slots=350,
-            live_identical_slots=281,
-            live_palette_pending_slots=69,
+            live_identical_slots=350,
+            live_recolored_slots=70,
+            original_sweep_cases_per_process=3072,
             original_players_per_process=819,
             original_slot_loads_per_process=18860,
-            flushes_per_process=81081,
+            flushes_per_process=85244,
             palette_compositions_per_process=4163,
         )
     except Exception as exc:
@@ -127,7 +134,7 @@ def main() -> None:
         raise
     finally:
         report.write_text(json.dumps(record, indent=2) + "\n")
-    print("Original selected slot texture pipeline passes; private report " + str(report))
+    print("Original selected slot texture and recolor pipeline passes; private report " + str(report))
 
 
 if __name__ == "__main__":

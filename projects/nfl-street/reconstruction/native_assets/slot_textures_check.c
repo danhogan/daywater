@@ -1,10 +1,11 @@
-/* Owned selected slot textures. The 14 captured players are compared with the
-   live destinations in the same snapshot (layout, sizes and bytes; palette
-   record0 data may differ only by pending 800D9C0C composition). All roster
-   rows in both captured team contexts then load and apply natively. Slot1 is
-   the separate face path: captured players use their live slot1 request,
-   roster rows keep the template. */
+/* Owned selected slot textures with original palette recoloring. The color
+   table, the pladyncl op lists and the 14 captured players' destinations are
+   compared with the live snapshot. All roster rows in both captured team
+   contexts then load, apply and recolor natively. Slot1 is the separate face
+   path: captured players use their live slot1 request, roster rows keep the
+   template. Color state is record +4C..+63 (captured team values). */
 #include "slot_textures.h"
+#include "palette_recolor.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +16,10 @@
 #define TEMPLATE_SIZES 0x802abfbcu
 #define SCRATCH 0x81100000u
 #define MAX_FLUSHES 64u
+#define COLOR_TABLE 0x8030a898u
+#define COLOR_ENTRIES 140u
+#define DYNCLUT_TABLE (0x803a9a40u-0x5b48u)
+#define COLOR_STATES 0x802abe6cu
 static uint8_t *load_data(const char *path,size_t *size){FILE *f=fopen(path,"rb");if(!f)return NULL;
  if(fseek(f,0,SEEK_END)){fclose(f);return NULL;}long n=ftell(f);if(n<=0||fseek(f,0,SEEK_SET)){fclose(f);return NULL;}
  uint8_t *b=malloc((size_t)n);if(!b||fread(b,1,(size_t)n,f)!=(size_t)n){free(b);fclose(f);return NULL;}fclose(f);*size=(size_t)n;return b;}
@@ -31,7 +36,9 @@ static int slot_of(const nflstreet_slot_textures *t,uint32_t token){
 }
 static int host_flush(void *opaque,uint32_t token,uint32_t size){host_log *h=opaque;int s=slot_of(h->owner,token);
  if(s<0||h->flush_count[s]>=MAX_FLUSHES)return 0;h->flushes[s][h->flush_count[s]++]=(flush_request){token,size};return 1;}
-static int host_palette(void *opaque,unsigned slot,uint32_t palette){host_log *h=opaque;h->palette_value[slot]=palette;++h->palettes;return 1;}
+typedef struct {nflstreet_palette_context compose;host_log *host;} palette_host;
+static int host_palette(void *opaque,unsigned slot,uint32_t palette,uint8_t *d,size_t n,uint32_t token){palette_host *p=opaque;
+ if(!nflstreet_palette_compose_slot(&p->compose,slot,palette,d,n,token))return 0;p->host->palette_value[slot]=palette;++p->host->palettes;return 1;}
 /* Byte range of destination palette record0 data (801C5958(dest,0) -> +8 pointer, +4 size). */
 static int palette_data(const nflstreet_slot_textures *t,unsigned s,size_t *from,size_t *to){
  const nflstreet_slot_texture *slot=t->slots+s;const uint8_t *d=nflstreet_slot_texture_bytes(t,s);
@@ -41,16 +48,18 @@ static int palette_data(const nflstreet_slot_textures *t,unsigned s,size_t *from
  *from=at-slot->token;*to=*from+size;return 1;
 }
 #ifdef NFLSTREET_SLOT_ORACLE
-static unsigned slot_layouts,slot_templates,slot_players,slot_loads,slot_flushes,slot_compositions;
-static int initialize_slot_oracle(const char *,const char *,const nflstreet_gear_texture_catalog *,const nflstreet_archive *);
+static unsigned slot_sweeps,slot_layouts,slot_templates,slot_players,slot_loads,slot_flushes,slot_compositions;
+static int initialize_slot_oracle(const char *,const char *,const nflstreet_gear_texture_catalog *,const nflstreet_archive *,
+ const nflstreet_dynclut_table *,const nflstreet_color_table *);
 static int original_slot_open(const nflstreet_slot_textures *);
-static int original_slot_apply(const nflstreet_slot_textures *,const int32_t *,const uint32_t *,const host_log *);
+static int original_slot_apply(const nflstreet_slot_textures *,const int32_t *,const uint32_t *,const uint8_t *,const host_log *);
 #endif
 static nflstreet_gear_records records;
 static host_log host;
 typedef struct {unsigned layout,identical,composed,players,flushes,palettes;uint32_t digest;} totals;
+static nflstreet_dynclut_table dynclut;static nflstreet_color_table colors;
 static int check_player(const nflstreet_gear_texture_catalog *catalog,const nflstreet_archive *textures,const nflstreet_gear_texture_plan *plan,
- const uint8_t *live,int captured,unsigned p,totals *t){
+ const uint8_t *live,int captured,unsigned p,const uint8_t state[NFLSTREET_COLOR_STATE_BYTES],totals *t){
  int32_t indices[NFLSTREET_GEAR_TEXTURE_SLOTS];uint32_t pal[NFLSTREET_GEAR_TEXTURE_SLOTS];
  for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s){indices[s]=plan->indices[s];pal[s]=plan->palettes[s];}
  if(plan->fallback){indices[0]=plan->fallback_index;pal[0]=plan->fallback_palette;}
@@ -63,18 +72,18 @@ static int check_player(const nflstreet_gear_texture_catalog *catalog,const nfls
  if(!original_slot_open(&owned))goto done;
 #endif
  memset(&host,0,sizeof host);host.owner=&owned;
- if(!nflstreet_slot_textures_apply(&owned,textures,indices,pal,SCRATCH,host_flush,host_palette,&host)){fprintf(stderr,"apply failed %u\n",p);goto done;}
+ palette_host composer={{&dynclut,&colors,state,host_flush,&host},&host};
+ if(!nflstreet_slot_textures_apply(&owned,textures,indices,pal,SCRATCH,host_flush,&host,host_palette,&composer)){fprintf(stderr,"apply failed %u\n",p);goto done;}
 #ifdef NFLSTREET_SLOT_ORACLE
- if(!original_slot_apply(&owned,indices,pal,&host))goto done;
+ if(!original_slot_apply(&owned,indices,pal,state,&host))goto done;
 #endif
  if(captured)for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s){const nflstreet_slot_texture *slot=owned.slots+s;
   if(slot->token!=be32(live+(DESTINATIONS-0x80000000u)+p*100u+4u*s)||slot->template_size!=be32(live+(TEMPLATE_SIZES-0x80000000u)+4u*s)){
    fprintf(stderr,"live layout mismatch player%u slot%u\n",p,s);goto done;}++t->layout;
   const uint8_t *mine=nflstreet_slot_texture_bytes(&owned,s),*theirs=live+(slot->token-0x80000000u);
-  if(!memcmp(mine,theirs,slot->template_size)){++t->identical;continue;}
-  size_t from,to;if(slot->applied_palette==UINT32_MAX||!palette_data(&owned,s,&from,&to)||memcmp(mine,theirs,from)||
-     memcmp(mine+to,theirs+to,slot->template_size-to)){fprintf(stderr,"live bytes mismatch player%u slot%u\n",p,s);goto done;}
-  ++t->composed;
+  if(memcmp(mine,theirs,slot->template_size)){size_t from=0,to=0;palette_data(&owned,s,&from,&to);
+   fprintf(stderr,"live bytes mismatch player%u slot%u (palette data %zu..%zu)\n",p,s,from,to);goto done;}
+  ++t->identical;t->composed+=slot->applied_palette!=UINT32_MAX;
  }
  for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s){t->digest=fnv(t->digest,host.flushes[s],host.flush_count[s]*sizeof(flush_request));t->flushes+=host.flush_count[s];
   t->digest=fnv(t->digest,&owned.slots[s].applied_index,4);t->digest=fnv(t->digest,&owned.slots[s].applied_palette,4);}
@@ -92,19 +101,29 @@ int main(int argc,char **argv){
  nflstreet_archive textures,dynamic;nflstreet_gear_texture_catalog catalog;nflstreet_team_table gear;
  if(!nflstreet_archive_open(data[0],sizes[0],&textures)||!nflstreet_archive_open(data[1],sizes[1],&dynamic)||
     !nflstreet_gear_texture_catalog_open(data[2],sizes[2],&catalog)||!nflstreet_team_table_open_tag(data[3],sizes[3],0x52414547u,&gear)||
-    !nflstreet_gear_records_build(&gear,&catalog,&records))return 3;
+    !nflstreet_color_table_build(data[3],sizes[3],&catalog,&colors)||
+    !nflstreet_gear_records_build(&gear,&catalog,&records)||!nflstreet_dynclut_table_open(&dynamic,&catalog,&dynclut))return 3;
 #ifdef NFLSTREET_SLOT_ORACLE
- if(!initialize_slot_oracle(argv[7],argv[6],&catalog,&textures))return 4;
+ if(!initialize_slot_oracle(argv[7],argv[6],&catalog,&textures,&dynclut,&colors))return 4;
 #endif
+ /* Boot-built tables in the live snapshot: 8030A898 colors and r13-5B48 op lists. */
+ if(memcmp(colors.bytes,live+(COLOR_TABLE-0x80000000u),COLOR_ENTRIES*16u))return 8;
+ for(unsigned i=COLOR_ENTRIES*16u;i<NFLSTREET_COLOR_TABLE_BYTES;++i)if(colors.bytes[i])return 8;
+ uint32_t live_ops=be32(live+(DYNCLUT_TABLE-0x80000000u));if(dynclut.entries!=129)return 8;
+ for(unsigned e=0;e<dynclut.entries;++e){const uint8_t *row=live+(live_ops-0x80000000u)+8u*e;
+  if(be32(row)!=dynclut.count[e])return 8;
+  for(unsigned k=0;k<dynclut.count[e];++k){const uint8_t *o=live+(be32(row+4)-0x80000000u)+8u*k;const nflstreet_dynclut_op *n=dynclut.ops+dynclut.first[e]+k;
+   if(be32(o)!=n->kind||o[4]!=n->start||o[5]!=n->end||o[6]!=n->color||o[7]!=n->level){fprintf(stderr,"live op mismatch entry%u op%u\n",e,k);return 8;}}}
  totals t={0};t.digest=2166136261u;unsigned roster=0;
  for(unsigned p=0;p<CAPTURED_PLAYERS;++p){nflstreet_gear_texture_plan plan;
   if(!nflstreet_gear_texture_plan_build(&catalog,&records,&textures,&dynamic,live+(PLAYER_RECORDS-0x80000000u)+p*0x68u,&plan)||
-     !check_player(&catalog,&textures,&plan,live,1,p,&t))return 6;}
+     !check_player(&catalog,&textures,&plan,live,1,p,live+(PLAYER_RECORDS-0x80000000u)+p*0x68u+0x4cu,&t))return 6;
+  if(memcmp(live+(COLOR_STATES-0x80000000u)+p*24u,live+(PLAYER_RECORDS-0x80000000u)+p*0x68u+0x4cu,24))return 8;}
  /* Controlled requests: palettes on every -1 slot (800E2E48 ignores them). */
  {nflstreet_gear_texture_plan plan;
   if(!nflstreet_gear_texture_plan_build(&catalog,&records,&textures,&dynamic,live+(PLAYER_RECORDS-0x80000000u),&plan))return 6;
   for(unsigned s=1;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s)if(plan.indices[s]==-1)plan.palettes[s]=0x22u;
-  if(!check_player(&catalog,&textures,&plan,live,0,0,&t))return 6;}
+  if(!check_player(&catalog,&textures,&plan,live,0,0,live+(PLAYER_RECORDS-0x80000000u)+0x4cu,&t))return 6;}
  for(unsigned entry=1;entry<=32;++entry){char path[4096];size_t n=0;nflstreet_team_table play;unsigned team_field=UINT32_MAX;
   if(snprintf(path,sizeof path,"%s/db_teams/%05u.bin",argv[5],entry)>=(int)sizeof path)return 5;uint8_t *db=load_data(path,&n);
   if(!db||!nflstreet_team_table_open_tag(db,n,0x59414c50u,&play))return 5;
@@ -114,15 +133,15 @@ int main(int argc,char **argv){
     memcpy(player,live+(PLAYER_RECORDS-0x80000000u)+(context?7u:0u)*0x68u,sizeof player);
     if(!nflstreet_gear_player_record_from_play(&play,row,&records,player)||
        !nflstreet_gear_texture_plan_build(&catalog,&records,&textures,&dynamic,player,&plan)||
-       !check_player(&catalog,&textures,&plan,live,0,row,&t))return 6;}
+       !check_player(&catalog,&textures,&plan,live,0,row,player+0x4c,&t))return 6;}
    ++roster;}
   free(db);
  }
- printf("Selected slot textures: %u players (%u captured, 1 controlled, %u roster rows x2 contexts); %u live slots match layout/size, %u byte-identical, %u differ only in palette record0 pending 800D9C0C; %u cache flushes, %u palette compositions reported; digest %08x.\n",
-  t.players,CAPTURED_PLAYERS,roster,t.layout,t.identical,t.composed,t.flushes,t.palettes,t.digest);
+ printf("Selected slot textures: %u players (%u captured, 1 controlled, %u roster rows x2 contexts); %u color entries and %u pladyncl op lists (%u ops) match live; %u live slots match layout/size, %u byte-identical (%u recolored); %u cache flushes, %u palette compositions; digest %08x.\n",
+  t.players,CAPTURED_PLAYERS,roster,COLOR_ENTRIES,dynclut.entries,dynclut.total,t.layout,t.identical,t.composed,t.flushes,t.palettes,t.digest);
 #ifdef NFLSTREET_SLOT_ORACLE
- printf("Original slot texture checks: %u 800E2958 layouts, %u 800E2AF0 template sets, %u 800E2CAC players (%u slot loads, %u flushes, %u 800D9C0C requests); archive acquisition supplied.\n",
-  slot_layouts,slot_templates,slot_players,slot_loads,slot_flushes,slot_compositions);
+ printf("Original slot texture checks: %u 800D9948 sweep cases; %u 800E2958 layouts, %u 800E2AF0 template sets, %u 800E2CAC players (%u slot loads, %u flushes, %u 800D9C0C compositions); archive acquisition supplied.\n",
+  slot_sweeps,slot_layouts,slot_templates,slot_players,slot_loads,slot_flushes,slot_compositions);
 #endif
- for(unsigned i=0;i<4;++i)free(data[i]);free(live);return roster==402?0:9;
+ nflstreet_dynclut_table_close(&dynclut);for(unsigned i=0;i<4;++i)free(data[i]);free(live);return roster==402?0:9;
 }

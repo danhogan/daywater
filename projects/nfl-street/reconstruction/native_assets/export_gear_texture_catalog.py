@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export original gear texture data privately; the native runtime reads GTC3, not a DOL."""
+"""Export original gear texture data privately; the native runtime reads GTC4, not a DOL."""
 
 import hashlib
 import struct
@@ -24,22 +24,28 @@ def span(dol: bytes, address: int, length: int) -> bytes:
 
 
 def export(output: Path) -> str:
-    """Write the GTC3 catalog and return its SHA256."""
+    """Write the GTC4 catalog and return its SHA256."""
     dol = BASELINES["dol"][0].read_bytes()
     if hashlib.sha1(dol).hexdigest() != ORIGINAL_SHA1:
         raise ValueError("Unexpected original revision")
     # Window: 802714F0 default names .. 80271C58 GRSI color words; then
     # 802859F8 categories, 80285968 GEAR query tags, 80252CF8 excluded name,
-    # and the initial 802799EC request index of each of the 25 slots (templates).
+    # the initial 802799EC request index of each of the 25 slots (templates),
+    # 8027132C dynclut color names, 80271494 level names and the 13 field tags
+    # of the 8028575C color-table query.
     templates = b"".join(span(dol, 0x802799EC + 24 * slot, 4) for slot in range(25))
+    color_tags = b"".join(span(dol, 0x8028575C + 16 * item + 8, 4) for item in range(13))
     result = (
-        b"GTC3"
-        + struct.pack(">III", 3, WINDOW_START, WINDOW_SIZE)
+        b"GTC4"
+        + struct.pack(">III", 4, WINDOW_START, WINDOW_SIZE)
         + span(dol, WINDOW_START, WINDOW_SIZE)
         + span(dol, 0x802859F8, 48)
         + span(dol, 0x80285968, 104)
         + span(dol, 0x80252CF8, 32)
         + templates
+        + span(dol, 0x8027132C, 360)
+        + span(dol, 0x80271494, 60)
+        + color_tags
     )
     output = private(output)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -51,6 +57,6 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=PRIVATE / "private/nflstreet/GNNE69-r0/native/gear-texture.gtc3")
+    parser.add_argument("--output", type=Path, default=PRIVATE / "private/nflstreet/GNNE69-r0/native/gear-texture.gtc4")
     args = parser.parse_args()
     print("Private gear texture catalog SHA256 " + export(args.output))
