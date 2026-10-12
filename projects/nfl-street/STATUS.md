@@ -6,7 +6,21 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: automatic headwear selection and joined geometry ownership.**
+**Latest: selected hair binding to a fresh skeleton target.** The owned
+selected geometry path now binds all three hair models to freshly loaded
+animdata entry101. Across402 roster players and three explicit body variants,
+3,618 model bindings and repeat no-ops pass per native process. All831 distinct
+selected hair files/views match original binding, including2,493 temporary
+allocations, their storage and release order per original process. Comparisons
+repeat across three contexts twice; earlier headwear/hair gates still pass.
+See [binding evidence and limits](reconstruction/native_assets/hair_postattach.md).
+
+This closes another appearance stage. Menus and the controllable reference scene
+work; texture/material ownership, remaining skeleton startup edits, fresh
+descriptors and actor creation still need connecting before selected teams can
+start a fresh playable match. Protected originals are unchanged.
+
+**Earlier: automatic headwear selection and joined geometry ownership.**
 Selected PLAY fields now join the original GEAR table to derive headwear state,
 then load the selected hair triplet. All 402 regular-roster players succeed.
 A reusable owner joins face/body/hair resources across 1,206 explicit body

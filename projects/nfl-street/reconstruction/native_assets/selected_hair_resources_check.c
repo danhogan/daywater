@@ -4,6 +4,9 @@
 #ifdef NFLSTREET_AUTOMATIC_HEADWEAR
 #include "headwear_state.h"
 #include "selected_player_geometry.h"
+#ifdef NFLSTREET_BIND_HAIR
+#include "hair_postattach.h"
+#endif
 #endif
 #include "../menus/team_catalog.h"
 #include <stdio.h>
@@ -14,9 +17,9 @@ static uint8_t *load(const char *path,size_t *size){
  long n=ftell(f);if(n<16||fseek(f,0,SEEK_SET)){fclose(f);return NULL;}uint8_t *b=malloc((size_t)n);
  if(!b||fread(b,1,(size_t)n,f)!=(size_t)n){free(b);fclose(f);return NULL;}fclose(f);*size=(size_t)n;return b;
 }
-typedef struct {void *bytes[6];uint32_t tokens[6];unsigned made,freed;} temporaries;
+typedef struct {void *bytes[9];uint32_t tokens[9];unsigned made,freed;} temporaries;
 static int allocate_temporary(void *opaque,uint32_t count,uint32_t width,nflstreet_model_postattach_segment *out){
- temporaries *t=opaque;if(t->made>=6||(uint64_t)count*width>0x10000u)return 0;
+ temporaries *t=opaque;if(t->made>=9||(uint64_t)count*width>0x10000u)return 0;
  unsigned i=t->made++;size_t size=(size_t)count*width;t->bytes[i]=malloc(size?size:1);
  if(!t->bytes[i])return 0;t->tokens[i]=0x40000000u+i*0x10000u;
  *out=(nflstreet_model_postattach_segment){t->tokens[i],t->bytes[i],size};return 1;
@@ -52,6 +55,11 @@ int main(int argc,char **argv){
  nflstreet_team_player_resolver resolver;nflstreet_body_resource_pool bodies={0};
  if(!face||!hair||!body||!nflstreet_team_player_resolver_open(face,fn,hair,hn,&resolver)||
   !nflstreet_body_resource_pool_open(body,bn,0x20000000u,&bodies)||!nflstreet_body_resource_pool_process(&bodies))return 3;
+ #ifdef NFLSTREET_BIND_HAIR
+ nflstreet_skeleton_resource hair_target={0};
+ if(!nflstreet_skeleton_resource_open(&animation,101,0x31000000u,&hair_target))return 16;
+ unsigned bound_hair_models=0;
+#endif
  unsigned rows=0,assemblies=0,models=0,guards=0,hair_models=0,hair_plans=0;
  for(unsigned entry=1;entry<=32;++entry){
   char path[4096];size_t size=0;int n=snprintf(path,sizeof path,"%s/db_teams/%05u.bin",argv[5],entry);
@@ -85,6 +93,18 @@ int main(int argc,char **argv){
     if(!nflstreet_selected_player_geometry_open(&resolver,db,size,team,player,&bodies,variant,
         &gear_catalog,&local,0x10000000u,0x50000000u,&joined))return 14;
     r=joined.base;
+#ifdef NFLSTREET_BIND_HAIR
+ temporaries hair_temporary={0};
+ if(!nflstreet_hair_resources_bind(&joined.hair,&hair_target,0x19000000u,allocate_temporary,release_temporary,&hair_temporary)||
+    hair_temporary.made!=hair_temporary.freed)return 17;
+ unsigned allocations_before=hair_temporary.made;
+ if(!nflstreet_hair_resources_bind(&joined.hair,&hair_target,0x19000000u,allocate_temporary,release_temporary,&hair_temporary)||
+    hair_temporary.made!=allocations_before||hair_temporary.freed!=allocations_before)return 18;
+ for(unsigned slot=0;slot<3;++slot)if(joined.hair.bytes[slot])++bound_hair_models;
+#ifdef NFLSTREET_AUTOMATIC_HEADWEAR_ORACLE
+ if(!variant&&!original_hair_binding(&local,&resolver.hair,&animation,&joined.hair_plan))return 19;
+#endif
+#endif
 #else
     if(!nflstreet_selected_player_resources_open(&resolver,db,size,team,player,&bodies,variant,0x10000000u,&r)){
      fprintf(stderr,"Selected resources failed team%u player%u variant%u\n",team,player,variant);return 5;}
@@ -153,8 +173,15 @@ int main(int argc,char **argv){
  free(local_bytes);
 #ifdef NFLSTREET_AUTOMATIC_HEADWEAR
  free(gear_bytes);
+#ifdef NFLSTREET_BIND_HAIR
+ printf("Hair binding: %u selected models and repeated no-ops; fresh entry101 target.\n",bound_hair_models);
+ nflstreet_skeleton_resource_close(&hair_target);
+#endif
 #ifdef NFLSTREET_AUTOMATIC_HEADWEAR_ORACLE
  printf("Headwear original checks: %u extracted fields, %u selectors, %u mapped values; fresh GEAR query services supplied.\n",field_checks,selector_checks,map_checks);free(hw_ram);
+#ifdef NFLSTREET_BIND_HAIR
+ printf("Original hair binding: %u unique files/views and repeats, %u allocating models, %u exact allocations/storage/free order.\n",binding_models,binding_allocating,binding_allocations);
+#endif
 #endif
 #endif
 #ifdef NFLSTREET_HAIR_ORACLE
