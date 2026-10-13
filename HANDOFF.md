@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-13. Latest work: complete native match records feed selected visuals (`selected_player_visual_from_match`)
+Updated: 2026-10-13. Latest work: Quick Game selection-to-GAME roster bridge (`quick_match_roster.*`)
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -51,7 +51,14 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/selected_player_visual.md` — latest:
+3. `projects/nfl-street/reconstruction/native_assets/quick_match_roster.md` — latest:
+   native menu selection structs now map to GAME selected/formation rows and ids.
+   258 selections, 8,192 original setter cases per process. Actual retained
+   picker snapshot still fails: mirrored teams and 12/14 STAT membership. Correct
+   `menus/team_screen_probe.c` roster source (currently fallback db_teams), verify
+   mirrored-team copy/id behavior, then connect the real handoff. Preserve old
+   captures before regeneration; the new gate fingerprints that retained JSON.
+   Then `selected_player_visual.md`:
    508 STAT players ×3 body variants = 1,524 complete-record visual assemblies per
    process. The native GAME roster retains its borrowed STAT source; source_rows
    resolves the exact geometry identity and full record. Side input is explicitly
@@ -111,6 +118,7 @@ the original DLL separately as an oracle.
 | Gear texture plan | `gear_texture.*` | Original `800DE3B8`: GEAR records, player record fields, 25 slot index/palette pairs, color requests, slot0 fallback; team-level record bytes captured |
 | Slot textures | `slot_textures.*` | Original 800E2958 layout, 800E2AF0 templates, 800E2CAC/800E27F8 loads; `800D9C0C` recolor reported, not executed |
 | Palette recolor | `palette_recolor.*` | 80148A88 color table, 800D8918 dynclut parsing, 800D9948 ops, 800D9C0C composition; its gate feeds captured color state |
+| Quick match roster bridge | `quick_match_roster.*` | Menu selection structs to GAME rows/new ids, lineup bits and formation mapping; real picker source and mirrored teams still open |
 | Selected visual owner | `selected_player_visual.*` | Joins geometry and owned surfaces; rejects cross-owner token collisions before uploads; completed selected-match record is caller-supplied |
 | Owned player surface | `player_surface.*` | Joins gear/face requests, 25 owned slots, recoloring, binding, configuration and actor material instances; staged failure cleanup; geometry/actor creation still separate |
 | Slot materials | `slot_materials.*` | Original `800E2BE8`/`801EBD38` texture sets (GXTexObj/GXTlutObj), `80164DD8` settings and the `801C7528`/`801EBBA8`/`801EBC78` hookup onto the 45 material instances; shader/TEV drawing not modeled |
@@ -138,7 +146,14 @@ matches 831 distinct files/views and 2,493 exact temporary allocation/storage/
 release sequences per original process. Connected actor creation matches 3,072
 controlled initialization cases, not gameplay frames.
 
-Latest connection: `nflstreet_selected_player_visual_from_match` consumes native
+Latest connection: `nflstreet_quick_match_roster_build` consumes native menu
+selection structs, updates original GILP bits through copy overrides, and maps
+selected/formation order to GAME rows and ids. No actors are created. The retained
+real menu snapshot selects teams 1/1 and has only 12/14 correct STAT memberships.
+Fix native preview roster sourcing and verify mirrored copying rather than
+silently translating inconsistent ids. Read `quick_match_roster.md`.
+
+Previous connection: `nflstreet_selected_player_visual_from_match` consumes native
 GAME rows, resolves their exact source STAT identity, builds complete records
 and opens geometry/surface with those colors. All 508 STAT players pass with
 three body variants. Source provenance rejects a different database; source
@@ -313,7 +328,7 @@ PYTHONPATH=projects/nfl-street/reconstruction/menus \
   python3 projects/nfl-street/reconstruction/native_assets/verify_face_texture.py
 ```
 
-Latest gate: `verify_selected_player_visual.py`. Surface gate: `verify_player_surface.py` (requires current slot-stage evidence). Stage gate: `verify_slot_textures.py` (about 2 minutes). Gear plan gate: `verify_gear_texture.py`. Face application gate: `verify_texture_apply.py`.
+Latest gate: `verify_quick_match_roster.py`. Visual gate: `verify_selected_player_visual.py`. Surface gate: `verify_player_surface.py` (requires current slot-stage evidence). Stage gate: `verify_slot_textures.py` (about 2 minutes). Gear plan gate: `verify_gear_texture.py`. Face application gate: `verify_texture_apply.py`.
 Other targeted gates in that directory:
 `verify_skeleton_startup.py`, `verify_hair_binding.py`,
 `verify_headwear_state.py`, `verify_hair_resources.py`,

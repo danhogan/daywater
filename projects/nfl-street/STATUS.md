@@ -6,7 +6,16 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: complete native match records feed selected visuals.** The assembly
+**Latest: menu selections map to native GAME rows.** A new bridge validates
+seven players per side, sets the original lineup bits and preserves both
+formation orders through GAME id reassignment. It passes 258 selection cases
+and 8,192 original scalar setter comparisons per process. The retained real
+picker snapshot still has a source mismatch (12/14 ids belong to its STAT teams)
+and selects mirrored teams, an unverified route. These inputs reject; the real
+menu is not yet connected to fresh actor startup. See
+[menu roster bridge](reconstruction/native_assets/quick_match_roster.md).
+
+**Earlier: complete native match records feed selected visuals.** The assembly
 now uses the exact STAT identity mapped by each native GAME row and builds its
 full player record, including team/color state. All 508 STAT players pass across
 three body variants in two fresh Windows processes. The earlier controlled-
