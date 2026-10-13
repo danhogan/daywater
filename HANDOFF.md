@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-13. Latest work: captured players render natively by executing the native player-draw GX calls; before that, fresh face/hair skeleton binding
+Updated: 2026-10-13. Latest work: both selected lineups have private bodies bound to fresh skeleton sources
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -51,7 +51,16 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/player_render.md` — latest:
+3. `projects/nfl-street/reconstruction/native_assets/match_bodies.md` — latest:
+   14 private body files/views bind transactionally and publish stable owner links.
+   All 12 TBYP/variant cases match actual original 801C6B38 across three contexts
+   repeated twice; 14-player composition and late rollback pass. Model views
+   start zero; an exploratory uninitialized-view comparison was corrected.
+   Variant 0 and target 0 remain explicit fixture choices. Body bone/cluster
+   binding is done; dynamic skinning matrices, model instances and actors remain.
+   Keep the body owner at a stable address; close visuals before body/skeleton
+   owners. Other renderer work is active in the checkout; preserve its edits.
+   Then `projects/nfl-street/reconstruction/native_assets/player_render.md` — latest:
    `gx_render` executes the native draw calls (display lists, matrix loads,
    lighting, mip textures, integer TEV, depth/blend). All 14 captured
    players of contexts 14–16 render in uniform and pose. Recorded original
@@ -151,6 +160,7 @@ the original DLL separately as an oracle.
 | Gear texture plan | `gear_texture.*` | Original `800DE3B8`: GEAR records, player record fields, 25 slot index/palette pairs, color requests, slot0 fallback; team-level record bytes captured |
 | Slot textures | `slot_textures.*` | Original 800E2958 layout, 800E2AF0 templates, 800E2CAC/800E27F8 loads; `800D9C0C` recolor reported, not executed |
 | Palette recolor | `palette_recolor.*` | 80148A88 color table, 800D8918 dynclut parsing, 800D9948 ops, 800D9C0C composition; its gate feeds captured color state |
+| Selected private bodies | `body_postattach.*`, `match_bodies.*` | Original 12-type/variant body-bind comparison; 14 private bodies; matrix palettes/actors open |
 | Selected face/hair skeletons | `match_skeletons.*` | 84 fresh source resources; selected face/hair binding transaction; body skinning/actors open |
 | Selected match visuals | `match_visuals.*` | Both selected lineups retained simultaneously;14 players, 350 slots, 630 material instances; no actors/drawing |
 | Quick match session | `quick_match_session.*` | Owns STAT and GAME past menu teardown; created by native field confirmation; no actors yet |

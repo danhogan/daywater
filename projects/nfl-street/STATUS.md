@@ -6,7 +6,16 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: captured players render natively from the reconstructed draw.** A
+**Latest: selected players have private bodies bound to fresh skeleton targets.**
+All 14 body files/views now join the retained selected-player owners. The original
+binder matches 12 body type/variant cases across three saved contexts repeated
+twice. The 14-player native composition passes stable-link, late rollback and
+cleanup checks. Explicit target 0/variant 0 are fixture choices. Actor/model
+instances and frame-dependent skinning matrices still need connecting to the
+native renderer; fresh menu-selected players are not yet visible. See
+[selected body ownership](reconstruction/native_assets/match_bodies.md).
+
+**Earlier: captured players render natively from the reconstructed draw.** A
 small software GPU now executes the native player-draw calls: display lists,
 skinning matrices, lighting, mipmapped textures, TEV stages, depth and
 blending. All 14 players of three saved contexts render in their own uniforms
