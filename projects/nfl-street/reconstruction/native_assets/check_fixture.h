@@ -32,7 +32,7 @@ static float rndf(float lo,float hi){return lo+(hi-lo)*(float)(rnd()&0xffffu)/65
 static uint32_t fbits(float f){uint32_t v;memcpy(&v,&f,4);return v;}
 static nflstreet_scenery_context scenery_context(uint8_t *ram,nflstreet_player_draw_context *x,trace *t){
  memset(x,0,sizeof *x);x->span=span;x->memory=ram;x->emit=record;x->sink=t;
- x->default_texture=ram32(ram,R13-0x640cu);x->null_shader=ram32(ram,R13-0x5684u);
+ x->default_texture=ram32(ram,R13-0x640cu);x->light_sets=0x8034fe9cu;x->null_shader=ram32(ram,R13-0x5684u);
  x->setups[0]=0x801c9d0cu;x->setups[1]=0x801c9dacu;x->setups[2]=0x801c9dfcu;x->setups[3]=0x801c9d5cu;
  return venue_context(ram,x);}
 /* Native render state from the saved globals (8039E560.., r13-6220/-5630, 80293A54..). */

@@ -17,7 +17,9 @@ static int initialize_oracle(const char *dll){return gx_oracle_open(dll);}
 static int resource_lock(CPUState *c,void *p){(void)p;if(c->pc==0x801af944u||c->pc==0x801af9ccu){c->pc=c->lr;return 1;}return 0;}
 static int original_case(const uint8_t *before,const hud_case *hc,const trace *t,uint8_t *after,const nflstreet_render_state *s){
  memcpy(oracle_ram,before,RAM_BYTES);unsigned n=0;
- if(hc->kind==4){const uint32_t args[6]={ram32(oracle_ram,R13-0x6cd8u),0,0,0,0,0};if(!gx_oracle_run(0x8012ab5cu,args,t,resource_lock,NULL,&n))return 0;}
+ if(hc->kind==6){const uint32_t args[6]={HUD_BALL,0,0,0,0,0};if(!gx_oracle_run(0x8015cb60u,args,t,NULL,NULL,&n))return 0;}
+ else if(hc->kind==5){const uint32_t none[6]={0};if(!gx_oracle_run(0x801652bcu,none,t,NULL,NULL,&n))return 0;}
+ else if(hc->kind==4){const uint32_t args[6]={ram32(oracle_ram,R13-0x6cd8u),0,0,0,0,0};if(!gx_oracle_run(0x8012ab5cu,args,t,resource_lock,NULL,&n))return 0;}
  else if(hc->kind==3){const uint32_t args[6]={hc->camera,ram32(oracle_ram,hc->camera+0x40),0,0,0,0};if(!gx_oracle_run(0x8017d16cu,args,t,NULL,NULL,&n))return 0;}
  else if(hc->kind==2){const uint32_t args[6]={hc->font,hc->text,hc->flags,hc->position,0,0};gx_oracle_f1=hc->limit;
   int ok=gx_oracle_run(0x80186b1cu,args,t,NULL,NULL,&n);gx_oracle_f1=0.0;if(!ok)return 0;}

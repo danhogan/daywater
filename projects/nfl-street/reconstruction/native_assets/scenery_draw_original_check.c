@@ -25,7 +25,8 @@ static int ring_hooks(CPUState *c,void *p){
  return venue_hooks(c,p);}
 static int original_case(const uint8_t *before,const scenery_case *sc,const trace *t,uint8_t *after,const nflstreet_render_state *s){
  memcpy(oracle_ram,before,RAM_BYTES);unsigned n=0,m=0;uint32_t camera=ram32(oracle_ram,R13-0x4f44u);
- if(sc->kind==5){for(unsigned i=0;i<4;++i){const uint32_t args[6]={venue_lines[i],0,0,0,0,0};unsigned k=0;trace rest={t->calls+n,t->count-n};
+ if(sc->kind==6){const uint32_t none[6]={0};if(!gx_oracle_run(0x800d75ecu,none,t,NULL,NULL,&n))return 0;}
+ else if(sc->kind==5){for(unsigned i=0;i<4;++i){const uint32_t args[6]={venue_lines[i],0,0,0,0,0};unsigned k=0;trace rest={t->calls+n,t->count-n};
    if(!gx_oracle_run(0x800da074u,args,&rest,NULL,NULL,&k))return 0;n+=k;}}
  else if(sc->kind==4){for(unsigned i=0;i<3;++i){const uint32_t args[6]={venue_rings[i],0,0,0,0,0};unsigned k=0;trace rest={t->calls+n,t->count-n};
    if(!gx_oracle_run(0x800e3f7cu,args,&rest,ring_hooks,NULL,&k))return 0;n+=k;}}

@@ -25,7 +25,18 @@ assignments and LOD are explicit fixture inputs; fresh actor instances, natural
 head roots/pose selection and matrix token publication remain open. See
 [owned attachment palettes](reconstruction/native_assets/match_attachment_palettes.md).
 
-**Latest rendering: the in-match HUD is native, so the scene now matches the game's frame.**
+**Latest rendering: ground marks, ball shadows, the ball and the field camera are native.**
+The turf marks (`800D75EC`), the ball and field-object shadows (`801652BC`),
+the ball model (`8015CB60`, with its frustum tests and level of detail) and
+the field camera's view (`8017D16C` with handler `800C3508`) match the
+original. That is 201 frames each per saved context, plus field-camera
+views, with every GX call, pipe write and RAM byte compared and 20 more
+deliberate faults caught. The matrix library gained `PSMTXConcat` and the
+vector helpers. The scene render now uses the native field camera instead
+of a view derived from stored matrices. See
+[marks, ball and camera](reconstruction/native_assets/ball_and_marks.md).
+
+**Earlier rendering: the in-match HUD is native, so the scene now matches the game's frame.**
 The scoreboard, GameBreaker bars, "1ST DOWN", team logos and turbo meters
 come from the in-match uis screens (`8012AB5C` → `801D0BC4`). These are now
 native: the node walk, transforms, color stack, image quads with the

@@ -14,17 +14,22 @@
 #define TEXT_CASES 400u
 #define CAMERA_CASES 400u
 #define SCREEN_CASES 201u
+#define SHADOW_CASES 201u
+#define BALL_CASES 201u
 #include "check_fixture.h"
 #include "hud_fixture.h"
 #define SCRATCH 0x80f04000u
 static const uint32_t fonts[3]={0x8091bce0u,0x80e14ee0u,0x80e196e0u};
 /* kind 0: the 14 name tags as saved; 1: edited name tags; 2: one direct
-   text draw with edited inputs; 3: one screen camera view (8017D16C), the
-   two saved screen cameras first, then edited angles, positions and stack
-   selection; 4: the in-match uis screens through 8012AB5C with no ticks,
-   as saved, then with edited nodes (visibility, transforms, tints),
+   text draw with edited inputs; 3: one camera view (8017D16C), the field
+   camera and the two saved screen cameras first, then edited angles,
+   positions, stack selection and the field camera's mode; 4: the in-match
+   uis screens through 8012AB5C with no ticks, as saved, then with edited
+   nodes (visibility, transforms, tints),
    images (flags, colors, positions, texture coordinates, pending ids),
-   text objects (flags, positions, colors, shadows, lines) and switches. */
+   text objects (flags, positions, colors, shadows, lines) and switches;
+   5: the ball shadows (801652BC), as saved, then edited; 6: the ball
+   (8015CB60), as saved, then edited. */
 typedef struct {unsigned kind;uint32_t font,text,flags,position,camera;float limit;} hud_case;
 static uint32_t random_text(uint8_t *ram,uint32_t at){
  static const char letters[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,'-!?:";
@@ -69,10 +74,11 @@ static void edit_text(uint8_t *ram,hud_case *c){
  edit_common(ram);}
 static void edit_camera(uint8_t *ram,unsigned index,hud_case *c){
  static const uint32_t special[6]={0,0x400000u,0x800000u,0xc00000u,0xffffffu,0x7fffffu};
- c->camera=hud_cameras[1+index%2];if(index<2)return;
+ c->camera=hud_cameras[index%3];if(index<3)return;
  uint8_t *v=ram_at(ram,ram32(ram,c->camera+0x40),0x20);
  for(unsigned k=0;k<3;++k){if(rnd()%2)wr32(v+4+4*k,fbits(rndf(-1000.0f,1000.0f)));
   if(rnd()%2)wr32(v+0x14+4*k,rnd()%4==0?special[rnd()%6]:rnd()%3==0?rnd()<<8^rnd():rnd()&0xffffffu);}
+ if(c->camera==hud_cameras[0]&&rnd()%3==0){static const uint32_t modes[5]={0,1,5,2,7};wr32(ram_at(ram,ram32(ram,c->camera+0x40)+0x98,4),modes[rnd()%5]);}
  if(rnd()%3==0)ram_at(ram,R13-0x4ee8u,1)[0]=(uint8_t)(rnd()%4);
  uint32_t stack=ram32(ram,R13-0x65f0u)+12u*ram_at(ram,R13-0x4ee8u,1)[0];if(rnd()%3==0)wr32(ram_at(ram,stack+4,4),rnd()%4);}
 /* The two in-match uis screens 8012AB5C draws (r13-6C84 and r13-6C94,
@@ -140,15 +146,62 @@ static void edit_screens(uint8_t *ram){
  if(rnd()%4==0)for(unsigned k=0;k<8;++k)wr32(ram_at(ram,0x8034cdd8u+4*k,4),fbits(rndf(-0.5f,1.5f)));
  if(rnd()%3==0)ram_at(ram,R13-0x4ee8u,1)[0]=(uint8_t)(rnd()%2?0:3);
  if(rnd()%3==0)ram_at(ram,R13-0x6208u,1)[0]=(uint8_t)(rnd()%2);if(rnd()%2)wr32(ram_at(ram,R13-0x64bcu,4),rnd());}
+/* Shadow entries (type, size, color, active, position), light 0's matrix,
+   the gate, stacks and profile buckets. */
+static void edit_shadows(uint8_t *ram){
+ const uint32_t n=rd32(ram_at(ram,R13-0x6834u,4))>>16;
+ for(uint32_t i=0;i<n;++i){uint8_t *e=ram_at(ram,ram32(ram,0x80310898u+4*i),0x14);
+  if(rnd()%4==0)wr32(e,rnd()%3);if(rnd()%4==0)wr32(e+8,fbits(rndf(0.1f,4.0f)));if(rnd()%4==0)wr32(e+0xc,rnd()<<8^rnd());
+  if(rnd()%6==0)e[0x10]^=1;if(rnd()%3==0){uint8_t *p=ram_at(ram,rd32(e+4),12);for(unsigned k=0;k<3;++k)wr32(p+4*k,fbits(rndf(-40.0f,40.0f)));}}
+ if(rnd()%6==0)wr32(ram_at(ram,R13-0x6834u,4),(rd32(ram_at(ram,R13-0x6834u,4))&0xffffu)|((rnd()%(n+1))<<16));
+ if(rnd()%3==0)for(unsigned i=0;i<12;++i)if(rnd()%2)wr32(ram_at(ram,0x8034fd8cu+4*i,4),fbits(rndf(-1.5f,1.5f)));
+ if(rnd()%12==0){for(unsigned i=0;i<12;++i)wr32(ram_at(ram,0x8034fd8cu+4*i,4),fbits(i%5==0?1.0f:0.0f));}
+ if(rnd()%10==0)ram_at(ram,R13-0x58d8u,1)[0]=0;
+ edit_common(ram);}
+static float f32w(const uint8_t *p){uint32_t w=rd32(p);float f;memcpy(&f,&w,4);return f;}
+/* Ball flags (2, 0x20; 8 with the refresh hook so no area is needed),
+   alpha, light color and its scales, matrix, light 0's matrix, the view
+   slot, LOD thresholds and the refresh hook. */
+static void edit_ball(uint8_t *ram){
+ uint8_t *b=ram_at(ram,HUD_BALL,0x2a4);uint32_t f=rd32(b+0x14);
+ if(rnd()%4==0)f^=2;if(rnd()%4==0)f^=0x20;
+ if(rnd()%5==0){f|=8;wr32(ram_at(ram,ram32(ram,0x80381c40u)+4,4),0x800044a4u);}
+ else if(rnd()%8==0)wr32(ram_at(ram,ram32(ram,0x80381c40u)+4,4),0x800044a4u);
+ wr32(b+0x14,f);
+ if(rnd()%3==0)wr32(b+0x28c,fbits(rnd()%3?1.0f:rndf(0.0f,1.0f)));
+ if(rnd()%6==0)wr32(b+0x294,0);if(rnd()%3==0)for(unsigned k=0;k<3;++k)wr32(b+0x298+4*k,fbits(rndf(0.0f,2.0f)));
+ if(rnd()%3==0)for(unsigned k=0;k<3;++k)wr32(ram_at(ram,ram32(ram,HUD_BALL+0x294)+0xc+4*k,4),fbits(rndf(0.0f,2.0f)));
+ if(rnd()%5==0)for(unsigned i=0;i<12;++i)if(i%4!=3&&rnd()%2)wr32(b+0x20+4*i,fbits(rndf(-1.5f,1.5f)));
+ if(rnd()%4==0)for(unsigned i=0;i<12;++i)if(rnd()%2)wr32(ram_at(ram,0x8034fd8cu+4*i,4),fbits(rndf(-1.5f,1.5f)));
+ /* Usually the drawn field view (the stored main-field matrix without the
+    venue translation) as the view slot and stack top, so the ball passes
+    its frustum tests; otherwise random. */
+ if(rnd()%4){float m[12],p3[3];const uint8_t *mv=ram_at(ram,VENUE_MAIN_FIELD+0x24+8,0x30),*pos=ram_at(ram,VENUE_MAIN_FIELD+4,12);
+  for(unsigned i=0;i<12;++i){uint32_t w=rd32(mv+4*i);memcpy(m+i,&w,4);}for(unsigned i=0;i<3;++i){uint32_t w=rd32(pos+4*i);memcpy(p3+i,&w,4);}
+  for(unsigned r=0;r<3;++r)m[4*r+3]-=m[4*r]*p3[0]+m[4*r+1]*p3[1]+m[4*r+2]*p3[2];
+  uint32_t stack=ram32(ram,R13-0x65e8u),top=ram32(ram,stack+8)+0x40u*ram32(ram,stack+4);
+  for(unsigned i=0;i<12;++i){wr32(ram_at(ram,0x80331ec0u+0xc0+4*i,4),fbits(m[i]));wr32(ram_at(ram,top+4*i,4),fbits(m[i]));}
+  if(rnd()%3==0)for(unsigned k=0;k<3;++k)wr32(b+0x20+12+16*k,fbits(f32w(b+0x20+12+16*k)+rndf(-8.0f,8.0f)));}
+ else if(rnd()%2)for(unsigned i=0;i<12;++i)if(rnd()%2)wr32(ram_at(ram,0x80331ec0u+0xc0+4*i,4),fbits(i%4==3?rndf(-60.0f,60.0f):rndf(-1.5f,1.5f)));
+ if(rnd()%3==0)wr32(ram_at(ram,0x8028ca40u,4),fbits(rndf(0.0f,0.02f)));
+ if(rnd()%10==0)wr32(ram_at(ram,0x8028ca40u+0x10,4),0);
+ if(rnd()%3==0)wr32(ram_at(ram,0x8028ca40u+0x50+0xc,4),0xffffu); /* LOD entries marked 0xFFFF are stepped back over */
+ if(rnd()%4==0)wr32(ram_at(ram,0x8028ca40u+0x50,4),fbits(rndf(0.0f,0.02f)));
+ edit_common(ram);}
 static void prepare(uint8_t *ram,unsigned index,hud_case *c){
  memset(c,0,sizeof *c);if(!index)return;
  if(index<=TAG_CASES){c->kind=1;edit_tags(ram);return;}
+ if(index>TAG_CASES+TEXT_CASES+CAMERA_CASES+SCREEN_CASES+SHADOW_CASES){c->kind=6;
+  if(index>TAG_CASES+TEXT_CASES+CAMERA_CASES+SCREEN_CASES+SHADOW_CASES+1)edit_ball(ram);return;}
+ if(index>TAG_CASES+TEXT_CASES+CAMERA_CASES+SCREEN_CASES){c->kind=5;if(index>TAG_CASES+TEXT_CASES+CAMERA_CASES+SCREEN_CASES+1)edit_shadows(ram);return;}
  if(index>TAG_CASES+TEXT_CASES+CAMERA_CASES){c->kind=4;if(index>TAG_CASES+TEXT_CASES+CAMERA_CASES+1)edit_screens(ram);return;}
  if(index>TAG_CASES+TEXT_CASES){c->kind=3;edit_camera(ram,index-1-TAG_CASES-TEXT_CASES,c);return;}
  c->kind=2;edit_text(ram,c);}
 static int run_native(uint8_t *ram,const hud_case *c,trace *t,nflstreet_render_state *s){
  nflstreet_player_draw_context x;nflstreet_scenery_context sc=scenery_context(ram,&x,t);nflstreet_hud_context h=hud_context(ram,&sc);
  t->count=0;saved_state(ram,s);
+ if(c->kind==6){nflstreet_ball_context b=ball_context(ram,&h);nflstreet_ball_model_context bm=ball_model_context(ram,&b);return nflstreet_ball_draw(&bm,s);}
+ if(c->kind==5){nflstreet_ball_context b=ball_context(ram,&h);return nflstreet_ball_shadows_draw(&b,s);}
  if(c->kind==4){nflstreet_uis_context u=uis_context(ram,&h);return nflstreet_hud_screens_draw(&u,ram32(ram,R13-0x6cd8u),s);}
  if(c->kind==3)return nflstreet_camera_view(&h,c->camera,s);
  if(c->kind==2)return nflstreet_text_draw(&h,c->font,c->text,c->flags,c->limit,c->position,s);
@@ -159,10 +212,11 @@ static unsigned oracle_runs,oracle_calls;
 static int initialize_oracle(const char *dll);
 static int original_case(const uint8_t *before,const hud_case *c,const trace *t,uint8_t *after,const nflstreet_render_state *s);
 #endif
-typedef struct {unsigned cases,drawn,calls,primitives,writes;} totals;
+typedef struct {unsigned cases,drawn,calls,primitives,writes,lists;} totals;
 static void count(const trace *t,totals *n){++n->cases;n->calls+=t->count;unsigned p=0;
- for(unsigned i=0;i<t->count;++i){p+=t->calls[i].op==NFLSTREET_GX_BEGIN;n->writes+=t->calls[i].op==NFLSTREET_GX_WRITE;}
- n->primitives+=p;n->drawn+=p!=0;}
+ unsigned l=0;for(unsigned i=0;i<t->count;++i){p+=t->calls[i].op==NFLSTREET_GX_BEGIN;n->writes+=t->calls[i].op==NFLSTREET_GX_WRITE;
+  l+=t->calls[i].op==NFLSTREET_GX_CALL_DISPLAY_LIST;}
+ n->primitives+=p;n->lists+=l;n->drawn+=p!=0||l!=0;}
 int main(int argc,char **argv){
 #ifdef NFLSTREET_HUD_ORACLE
  if(argc!=3||!initialize_oracle(argv[2]))return 2;
@@ -173,8 +227,8 @@ int main(int argc,char **argv){
  if(!pristine||!ram||!before||!t.calls)return 3;
  if(!venue_present(pristine)||!hud_present(pristine))return 4;
  for(unsigned i=0;i<3;++i)if(!hud_font_present(pristine,fonts[i]))return 4;
- totals live={0},tags={0},texts={0},cameras={0},screen_live={0},screens={0};uint32_t h=2166136261u;
- for(unsigned index=0;index<1+TAG_CASES+TEXT_CASES+CAMERA_CASES+SCREEN_CASES;++index){
+ totals live={0},tags={0},texts={0},cameras={0},screen_live={0},screens={0},shadow_live={0},shadows={0},ball_live={0},balls={0};uint32_t h=2166136261u;
+ for(unsigned index=0;index<1+TAG_CASES+TEXT_CASES+CAMERA_CASES+SCREEN_CASES+SHADOW_CASES+BALL_CASES;++index){
   memcpy(ram,pristine,RAM_BYTES);hud_case c;prepare(ram,index,&c);memcpy(before,ram,RAM_BYTES);
   nflstreet_render_state s;if(!run_native(ram,&c,&t,&s)){fprintf(stderr,"native HUD rejected case %u (kind %u) after %u calls\n",index,c.kind,t.count);return 5;}
 #ifdef NFLSTREET_HUD_ORACLE
@@ -183,15 +237,19 @@ int main(int argc,char **argv){
     (double)c.limit,text?(unsigned)strlen((const char *)text):0u,ram_at(before,R13-0x6650u,1)[0]);return 7;}
 #endif
   count(&t,c.kind==0?&live:c.kind==1?&tags:c.kind==2?&texts:c.kind==3?&cameras:
+   c.kind==5?(index==1+TAG_CASES+TEXT_CASES+CAMERA_CASES+SCREEN_CASES?&shadow_live:&shadows):
+   c.kind==6?(index==1+TAG_CASES+TEXT_CASES+CAMERA_CASES+SCREEN_CASES+SHADOW_CASES?&ball_live:&balls):
    index==1+TAG_CASES+TEXT_CASES+CAMERA_CASES?&screen_live:&screens);h=fnv(h,t.calls,t.count*sizeof *t.calls);h=fnv(h,&s,sizeof s);}
  printf("HUD draw: name tags as saved (%u GX calls, %u glyph quads, %u pipe writes); %u edited name-tag frames (%u drawing, %u GX calls, "
-  "%u glyph quads, %u pipe writes); %u direct texts (%u drawing, %u GX calls, %u glyph quads, %u pipe writes); %u screen camera views; uis screens as saved (%u GX calls, %u quads, %u pipe writes) and %u edited (%u drawing, %u GX calls, "
-  "%u quads, %u pipe writes); digest %08x.\n",
+  "%u glyph quads, %u pipe writes); %u direct texts (%u drawing, %u GX calls, %u glyph quads, %u pipe writes); %u camera views; uis screens as saved (%u GX calls, %u quads, %u pipe writes) and %u edited (%u drawing, %u GX calls, "
+  "%u quads, %u pipe writes); ball shadows as saved (%u GX calls, %u fans) and %u edited (%u GX calls, %u fans); "
+  "ball as saved (%u GX calls, %u display lists) and %u edited (%u drawing, %u GX calls, %u display lists); digest %08x.\n",
   live.calls,live.primitives,live.writes,tags.cases,tags.drawn,tags.calls,tags.primitives,tags.writes,
   texts.cases,texts.drawn,texts.calls,texts.primitives,texts.writes,cameras.cases,screen_live.calls,screen_live.primitives,
-  screen_live.writes,screens.cases,screens.drawn,screens.calls,screens.primitives,screens.writes,h);
+  screen_live.writes,screens.cases,screens.drawn,screens.calls,screens.primitives,screens.writes,shadow_live.calls,shadow_live.primitives,
+  shadows.cases,shadows.calls,shadows.primitives,ball_live.calls,ball_live.lists,balls.cases,balls.drawn,balls.calls,balls.lists,h);
 #ifdef NFLSTREET_HUD_ORACLE
- printf("Original HUD draw: %u runs of 800DADC0, 80186B1C, 8017D16C and 8012AB5C match every GX call and pipe write (%u), the render state and all RAM outside the oracle stack.\n",
+ printf("Original HUD draw: %u runs of 800DADC0, 80186B1C, 8017D16C, 8012AB5C, 801652BC and 8015CB60 match every GX call and pipe write (%u), the render state and all RAM outside the oracle stack.\n",
   oracle_runs,oracle_calls);
 #endif
  free(t.calls);free(before);free(ram);free(pristine);return 0;}

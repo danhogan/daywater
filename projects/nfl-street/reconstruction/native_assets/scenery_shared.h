@@ -12,4 +12,10 @@ int nflstreet_play_held(nflstreet_draw *,const nflstreet_scenery_context *,int *
 int nflstreet_play_mode(nflstreet_draw *,const nflstreet_scenery_context *,uint32_t *mode);
 /* 8012D844: the count at 80308560 is positive. */
 int nflstreet_play_counting(nflstreet_draw *,const nflstreet_scenery_context *,int *counting);
+/* 801CAE78: the eight box corners through a 3x4 matrix. */
+void nflstreet_box_corners(const float box[8],const float m[12],float out[24]);
+/* 801CB05C: clip codes, (or << 8) | and. */
+uint32_t nflstreet_clip_codes(const float *points,unsigned n,const float P[16]);
+/* 801CB1C4 (no depth output): clip codes and the projected bounds. */
+uint32_t nflstreet_clip_bounds(const float *points,unsigned n,const float P[16],float lo[3],float hi[3]);
 #endif

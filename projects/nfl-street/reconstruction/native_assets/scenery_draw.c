@@ -3,6 +3,8 @@
 #include <math.h>
 #define rd32 nflstreet_rd32
 #define GX NFLSTREET_GX
+#define corners nflstreet_box_corners
+#define clip_codes nflstreet_clip_codes
 static float fword(const uint8_t *p){return nflstreet_as_float(rd32(p));}
 static uint8_t *at(nflstreet_draw *d,uint32_t token,uint32_t size){return nflstreet_draw_at(d,token,size);}
 /* 8018937C: copy sixteen words. */
@@ -10,14 +12,14 @@ static int copy16(nflstreet_draw *d,uint32_t to,uint32_t from){
  uint8_t *t=at(d,to,0x40),*f=at(d,from,0x40);if(!t||!f)return 0;memmove(t,f,0x40);return 1;}
 /* 801CAE78: the eight bounding-box corners through a 3x4 matrix, each
    x*m0 + ((y*m1 + z*m2) + m3) in single precision. */
-static void corners(const float b[8],const float m[12],float out[24]){
+void nflstreet_box_corners(const float b[8],const float m[12],float out[24]){
  for(unsigned r=0;r<3;++r){const float *q=m+4*r;
   float a=q[1]*b[1],c=q[2]*b[2],t=q[3],xa=q[0]*b[0],xb=q[0]*b[4],yb=q[1]*b[5],zb=q[2]*b[6];
   float s0=(a+c)+t,s1=(yb+c)+t,s2=(a+zb)+t,s3=(yb+zb)+t;
   out[r]=xa+s0;out[3+r]=xb+s0;out[6+r]=xa+s1;out[9+r]=xb+s1;out[12+r]=xa+s2;out[15+r]=xb+s2;out[18+r]=xa+s3;out[21+r]=xb+s3;}}
 /* 801CB05C: clip codes of points against a 4x4 projection (only P0, P2,
    P5, P6, P10, P11 and P14 are used); returns (or << 8) | and. */
-static uint32_t clip_codes(const float *p,unsigned n,const float P[16]){
+uint32_t nflstreet_clip_codes(const float *p,unsigned n,const float P[16]){
  uint32_t all=0x3f,any=0;
  for(unsigned i=0;i<n;++i,p+=3){float z=p[2],w=P[14]*z;
   float x=nflstreet_fmadds(P[0],p[0],P[2]*z),y=nflstreet_fmadds(P[5],p[1],P[6]*z),c=nflstreet_fmadds(P[10],z,P[11]);uint32_t code=0;
@@ -114,8 +116,10 @@ static int pass(nflstreet_draw *d,const nflstreet_scenery_context *c,uint32_t ob
 int nflstreet_field_passes_draw(const nflstreet_scenery_context *c,uint32_t object,nflstreet_render_state *s){
  if(!c||!c->draw||!c->draw->span||!c->draw->emit||!s||!object)return 0;
  nflstreet_draw d={c->draw,s};const uint8_t *offset=at(&d,c->pass_offset,0x10);if(!offset)return 0;
+ const nflstreet_pass_hooks *h=c->pass_hooks;
  return pass(&d,c,object,0,c->pass_alpha)&&pass(&d,c,object,1,c->pass_alpha)&&pass(&d,c,object,2,fword(offset+0xc))&&
-  pass(&d,c,object,3,c->pass3_alpha)&&pass(&d,c,object,4,c->pass_alpha);}
+  pass(&d,c,object,3,c->pass3_alpha)&&(!h||!h->marks||h->marks(h->user,object,s))&&pass(&d,c,object,4,c->pass_alpha)&&
+  (!h||!h->shadows||h->shadows(h->user,s));}
 
 /* 8018941C push then 80189ED8: the stack slot above the top becomes a copy
    of it (RAM effect), and m receives it. 8018949C pops later. */
@@ -254,3 +258,13 @@ int nflstreet_line_draw(const nflstreet_scenery_context *c,uint32_t object,nflst
  float e=fword(o+0xe0)+fword(o+0xe4),step=fword(o+0xe4);nflstreet_wr32(o+0xe0,nflstreet_float_bits(e));
  if((!(step<=0.0f)&&e>fword(o+0xec))||(!(step>=0.0f)&&!(e>=fword(o+0xe8))))nflstreet_wr32(o+0xe4,nflstreet_float_bits(-step));
  return 1;}
+uint32_t nflstreet_clip_bounds(const float *p,unsigned n,const float P[16],float lo[3],float hi[3]){
+ uint32_t all=0x3f,any=0;
+ for(unsigned i=0;i<n;++i,p+=3){float z=p[2],w=P[14]*z;
+  float x=nflstreet_fmadds(P[0],p[0],P[2]*z),y=nflstreet_fmadds(P[5],p[1],P[6]*z),c=nflstreet_fmadds(P[10],z,P[11]),inv=1.0f/w;uint32_t code=0;
+  if(!(x>=-w))code=2;else if(!(x<=w))code=1;
+  if(!(y>=-w))code|=8;else if(!(y<=w))code|=4;
+  if(!(c>=-w))code|=0x20;else if(!(c<=w))code|=0x10;
+  any|=code;all&=code;const float q[3]={x*inv,y*inv,c*inv};
+  for(unsigned k=0;k<3;++k){if(!(q[k]>=lo[k]))lo[k]=q[k];if(!(q[k]<=hi[k]))hi[k]=q[k];}}
+ return any<<8|all;}

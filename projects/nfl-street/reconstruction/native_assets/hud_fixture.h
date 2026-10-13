@@ -6,6 +6,7 @@
    check defines R13, ram_at and ram32 (venue_fixture.h). */
 #include "hud_draw.h"
 #include "uis_draw.h"
+#include "ball_draw.h"
 #define HUD_NAME_TAGS 0x8091c568u
 #define HUD_NAME_TAG_COUNT 14u
 /* The frame's three camera nodes (801DEF50): the field, the HUD with the
@@ -25,7 +26,7 @@ static nflstreet_hud_context hud_context(uint8_t *ram,const nflstreet_scenery_co
  h.text_state=0x8039c480u;h.text_boxes=0x8039c4bcu;h.text_ready=R13-0x6650u;h.error_hook=ram32(ram,R13-0x64b8u);h.error_code=R13-0x64bcu;
  h.stacks.table=ram32(ram,R13-0x65f0u);h.stacks.count=ram32(ram,R13-0x65ecu);h.stacks.current=R13-0x65e8u;h.stacks.index=R13-0x4ee8u;
  h.stacks.sine=0x8039e100u;h.stacks.angle_scale[0]=ramf(ram,0x802617a0u);h.stacks.angle_scale[1]=ramf(ram,0x802617b0u);
- h.camera_types=ram32(ram,R13-0x5780u);h.screen_camera=0x8017db70u;
+ h.camera_types=ram32(ram,R13-0x5780u);h.screen_camera=0x8017db70u;h.field_camera=0x800c3508u;
  h.tluts[0]=0x80331460u;h.tluts[1]=0x80331480u;h.tag_offset=ramf(ram,0x80252b68u);
  return h;}
 static nflstreet_uis_context uis_context(uint8_t *ram,const nflstreet_hud_context *hud){
@@ -47,4 +48,19 @@ static nflstreet_uis_context uis_context(uint8_t *ram,const nflstreet_hud_contex
  u.screen_flags=R13-0x6c98u;u.pending_on=R13-0x6cf0u;u.pending=0x8030834cu;u.refresh_hook=0x80381c40u;u.refresh_target=0x800044a4u;
  u.after_second=R13-0x4f80u;
  return u;}
+static inline nflstreet_ball_context ball_context(uint8_t *ram,const nflstreet_hud_context *hud){
+ nflstreet_ball_context c;memset(&c,0,sizeof c);c.hud=hud;
+ c.enabled=R13-0x58d8u;c.count=R13-0x6834u;c.entries=0x80310898u;c.texture=0x80310a58u;c.lights=0x8034fd8cu;
+ c.unit[0]=ramf(ram,0x803a3958u);c.unit[1]=ramf(ram,0x803a395cu);c.axis[0]=ramf(ram,0x80268de0u);c.axis[1]=ramf(ram,0x80268de4u);
+ static const uint32_t k[5]={0x80260d88u,0x80260d8cu,0x80260d90u,0x80260d6cu,0x80260d70u};for(unsigned i=0;i<5;++i)c.consts[i]=ramf(ram,k[i]);
+ for(unsigned i=0;i<3;++i)c.recip[i]=ramf(ram,0x802617d8u+4*i);
+ return c;}
+/* The ball the original frame draws (8015CB60). */
+#define HUD_BALL 0x80deee24u
+static inline nflstreet_ball_model_context ball_model_context(uint8_t *ram,const nflstreet_ball_context *shadows){
+ nflstreet_ball_model_context c;memset(&c,0,sizeof c);c.shadows=shadows;c.ball=HUD_BALL;c.box=0x8028ca20u;c.lod=0x803897d8u;c.slots=0x80331ec0u;
+ c.bounds_init[0]=ramf(ram,0x8026389cu);c.bounds_init[1]=ramf(ram,0x802638a0u);
+ static const uint32_t k[6]={0x80260614u,0x80260618u,0x80260628u,0x8026062cu,0x80260630u,0x80260634u};for(unsigned i=0;i<6;++i)c.k[i]=ramf(ram,k[i]);
+ c.refresh_hook=0x80381c40u;c.refresh_target=0x800044a4u;
+ return c;}
 #endif

@@ -28,6 +28,8 @@ int nflstreet_draw_shader(nflstreet_draw *,uint32_t shader);                  /*
 int nflstreet_draw_texture(nflstreet_draw *,uint32_t map,uint32_t texture,uint32_t tlut); /* 801C7AD4 */
 int nflstreet_draw_list(nflstreet_draw *,uint32_t list,uint32_t count);       /* 801C8460 */
 int nflstreet_draw_all(nflstreet_draw *);                                     /* 801C84D4 */
+int nflstreet_draw_chunk(nflstreet_draw *,uint32_t index);                   /* 801C8410 */
+int nflstreet_draw_light_set(nflstreet_draw *,uint32_t index,float r,float g,float b); /* 801EDC60 */                                     /* 801C84D4 */
 int nflstreet_draw_variant(nflstreet_draw *,uint32_t groups,int32_t group,int32_t variant,uint32_t *entry); /* 801CD43C */
 int nflstreet_draw_group(nflstreet_draw *,int32_t group,int32_t variant);     /* 801C8544 */
 #endif

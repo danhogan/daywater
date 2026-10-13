@@ -154,14 +154,12 @@ state plus 300 edited cases. The edits cover:
   weather draws `8015A5CC`/`8015A7C4` (flags `802A391C/D`, clear here) are
   not modeled either.
 - **Rest of the scene.**
-  - ground marks (`800D75EC` → `80160298`), which build per-mark matrices
-    with the matrix library's rotate and scale;
   - effect quads (`8015F450`);
-  - the ball and ball shadows (`8015CB60`, `801652BC`);
   - ten further models (`80168234`);
   - the HUD's uis screens (the name tags are in `hud_draw.md`).
 
-  A frame traversal in the oracle lists them in draw order.
+  A frame traversal in the oracle lists them in draw order. Ground marks,
+  ball shadows and the ball are in `ball_and_marks.md`.
 
 ## Verification
 

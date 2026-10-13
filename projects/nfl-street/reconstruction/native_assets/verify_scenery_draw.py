@@ -14,28 +14,31 @@ VENUE = {
     "calls); sky and shadows as saved (865 GX calls, 16 primitives, 808 pipe writes) and 300 edited "
     "(208401 GX calls, 3721 primitives, 192258 pipe writes); rings as saved (85 GX calls, 3 display "
     "lists) and 200 edited (11513 GX calls, 375 display lists); lines as saved (184 GX calls, 80 pipe "
-    "writes) and 200 edited (18286 GX calls, 401 primitives, 8020 pipe writes); digest 971b8e00.",
+    "writes) and 200 edited (18286 GX calls, 401 primitives, 8020 pipe writes); ground marks as saved "
+    "(1979 GX calls, 78 marks) and 200 edited (365434 GX calls, 14394 marks); digest 399db687.",
     15: "EARS venue as saved (2497 GX calls, 388 display lists, 20 instances drawn, 29 depth ranges, 0 fog "
     "calls); 300 edited venue loops (1084933 GX calls, 175904 display lists, 5598 instances drawn); 900 "
     "single instances (316514 GX calls, 52864 display lists, 735 drawn, 54 frustum-culled, 142 fog "
     "calls); sky and shadows as saved (867 GX calls, 16 primitives, 808 pipe writes) and 300 edited "
     "(208777 GX calls, 3721 primitives, 192258 pipe writes); rings as saved (79 GX calls, 3 display "
     "lists) and 200 edited (10841 GX calls, 375 display lists); lines as saved (176 GX calls, 80 pipe "
-    "writes) and 200 edited (17650 GX calls, 401 primitives, 8020 pipe writes); digest f682434b.",
+    "writes) and 200 edited (17650 GX calls, 401 primitives, 8020 pipe writes); ground marks as saved "
+    "(2006 GX calls, 79 marks) and 200 edited (356932 GX calls, 14052 marks); digest e306fa66.",
     16: "EARS venue as saved (2517 GX calls, 388 display lists, 20 instances drawn, 29 depth ranges, 20 fog "
     "calls); 300 edited venue loops (1089613 GX calls, 175904 display lists, 5598 instances drawn); 900 "
     "single instances (316992 GX calls, 52864 display lists, 735 drawn, 54 frustum-culled, 620 fog "
     "calls); sky and shadows as saved (865 GX calls, 16 primitives, 808 pipe writes) and 300 edited "
     "(208401 GX calls, 3721 primitives, 192258 pipe writes); rings as saved (85 GX calls, 3 display "
     "lists) and 200 edited (11553 GX calls, 376 display lists); lines as saved (184 GX calls, 80 pipe "
-    "writes) and 200 edited (18286 GX calls, 401 primitives, 8020 pipe writes); digest 89816234.",
+    "writes) and 200 edited (18286 GX calls, 401 primitives, 8020 pipe writes); ground marks as saved "
+    "(2029 GX calls, 80 marks) and 200 edited (361499 GX calls, 14243 marks); digest 27b4067f.",
 }
 NATIVE = {context: "Scenery draw: " + text for context, text in VENUE.items()}
 ORIGINAL = {
-    context: "Original scenery draw: 1904 runs of 801EC8E4, 80165DC4, 8015B670, 801655D8, 801643F4, 800E3F7C "
-    "and 800DA074 match every "
+    context: "Original scenery draw: 2105 runs of 801EC8E4, 80165DC4, 8015B670, 801655D8, 801643F4, 800E3F7C, "
+    "800DA074 and 800D75EC match every "
     f"GX call ({calls} calls), the render state and all RAM outside the oracle stack."
-    for context, calls in ((14, 1648456), (15, 1642334), (16, 1648496))
+    for context, calls in ((14, 2015869), (15, 2001272), (16, 2012024))
 }
 SOURCES = (
     "scenery_draw.c",
@@ -43,6 +46,10 @@ SOURCES = (
     "draw_engine.c",
     "draw_engine.h",
     "scenery_shared.h",
+    "marks_draw.c",
+    "marks_draw.h",
+    "matrix_stack.c",
+    "matrix_stack.h",
     "check_fixture.h",
     "venue_fixture.h",
     "gx_oracle.h",
@@ -61,7 +68,8 @@ BOUNDARY = (
     "updates (801893C8, 8018941C, 80189BB0, 8018949C, 80189ED8) and the unmodeled callees 800D75EC, 801652BC, "
     "8015A5CC and 8015A7C4 returning at once: instances keep their stored model-view matrices. The sky 801655D8 and "
     "actor shadows 801643F4 and field lines 800DA074 run unhooked (immediate vertex data compared as GX pipe "
-    "writes); player-select rings 800E3F7C hold their stored matrices like the venue. Venue objects are "
+    "writes); player-select rings 800E3F7C hold their stored matrices like the venue. Ground marks 800D75EC run "
+    "unhooked on the viewport's matrix stack. Venue objects are "
     "the ones the original scene traversal draws in the saved match."
 )
 
@@ -130,11 +138,12 @@ def main() -> None:
             venue_instances=20,
             controlled_loops_per_context=300,
             controlled_instances_per_context=900,
-            original_runs_per_process=1904,
+            original_runs_per_process=2105,
+            mark_cases_per_context=201,
             ring_cases_per_context=201,
             line_cases_per_context=201,
             sky_shadow_cases_per_context=301,
-            original_gx_calls={"14": 1648456, "15": 1642334, "16": 1648496},
+            original_gx_calls={"14": 2015869, "15": 2001272, "16": 2012024},
         )
     except Exception as exc:
         record.update(status="failed", error=str(exc))

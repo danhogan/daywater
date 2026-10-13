@@ -24,6 +24,7 @@ typedef struct {
  nflstreet_matrix_stacks stacks;
  uint32_t camera_types;    /* value of r13-5780: camera handlers 12 bytes apart (8017D16C) */
  uint32_t screen_camera;   /* 8017DB70: the handler whose view 8017D604 is modeled */
+ uint32_t field_camera;    /* 800C3508: by data +98, modes 0 (8017DB70), 1 (8017D938) and 5 reach 8017D604 */
  uint32_t tluts[2];        /* 80331460, 80331480: the two font palettes */
  float tag_offset;         /* 80252B68: name tag x offset */
 } nflstreet_hud_context;
@@ -32,7 +33,8 @@ typedef struct {
    its glyph quads at the matrix-stack top translated to position. */
 int nflstreet_text_draw(const nflstreet_hud_context *,uint32_t font,uint32_t text,uint32_t flags,float limit,uint32_t position,
  nflstreet_render_state *);
-/* Original 8017D16C for a camera node (+40 its data) of the screen type:
+/* Original 8017D16C for a camera node (+40 its data) of the screen type,
+   or of the field type in modes 0, 1 and 5 (other modes leave the stack):
    the viewport's stack reset to identity, rotated about x, y and z by the
    24-bit angles at data +14/+18/+1C and translated by minus the position
    +04/+08/+0C (8017D604). Other camera types are rejected. */

@@ -299,5 +299,6 @@ meters and the "Thomas" tag, as in the game's screenshot.
   - display-list (flag 0x8000) and indirect (`+10 == 6`) images;
   - dirty fonts (`801861C4`) and layouts (`801D8E54`);
   - root callbacks and other classes.
-- **Other camera types** (the field camera is type 2), and the camera
-  node's projection and viewport setup (`801DFAB0`).
+- **Other camera types.** The field camera (type 2) is covered in
+  `ball_and_marks.md`. The camera node's projection and viewport setup
+  (`801DFAB0`) is not modeled.

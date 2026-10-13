@@ -154,7 +154,9 @@ int nflstreet_camera_view(const nflstreet_hud_context *h,uint32_t camera,nflstre
  uint32_t data,entry,handler,before;const uint8_t *v;
  if(!word(&d,camera+0x40,&data)||!(v=at(&d,data,0x20)))return 0;
  const uint32_t type=h->camera_types+12u*v[1];
- if(!word(&d,type+8,&before)||!word(&d,type,&entry)||!word(&d,entry+8,&handler)||before||handler!=h->screen_camera)return 0;
+ if(!word(&d,type+8,&before)||!word(&d,type,&entry)||!word(&d,entry+8,&handler)||before)return 0;
+ if(handler==h->field_camera){uint32_t mode;if(!word(&d,data+0x98,&mode))return 0;if(mode!=0&&mode!=1&&mode!=5)return 1;}
+ else if(handler!=h->screen_camera)return 0;
  return nflstreet_matrix_select(&d,K)&&nflstreet_matrix_reset(&d,K)&&nflstreet_matrix_rotate(&d,K,0,rd32(v+0x14))&&
   nflstreet_matrix_rotate(&d,K,1,rd32(v+0x18))&&nflstreet_matrix_rotate(&d,K,2,rd32(v+0x1c))&&
   nflstreet_matrix_translate(&d,K,-nflstreet_as_float(rd32(v+4)),-nflstreet_as_float(rd32(v+8)),-nflstreet_as_float(rd32(v+12)));}

@@ -52,19 +52,6 @@ static int draw_head(nflstreet_draw *d,uint32_t actor){
  return nflstreet_draw_palette(d,actor+0x1014)&&nflstreet_draw_blend(d,1)&&NFLSTREET_GX(d,NFLSTREET_GX_SET_CULL_MODE,0)&&eye_offsets(d,actor,a,b)&&
   eye_matrix(d,b[0],b[1])&&nflstreet_draw_group(d,3,0)&&eye_matrix(d,a[0],a[1])&&nflstreet_draw_group(d,4,0)&&
   NFLSTREET_GX(d,NFLSTREET_GX_SET_TEX_COORD_GEN,0,1,4,0x3c,0,0x7d)&&nflstreet_draw_group(d,2,0);}
-/* 801ED6A8 for light set 1 (801EDC60): each light object's color scaled
-   per channel (clamped at 255, truncated) unless every scale is 1. */
-static int lights(nflstreet_draw *d,float r,float g,float b){
- uint32_t set=d->x->light_sets+0x108u,count,mask=0,ambient;
- if(!nflstreet_draw_word(d,set,&count)||count>4)return 0;
- for(uint32_t i=0;i<count;++i){const uint8_t *o=nflstreet_draw_at(d,set+8u+0x40u*i,0x40);if(!o)return 0;uint32_t light[16];
-  for(unsigned k=0;k<16;++k)light[k]=nflstreet_rd32(o+4*k);
-  if(!(r==1.0f&&g==1.0f&&b==1.0f)){uint8_t c[4];const float scale[3]={r,g,b};nflstreet_wr32(c,light[3]);
-   for(unsigned k=0;k<3;++k){float v=(float)c[k]*scale[k];c[k]=v>255.0f?0xff:(uint8_t)nflstreet_fctiwz(v);}
-   light[3]=nflstreet_rd32(c);}
-  if(!nflstreet_draw_gx(d,NFLSTREET_GX_LOAD_LIGHT,1,(uint32_t[]){1u<<i},light,16))return 0;mask|=1u<<i;}
- if(!nflstreet_draw_word(d,set+4,&ambient)||!nflstreet_draw_gx(d,NFLSTREET_GX_SET_CHAN_AMB_COLOR,1,(uint32_t[]){4},&ambient,1))return 0;
- d->s->light_set=set;d->s->light_mask=mask;return 1;}
 /* 80161E10 light color: actor +3EC (target RGB at +0C..+14) is approached
    over 15 frames from +1A74..+1A7C toward +1A64..+1A6C; +1A88 fades by
    (2 - t/30) for 30 frames, otherwise +1A4C == 1 applies +1A50..+1A58. */
@@ -96,7 +83,7 @@ int nflstreet_player_draw(const nflstreet_player_draw_context *x,uint32_t actor,
  nflstreet_draw d={x,s};uint8_t *a=nflstreet_draw_at(&d,actor,0x1a90);if(!a)return 0;
  nflstreet_draw_reset(&d);
  float dim=(nflstreet_rd32(a+0x14)&8)?x->dim[1]:x->dim[0],far_z=1.0f-nflstreet_as_float(nflstreet_rd32(a+0x1084))*dim,rgb[3];
- if(!light_color(&d,a,rgb)||!lights(&d,rgb[0],rgb[1],rgb[2]))return 0;
+ if(!light_color(&d,a,rgb)||!nflstreet_draw_light_set(&d,1,rgb[0],rgb[1],rgb[2]))return 0;
  static const uint16_t before[3]={0x4ac,0xd1c,0xe0c},after[2]={0xb3c,0xc2c},late[2]={0x77c,0xefc};
  if(!nflstreet_draw_gx(&d,NFLSTREET_GX_SET_CHAN_MAT_COLOR,1,(uint32_t[]){4},(uint32_t[]){0xffffffffu},1)||!NFLSTREET_GX(&d,NFLSTREET_GX_SET_NUM_CHANS,1)||
     !NFLSTREET_GX(&d,NFLSTREET_GX_SET_CHAN_CTRL,4,1,0,0,s->light_mask,2,2)||!NFLSTREET_GX(&d,NFLSTREET_GX_SET_ALPHA_COMPARE,7,0,0,7,0)||

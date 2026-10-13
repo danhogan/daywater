@@ -7,6 +7,14 @@
    bounding box {min xyz, -, max xyz, -} +98, shader override +B8.
    The draw services (span, GX sink, NULL shader, default texture, shader
    setups) are those of the player context; the rest are original globals. */
+/* Callers' draws at the original's points inside 8015B670: before layer 4
+   (800D75EC, with the stack top translated to the passes object) and after
+   the passes (801652BC). Unset hooks draw nothing there. */
+typedef struct {
+ int (*marks)(void *user,uint32_t passes,nflstreet_render_state *);
+ int (*shadows)(void *user,nflstreet_render_state *);
+ void *user;
+} nflstreet_pass_hooks;
 typedef struct {
  const nflstreet_player_draw_context *draw;
  uint32_t enable;            /* value of r13-6230: scenery drawing enabled */
@@ -43,6 +51,7 @@ typedef struct {
  uint32_t mode_cache;        /* r13-7CF4: written with the mode word */
  uint32_t line_ratio;        /* r13-7260: float */
  uint32_t line_box;          /* 802714D0: reference box for the distance scale */
+ const nflstreet_pass_hooks *pass_hooks; /* optional draws inside the field passes */
 } nflstreet_scenery_context;
 /* Original 801EC8E4(instance, -, lights): frustum test of the bounding box
    against the matrix-library projection when flags bit 14 (801CB3EC/

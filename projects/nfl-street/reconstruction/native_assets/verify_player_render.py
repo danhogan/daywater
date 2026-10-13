@@ -27,15 +27,15 @@ RENDER = {
     "textures, 30139 shaded pixels, 21608 covered; digest ac372641.",
 }
 SCENE = {
-    14: "(3658 GX calls) then 14 actors (4955 GX calls) and the HUD (8562 GX calls); 731 display lists, 26986"
-    " triangles (9969 culled, 3077 clipped), 342 decoded textures, 1279306 shaded pixels; digest "
-    "e0255842.",
-    15: "(3626 GX calls) then 14 actors (4955 GX calls) and the HUD (8558 GX calls); 731 display lists, 26986"
-    " triangles (9937 culled, 3072 clipped), 342 decoded textures, 1283492 shaded pixels; digest "
-    "f597043f.",
-    16: "(3658 GX calls) then 14 actors (4947 GX calls) and the HUD (8562 GX calls); 731 display lists, 26927"
-    " triangles (9922 culled, 3072 clipped), 340 decoded textures, 1278661 shaded pixels; digest "
-    "370b6855.",
+    14: "(5822 GX calls) then 14 actors (4955 GX calls) and the HUD (8562 GX calls); 732 display lists, 27752"
+    " triangles (9969 culled, 3102 clipped), 345 decoded textures, 1285559 shaded pixels; digest "
+    "29149f45.",
+    15: "(5817 GX calls) then 14 actors (4955 GX calls) and the HUD (8558 GX calls); 732 display lists, 27754"
+    " triangles (9937 culled, 3096 clipped), 345 decoded textures, 1289996 shaded pixels; digest "
+    "0a89750c.",
+    16: "(5872 GX calls) then 14 actors (4947 GX calls) and the HUD (8562 GX calls); 732 display lists, 27697"
+    " triangles (9922 culled, 3096 clipped), 343 decoded textures, 1285600 shaded pixels; digest "
+    "1e801f31.",
 }
 SOURCES = (
     "gx_render.c",
@@ -52,6 +52,10 @@ SOURCES = (
     "matrix_stack.h",
     "uis_draw.c",
     "uis_draw.h",
+    "ball_draw.c",
+    "ball_draw.h",
+    "marks_draw.c",
+    "marks_draw.h",
     "gx_texobj.c",
     "gx_texobj.h",
     "hud_shared.h",
@@ -73,9 +77,11 @@ BOUNDARY = (
     "Checked: every recorded one-stage player draw state of the 2026-10-08 original frame capture equals the SDK "
     "encoding of the native calls and vice versa; all non-empty captured slot textures decode identically through "
     "their GX objects and through the independent MMAP reader; renders repeat exactly. Inspection images only: "
-    "exact original pixels, ground marks, ball, effect quads, further models and fresh selected actors are not "
-    "claimed. The name tags and in-match screens draw under the HUD camera's verified screen view, executed as "
-    "each call is issued (the screens re-initialize shared texture objects per image)."
+    "exact original pixels, effect quads, further models and fresh selected actors are not claimed. The field "
+    "view comes from the native field camera (8017D16C on node 806A1CA8, copied to stack slot 3 as 801DFAB0 does); "
+    "in contexts 14 and 16 it is the camera after the drawn frame, which differs from the stored instance "
+    "matrices by about 0.03 units. The name tags and in-match screens draw under the HUD camera's verified "
+    "screen view, executed as each call is issued (the screens re-initialize shared texture objects per image)."
 )
 
 
@@ -114,7 +120,8 @@ def main() -> None:
             scene = out / f"scene-{i}.bmp"
             expected = (
                 f"Player render: 14 actors, {RENDER[i]}\n"
-                "Scene render: sky, EARS field passes, shadows, lines, rings and main field "
+                "Scene render: field camera, sky, EARS field passes with ground marks and ball shadows, shadows, "
+                "lines, rings, main field and ball "
                 f"{SCENE[i]}\n{TEXTURES}\n{STATE}"
             )
             traces = []

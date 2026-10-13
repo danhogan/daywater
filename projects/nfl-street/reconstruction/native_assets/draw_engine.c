@@ -160,9 +160,29 @@ int nflstreet_draw_group(nflstreet_draw *d,int32_t group,int32_t v){
  uint32_t groups=d->s->groups,e,list;const uint8_t *p;if(!groups)return 1;
  if(!nflstreet_draw_variant(d,groups,group,v,&e))return 0;if(!e)return 1;
  return (p=nflstreet_draw_at(d,e,0x14))&&nflstreet_draw_word(d,groups+0xc,&list)&&nflstreet_draw_list(d,list+2u*nflstreet_rd16(p+0x10),nflstreet_rd16(p+0x12));}
+/* 801C8410: draw one chunk of the current model, if it has one. */
+int nflstreet_draw_chunk(nflstreet_draw *d,uint32_t index){
+ uint32_t chunks,total;if(!d->s->chunks)return 1;
+ if(!nflstreet_draw_word(d,d->s->chunks+4,&total))return 0;if(index>=total)return 1;
+ return nflstreet_draw_word(d,d->s->chunks,&chunks)&&draw_chunk(d,chunks+0x18u*index);}
 /* 801C84D4: draw every chunk of the current model. */
 int nflstreet_draw_all(nflstreet_draw *d){
  uint32_t chunks,total;if(!d->s->chunks)return 1;
  if(!nflstreet_draw_word(d,d->s->chunks,&chunks)||!nflstreet_draw_word(d,d->s->chunks+4,&total))return 0;
  for(uint32_t i=0;i<total;++i)if(!draw_chunk(d,chunks+0x18u*i))return 0;
  return 1;}
+/* 801EDC60(r, g, b, index) with 801ED434/801ED6A8: each light object of
+   the set (0x108 bytes apart) loaded with its color scaled per channel
+   (clamped at 255, truncated) unless every scale is 1; the set and mask
+   become the render state. */
+int nflstreet_draw_light_set(nflstreet_draw *d,uint32_t index,float r,float g,float b){
+ uint32_t set=d->x->light_sets+0x108u*index,count,mask=0,ambient;
+ if(!nflstreet_draw_word(d,set,&count)||count>4)return 0;
+ for(uint32_t i=0;i<count;++i){const uint8_t *o=nflstreet_draw_at(d,set+8u+0x40u*i,0x40);if(!o)return 0;uint32_t light[16];
+  for(unsigned k=0;k<16;++k)light[k]=nflstreet_rd32(o+4*k);
+  if(!(r==1.0f&&g==1.0f&&b==1.0f)){uint8_t c[4];const float scale[3]={r,g,b};nflstreet_wr32(c,light[3]);
+   for(unsigned k=0;k<3;++k){float v=(float)c[k]*scale[k];c[k]=v>255.0f?0xff:(uint8_t)nflstreet_fctiwz(v);}
+   light[3]=nflstreet_rd32(c);}
+  if(!nflstreet_draw_gx(d,NFLSTREET_GX_LOAD_LIGHT,1,(uint32_t[]){1u<<i},light,16))return 0;mask|=1u<<i;}
+ if(!nflstreet_draw_word(d,set+4,&ambient)||!nflstreet_draw_gx(d,NFLSTREET_GX_SET_CHAN_AMB_COLOR,1,(uint32_t[]){4},&ambient,1))return 0;
+ d->s->light_set=set;d->s->light_mask=mask;return 1;}

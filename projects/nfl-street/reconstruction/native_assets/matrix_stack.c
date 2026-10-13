@@ -1,4 +1,5 @@
 #include "matrix_stack.h"
+#include <math.h>
 #define rd32 nflstreet_rd32
 static uint8_t *at(nflstreet_draw *d,uint32_t token,uint32_t size){return nflstreet_draw_at(d,token,size);}
 static int word(nflstreet_draw *d,uint32_t token,uint32_t *v){return nflstreet_draw_word(d,token,v);}
@@ -26,6 +27,23 @@ int nflstreet_matrix_translate(nflstreet_draw *d,const nflstreet_matrix_stacks *
  for(unsigned r=0;r<3;++r){uint8_t *q=m+16*r;
   put(q+12,fword(q+12)+nflstreet_fmadds(z,fword(q+8),nflstreet_fmadds(x,fword(q),y*fword(q+4))));}
  return 1;}
+int nflstreet_matrix_load(nflstreet_draw *d,const nflstreet_matrix_stacks *k,uint32_t matrix){
+ uint32_t top;uint8_t *t;const uint8_t *m;if(!nflstreet_matrix_top(d,k,&top)||!(t=at(d,top,0x40))||!(m=at(d,matrix,0x40)))return 0;
+ memmove(t,m,0x40);return 1;}
+int nflstreet_matrix_concat(nflstreet_draw *d,const nflstreet_matrix_stacks *k,uint32_t matrix,const float unit[2]){
+ uint32_t top;uint8_t *t;const uint8_t *m;if(!nflstreet_matrix_top(d,k,&top)||!(t=at(d,top,0x30))||!(m=at(d,matrix,0x30)))return 0;
+ float a[12],b[12],r[12];for(unsigned i=0;i<12;++i){a[i]=fword(t+4*i);b[i]=fword(m+4*i);}
+ for(unsigned row=0;row<3;++row){const float *q=a+4*row;
+  for(unsigned c=0;c<4;++c){float acc=b[c]*q[0];acc=nflstreet_fmadds(b[4+c],q[1],acc);acc=nflstreet_fmadds(b[8+c],q[2],acc);
+   if(c>=2)acc=nflstreet_fmadds(unit[c-2],q[3],acc);r[4*row+c]=acc;}}
+ for(unsigned i=0;i<12;++i)put(t+4*i,r[i]);return 1;}
+int nflstreet_matrix_rotate_vector(nflstreet_draw *d,const nflstreet_matrix_stacks *k,const float v[3],float out[3]){
+ uint32_t top;const uint8_t *t;if(!nflstreet_matrix_top(d,k,&top)||!(t=at(d,top,0x30)))return 0;
+ for(unsigned r=0;r<3;++r){const uint8_t *q=t+16*r;
+  out[r]=nflstreet_fmadds(fword(q+8),v[2],nflstreet_fmadds(fword(q),v[0],fword(q+4)*v[1]));}
+ return 1;}
+float nflstreet_recip_sqrt(float x,float epsilon,float one,float zero_value){
+ float s=sqrtf(x);if(s<=epsilon)return zero_value;return one/s;}
 /* Columns scaled by x, y, z (a double product rounded to single equals the
    single product of two singles). */
 int nflstreet_matrix_scale(nflstreet_draw *d,const nflstreet_matrix_stacks *k,float x,float y,float z){

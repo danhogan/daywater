@@ -115,7 +115,9 @@ Private files:
 
 ## Players on the field
 
-The same check also renders a scene. It draws the sky, the EARS field passes,
+The same check also renders a scene under the native field camera
+(`ball_and_marks.md`). It draws the sky, the EARS field passes (with the
+ground marks and ball shadows at their original points), the ball,
 the actor shadows, the field lines, the player-select rings and the main
 field through the verified native scenery draw (`scenery_draw.md`), then the
 14 players, then the HUD (name tags and in-match screens) under the
