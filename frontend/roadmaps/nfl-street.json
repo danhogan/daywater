@@ -3,8 +3,8 @@
   "goal": "Reconstruct the game in native code, with its own Windows runtime and locally supplied game assets. No Dolphin, ModernGekko, or ISO needed while playing.",
   "updated": "2026-10-13",
   "scope": "GameCube GNNE69, revision 0",
-  "current": "The native menu now creates an owned match roster at field confirmation. Both lineups, formation orders and the chosen field remain valid after menu buffers are freed, including same-team choices. The inspection host validates the owner and exits. The visible scene still renders reference players; fresh actor/skeleton startup and selected-player drawing remain unfinished.",
-  "next": "Feed the retained match roster into selected-player resource loading, attach fresh skeletons and create actors, then load its field choice into the match renderer.",
+  "current": "The menu creates an owned match roster at field confirmation. A native loading check now uses its retained selection to load all 14 players together: geometry, 350 texture slots and 630 material instances. The scene still renders reference players; fresh skeleton/actor startup and selected-player drawing remain unfinished.",
+  "next": "Attach the selected players\u2019 owned resources to fresh skeletons and create actors, connect them to the running menu\u2019s match recipient, then draw them with the chosen field.",
   "why": "Every appearance input of a selected player, from roster rows to the textures on each model material, is now reproducible from disc data plus the menu's choices. The next visible step is drawing selected players in their own uniforms in the native scene.",
   "boundary": "Daywater is the research workbench: it inspects the original game, captures behavior, and checks claims. NFL Street reconstruction and its eventual Windows runtime stay in the separate game project. The web interface organizes research; it is not the native game itself. Private game data, generated code, builds, and diagnostics stay on W:.",
   "capabilities": [

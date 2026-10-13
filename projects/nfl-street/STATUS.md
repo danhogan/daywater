@@ -6,7 +6,16 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: field confirmation creates a retained native roster.** The actual
+**Latest: both selected lineups load fresh visual resources together.** A native
+owner retains all 14 players from the actual menu selection, with 350 texture
+slots and 630 material instances. Namespaces stay separate; late loading
+failures discard staged owners before notifications are published. Two fresh
+Windows processes match the existing single-player geometry/material owners.
+This consumes the emitted menu selection in a loading check; skeletons, actors,
+drawing and the running menu's match recipient still need connecting. See
+[selected match resources](reconstruction/native_assets/match_visuals.md).
+
+**Earlier: field confirmation creates a retained native roster.** The actual
 menu host now builds the roster directly when the field is confirmed and owns
 its source database through menu teardown. Both lineups, formation orders and
 field choice remain valid after menu buffers are freed. Three navigation flows

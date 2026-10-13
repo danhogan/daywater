@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-13. Latest work: field confirmation creates an owned native roster surviving menu teardown
+Updated: 2026-10-13. Latest work: both selected lineups load as 14 simultaneous native visual owners
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -51,7 +51,13 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/quick_match_session.md` — latest:
+3. `projects/nfl-street/reconstruction/native_assets/match_visuals.md` — latest:
+   14 simultaneous visual owners from the actual retained menu selection:
+   350 slots, 630 material instances, disjoint logical namespaces and deferred
+   notifications. Two native processes match single-player owners; no original
+   aggregate startup/GPU claim. Body variant 0 and record sides 0/1 are explicit
+   fixture inputs. Skeleton/actor/rendering connection remains open.
+   Then `projects/nfl-street/reconstruction/native_assets/quick_match_session.md`:
    field confirmation directly creates an owned STAT/GAME roster that survives
    menu buffer teardown, retaining 14 selected rows, 28 formations and field choice.
    The host checks identities after teardown and then exits; no actors yet.
@@ -123,6 +129,7 @@ the original DLL separately as an oracle.
 | Gear texture plan | `gear_texture.*` | Original `800DE3B8`: GEAR records, player record fields, 25 slot index/palette pairs, color requests, slot0 fallback; team-level record bytes captured |
 | Slot textures | `slot_textures.*` | Original 800E2958 layout, 800E2AF0 templates, 800E2CAC/800E27F8 loads; `800D9C0C` recolor reported, not executed |
 | Palette recolor | `palette_recolor.*` | 80148A88 color table, 800D8918 dynclut parsing, 800D9948 ops, 800D9C0C composition; its gate feeds captured color state |
+| Selected match visuals | `match_visuals.*` | Both selected lineups retained simultaneously;14 players, 350 slots, 630 material instances; no actors/drawing |
 | Quick match session | `quick_match_session.*` | Owns STAT and GAME past menu teardown; created by native field confirmation; no actors yet |
 | Quick match roster bridge | `quick_match_roster.*` | Menu selection structs to GAME rows/new ids, lineup bits and formation mapping; corrected real picker snapshot produces both mirrored lineups; actor startup open |
 | Selected visual owner | `selected_player_visual.*` | Joins geometry and owned surfaces; rejects cross-owner token collisions before uploads; completed selected-match record is caller-supplied |
