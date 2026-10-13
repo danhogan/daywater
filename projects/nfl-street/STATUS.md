@@ -6,7 +6,24 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: material binding.** Each selected player's 25 textures are now
+**Latest: one owner for player textures and materials.** Fresh player-record and
+roster-name inputs now feed an owned surface that joins all 25 texture slots,
+recoloring, material binding/settings and the 45 material instances. Across
+three saved contexts repeated twice, 28 builds per process match the separately
+original-verified stages; 307 failure/reuse checks preserve output and balance
+material allocations. Geometry/actor creation and selected-player drawing still
+need connecting. See [surface ownership evidence](reconstruction/native_assets/player_surface.md).
+
+**Earlier: textures hooked onto player materials.** The 45 player materials
+(eyes, biceps, shoes, …) now take their textures from the bound slots, as in
+the original actor startup. Eight arm materials switch to a two-layer shader
+when the player has a tattoo. For all 14 captured players, all 630 material
+instances equal the live game's: shader, stage count and every stage's
+texture and palette. Running the original sequence on fresh material arrays
+matches the native result for 819 players, including controlled variants. See
+[material hookup evidence](reconstruction/native_assets/slot_materials.md).
+
+**Earlier: material binding.** Each selected player's 25 textures are now
 attached to their named materials (HAIR, HEAD, TORSO, … GLASSES). The game's
 texture and palette objects are built exactly as the original does
 (`800E2BE8`), and the default settings from actor startup (`80164DD8`) are

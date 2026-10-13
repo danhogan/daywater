@@ -16,11 +16,13 @@ NATIVE = (
     "Slot materials: 513 controlled texture sets, 1312 controlled 80164DD8 settings in 64 lists; 20475 texture sets "
     "(20475 images, 20475 palettes), 40950 cache flushes, 552825 bytes left as allocator contents; 350 live sets match "
     "the captured binding table and objects after 80164DD8 (draw-time writes skipped: 1036 register-id, 56 TLUT-name, "
-    "315 TLUT TMEM bytes); digest c3bd41c8."
+    "315 TLUT TMEM bytes); 630 live actor material instances match the 801639C8 hookup (112 TwoPass); 819 controlled "
+    "hookups (4912 TwoPass instances); digest 7e77c1f3."
 )
 ORIGINAL = (
     "Original slot material checks: 513 controlled and 20475 selected 801EBD38 texture sets x2 allocator fills match "
-    "every byte, token and flush; 819 selected and 64 controlled 80164DD8 runs match every texture object.\n"
+    "every byte, token and flush; 819 selected and 64 controlled 80164DD8 runs match every texture object; 819 "
+    "801639C8 material hookups match every instance shader, stage count and stage.\n"
     "Original slot texture checks: 3072 800D9948 sweep cases; 819 800E2958 layouts, 819 800E2AF0 template sets, "
     "819 800E2CAC players (18860 slot loads, 85244 flushes, 4163 800D9C0C compositions); archive acquisition supplied."
 )
@@ -57,7 +59,9 @@ BOUNDARY = (
     "binding: original 800E2BE8/801EBD38 texture sets (GXTexObj/GXTlutObj objects, entries, name tables) and the "
     "actor-startup 80164DD8 default settings, compared byte for byte with two allocator fills, plus synthetic MMAP and "
     "settings sweeps. Live sets match except draw-time 801C7AD4 writes (register ids, TLUT name, TMEM offset); the "
-    "8017B570 loader pool and model-material hookup 801EBC78 are not modeled."
+    "801639C8 material hookup (801C7528/801EBBA8/801EBC78): all 630 live actor material instances match, and the "
+    "original sequence on fresh arrays matches 819 controlled hookups. The 8017B570 loader pool and shader/TEV "
+    "drawing are not modeled."
 )
 
 
@@ -155,6 +159,8 @@ def main() -> None:
             controlled_material_sets_per_process=513,
             controlled_material_settings_per_process=1312,
             live_material_sets=350,
+            live_actor_material_instances=630,
+            original_material_hookups_per_process=819,
         )
     except Exception as exc:
         record.update(status="failed", error=str(exc))

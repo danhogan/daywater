@@ -10,6 +10,8 @@ from verify_controller_checks import BASELINES, PRIVATE, private
 
 BINDING_TABLE = 0x80276C6C
 SETTINGS = 0x8028DD90
+MATERIAL_LIST = 0x8028DD10
+SHADERS = ((0x80293ACC, b"OnePass"), (0x80293B40, b"TwoPass"))
 SLOTS, NAME_BYTES, MAX_SETTINGS = 25, 16, 64
 
 
@@ -40,13 +42,39 @@ def settings(dol: bytes) -> bytes:
     raise ValueError("Material settings list is not terminated")
 
 
+def descriptors(dol: bytes) -> bytes:
+    """Return the 8028DD10 player material list: count, then per 0x30-byte
+    descriptor the material, shader and (single) texture names."""
+    count, table = struct.unpack(">II", span(dol, MATERIAL_LIST, 8))
+    rows = []
+    for item in range(count):
+        entry = span(dol, table + 0x30 * item, 0x30)
+        name, shader, textures, texture = struct.unpack(">IIhxxI", entry[:16])
+        if textures != 1:
+            raise ValueError("Unexpected material texture count")
+        rows.append(text(dol, name) + text(dol, shader) + text(dol, texture))
+    return struct.pack(">I", count) + b"".join(rows)
+
+
+def shaders(dol: bytes) -> bytes:
+    """Return the OnePass/TwoPass shader definitions: name, stage count and the
+    20-byte stage records (name, type byte, flag byte, stage index)."""
+    result = struct.pack(">I", len(SHADERS))
+    for address, name in SHADERS:
+        if text(dol, address).rstrip(b"\0") != name:
+            raise ValueError("Unexpected shader definition")
+        (stages,) = struct.unpack(">I", span(dol, address + 0x18, 4))
+        result += text(dol, address) + struct.pack(">I", stages) + span(dol, address + 0x1C, 0x14 * stages)
+    return result
+
+
 def export(output: Path) -> str:
     """Write the SMC1 catalog and return its SHA256."""
     dol = BASELINES["dol"][0].read_bytes()
     if hashlib.sha1(dol).hexdigest() != ORIGINAL_SHA1:
         raise ValueError("Unexpected original revision")
     names = b"".join(material_name(dol, slot) for slot in range(SLOTS))
-    result = b"SMC1" + struct.pack(">I", 1) + names + settings(dol)
+    result = b"SMC1" + struct.pack(">I", 1) + names + settings(dol) + descriptors(dol) + shaders(dol)
     output = private(output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_bytes(result)

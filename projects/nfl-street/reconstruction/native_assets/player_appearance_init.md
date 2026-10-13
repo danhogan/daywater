@@ -63,7 +63,10 @@ small helper bodies: `801EB100/801CA47C`, `80162FC4`, `80163020`, `801EBF7C`,
 `80164DD8`. The checker supplies allocation, resource lookup, model binding,
 texture selection, node copying/binding and side-node target operations.
 `801630B0`, `801C7528`, `801EBBA8`, `801EBC78` and the actual rendering
-resource owners are not reconstructed by this module. Service mutation cases
+resource owners are not reconstructed by this module. The `801C7528`/`801EBBA8`/
+`801EBC78` texture hookup and the `80164DD8` settings now have native owners in
+`slot_materials.md`, verified on their own; they are not connected to this
+module's service interface yet. Service mutation cases
 are explicitly controlled test writes, not original gameplay semantics.
 
 Private report:

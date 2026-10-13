@@ -84,7 +84,7 @@ static int bind_materials(const nflstreet_slot_material_catalog *c,nflstreet_slo
  material_reset(h,fill,expected,count);return nflstreet_slot_materials_bind(c,owned,material_allocate,h,material_flush,h,out);}
 static const nflstreet_material_block *set_block(const nflstreet_texture_set *t,unsigned i){
  return i==0?&t->object:i==1?&t->entries:i==2?&t->textures:i==3?&t->palettes:&t->names;}
-typedef struct {unsigned sweeps,configure_entries,sets,images,palettes,flushes,unwritten,live_sets,live_ids,live_names,live_tmem;uint32_t digest;} material_totals;
+typedef struct {unsigned sweeps,configure_entries,sets,images,palettes,flushes,unwritten,live_sets,live_ids,live_names,live_tmem,live_instances,live_two_pass,hookups,hooked_two_pass;uint32_t digest;} material_totals;
 static material_totals mt;
 static nflstreet_slot_material_catalog material_catalog;
 static material_heap heaps[2];
@@ -99,6 +99,8 @@ static int original_texture_set(const uint8_t *,size_t,uint32_t,const uint8_t *,
  const nflstreet_texture_set *,const material_heap *);
 static unsigned configure_sweeps;
 static int original_configure_sweep(const nflstreet_slot_material *,const material_heap *,const uint8_t *,const uint8_t *,unsigned);
+static unsigned hook_runs;
+static int original_actor_hook(const nflstreet_slot_material *,const nflstreet_actor_material *,unsigned);
 #endif
 /* Live comparison of one captured player's binding after 80164DD8. Bytes the
    original leaves as allocator contents are skipped. Allowed later writes:
@@ -127,6 +129,20 @@ static int live_materials(const uint8_t *live,unsigned p,nflstreet_slot_textures
     else if(k==3&&(in==6||in==7)){uint32_t d=be32(x->bytes+i-in+4)^be32(l+i-in+4);allowed=!(d&~0x3ffu);if(allowed)++mt.live_tmem;}
     if(!allowed){fprintf(stderr,"live material mismatch player%u slot%u block%u byte%u: %02x vs %02x (words %08x %08x)\n",p,s,k,i,x->bytes[i],l[i],be32(x->bytes+i-(i&3u)),be32(l+i-(i&3u)));return 0;}}}
   ++mt.live_sets;}
+ /* The actor of this record slot (801639C8 material instances at actor+FEC). */
+ nflstreet_actor_material hooked[NFLSTREET_ACTOR_MATERIALS_MAX];unsigned instances=0;
+ if(!nflstreet_actor_materials_hook(&material_catalog,a,hooked,&instances))return 0;
+ const uint8_t *actors=live+(be32(live+(0x803a9a40u-0x7bbcu-0x80000000u))-0x80000000u);uint32_t actor=0;
+ for(unsigned i=0;i<CAPTURED_PLAYERS;++i){uint32_t x=be32(actors+4*i);if(live[x-0x80000000u+0x1363]==p)actor=x;}
+ const uint32_t shaders[2]={be32(live+(0x803a9a40u-0x5638u-0x80000000u)),be32(live+(0x803a9a40u-0x5634u-0x80000000u))};
+ if(!actor||be32(live+(actor-0x80000000u)+0xfec)!=instances)return 0;
+ const uint8_t *list=live+(be32(live+(actor-0x80000000u)+0xff0)-0x80000000u);
+ for(unsigned i=0;i<instances;++i){const uint8_t *inst=live+(be32(list+4*i)-0x80000000u);const nflstreet_actor_material *m=hooked+i;
+  int ok=be32(inst+8)==shaders[m->shader]&&be32(inst+12)==m->stage_count&&!strcmp((const char*)live+(be32(live+(be32(inst+4)-0x80000000u))-0x80000000u),m->material);
+  const uint8_t *st=live+(be32(inst+16)-0x80000000u);
+  for(unsigned k=0;ok&&k<m->stage_count;++k)ok=be32(st+12*k)==m->stages[k].texture&&be32(st+12*k+4)==m->stages[k].palette&&be32(st+12*k+8)==m->stages[k].index;
+  if(!ok){fprintf(stderr,"live actor material mismatch player%u material%u\n",p,i);return 0;}
+  ++mt.live_instances;mt.live_two_pass+=m->shader;}
  return 1;
 }
 static int check_player(const nflstreet_gear_texture_catalog *catalog,const nflstreet_archive *textures,const nflstreet_gear_texture_plan *plan,
@@ -164,6 +180,23 @@ static int check_player(const nflstreet_gear_texture_catalog *catalog,const nfls
   if(!original_slot_configure(a,heaps,unconfigured[0],b,heaps+1,unconfigured[1]))goto done;
 #endif
   for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s)mt.digest=fnv(mt.digest,a[s].texture_set.textures.bytes,a[s].texture_set.textures.size);
+  /* 801639C8 material hookup; controlled variants rotate per player: empty
+     tattoo slots, palette-less entries, rotated slot names. */
+  {nflstreet_slot_material v[NFLSTREET_GEAR_TEXTURE_SLOTS];static uint8_t entries[NFLSTREET_GEAR_TEXTURE_SLOTS][0x40];
+   unsigned variant=mt.hookups%4u;memcpy(v,a,sizeof v);
+   for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s){nflstreet_texture_set *t=&v[s].texture_set;
+    if(t->entries.bytes&&t->entries.size<=sizeof entries[s]){memcpy(entries[s],t->entries.bytes,t->entries.size);t->entries.bytes=entries[s];}
+    if(variant==1&&s>=19&&s<=22)v[s].entries=0;
+    if(variant==2&&s%3==0&&t->entries.bytes){entries[s][12]=0;entries[s][13]=0;}
+    if(variant==3)v[s].material=a[(s+7u)%NFLSTREET_GEAR_TEXTURE_SLOTS].material;}
+   nflstreet_actor_material hooked[NFLSTREET_ACTOR_MATERIALS_MAX];unsigned instances=0;
+   if(!nflstreet_actor_materials_hook(&material_catalog,v,hooked,&instances)){fprintf(stderr,"hook failed %u\n",p);goto done;}
+   for(unsigned i=0;i<instances;++i){mt.digest=fnv(mt.digest,&hooked[i].shader,4);mt.digest=fnv(mt.digest,&hooked[i].stage_count,4);
+    mt.digest=fnv(mt.digest,hooked[i].stages,sizeof hooked[i].stages);mt.hooked_two_pass+=hooked[i].shader;}
+#ifdef NFLSTREET_SLOT_ORACLE
+   if(!original_actor_hook(v,hooked,instances))goto done;
+#endif
+   ++mt.hookups;}
   if(captured&&!live_materials(live,p,&owned))goto done;}
  if(captured)for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s){const nflstreet_slot_texture *slot=owned.slots+s;
   if(slot->token!=be32(live+(DESTINATIONS-0x80000000u)+p*100u+4u*s)||slot->template_size!=be32(live+(TEMPLATE_SIZES-0x80000000u)+4u*s)){
@@ -291,10 +324,10 @@ int main(int argc,char **argv){
  }
  printf("Selected slot textures: %u players (%u captured, 1 controlled, %u roster rows x2 contexts); %u color entries and %u pladyncl op lists (%u ops) match live; %u live slots match layout/size, %u byte-identical (%u recolored); %u cache flushes, %u palette compositions; digest %08x.\n",
   t.players,CAPTURED_PLAYERS,roster,COLOR_ENTRIES,dynclut.entries,dynclut.total,t.layout,t.identical,t.composed,t.flushes,t.palettes,t.digest);
-printf("Slot materials: %u controlled texture sets, %u controlled 80164DD8 settings in %u lists; %u texture sets (%u images, %u palettes), %u cache flushes, %u bytes left as allocator contents; %u live sets match the captured binding table and objects after 80164DD8 (draw-time writes skipped: %u register-id, %u TLUT-name, %u TLUT TMEM bytes); digest %08x.\n",
-  mt.sweeps,mt.configure_entries,CONFIGURE_ROUNDS,mt.sets,mt.images,mt.palettes,mt.flushes,mt.unwritten,mt.live_sets,mt.live_ids,mt.live_names,mt.live_tmem,mt.digest);
+printf("Slot materials: %u controlled texture sets, %u controlled 80164DD8 settings in %u lists; %u texture sets (%u images, %u palettes), %u cache flushes, %u bytes left as allocator contents; %u live sets match the captured binding table and objects after 80164DD8 (draw-time writes skipped: %u register-id, %u TLUT-name, %u TLUT TMEM bytes); %u live actor material instances match the 801639C8 hookup (%u TwoPass); %u controlled hookups (%u TwoPass instances); digest %08x.\n",
+  mt.sweeps,mt.configure_entries,CONFIGURE_ROUNDS,mt.sets,mt.images,mt.palettes,mt.flushes,mt.unwritten,mt.live_sets,mt.live_ids,mt.live_names,mt.live_tmem,mt.live_instances,mt.live_two_pass,mt.hookups,mt.hooked_two_pass,mt.digest);
 #ifdef NFLSTREET_SLOT_ORACLE
- printf("Original slot material checks: %u controlled and %u selected 801EBD38 texture sets x2 allocator fills match every byte, token and flush; %u selected and %u controlled 80164DD8 runs match every texture object.\n",sweep_sets,bind_sets,configure_sets,configure_sweeps);
+ printf("Original slot material checks: %u controlled and %u selected 801EBD38 texture sets x2 allocator fills match every byte, token and flush; %u selected and %u controlled 80164DD8 runs match every texture object; %u 801639C8 material hookups match every instance shader, stage count and stage.\n",sweep_sets,bind_sets,configure_sets,configure_sweeps,hook_runs);
  printf("Original slot texture checks: %u 800D9948 sweep cases; %u 800E2958 layouts, %u 800E2AF0 template sets, %u 800E2CAC players (%u slot loads, %u flushes, %u 800D9C0C compositions); archive acquisition supplied.\n",
   slot_sweeps,slot_layouts,slot_templates,slot_players,slot_loads,slot_flushes,slot_compositions);
 #endif

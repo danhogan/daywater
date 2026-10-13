@@ -225,3 +225,49 @@ static int original_configure_sweep(const nflstreet_slot_material *m,const mater
   if(x->size&&memcmp(ptr(slot_ram,x->token,x->size),x->bytes,x->size)){fprintf(stderr,"80164DD8 sweep mismatch slot%u\n",s);return 0;}}
  ++configure_sweeps;return 1;
 }
+/* Original 801639C8 material hookup on a fresh 45-entry array: 801EBDD4,
+   801C7528(8028DD10), 801EBBA8 with a model whose +18 is 8028DD10 and a scratch
+   binding table (DOL name pointers, native words), then the eight tattoo
+   801EBC78 calls. Entries blocks carry the variant edits. Allocation 8018B7B8
+   bumps in scratch; the whole RAM image is restored afterwards so instance
+   pools do not drain across players. */
+#define HOOK_ARRAY 0x8115b000u
+#define HOOK_MODEL 0x8115b100u
+#define HOOK_TABLE 0x8115b200u
+#define HOOK_HEAP 0x8115c000u
+static uint8_t *hook_backup;
+static int hook_call(uint32_t pc,uint32_t a,uint32_t b,uint32_t d,uint32_t e,uint32_t f,uint32_t g,uint32_t *heap){
+ CPUState c={0};c.ram=slot_ram;c.ram_size=RAM_SIZE;c.msr=0x2000;c.gpr[1]=ORACLE_STACK;c.gpr[2]=0x803b9a40u;c.gpr[13]=R13;
+ c.gpr[3]=a;c.gpr[4]=b;c.gpr[5]=d;c.gpr[6]=e;c.gpr[7]=f;c.gpr[8]=g;c.pc=pc;
+ for(unsigned step=0;c.pc&&step<5000000u;++step){uint32_t p=c.pc;
+  if(p==0x8018b7b8u){uint32_t n=(c.gpr[3]+31u)&~31u;if(*heap+n>HOOK_HEAP+0x1000u)return 0;memset(ptr(slot_ram,*heap,n),0,n);c.gpr[3]=*heap;*heap+=n;c.pc=c.lr;continue;}
+  if(p==0x801af944u||p==0x801af9ccu){c.gpr[3]=0;c.pc=c.lr;continue;}
+  if(p==0x801af57cu){c.pc=c.lr;continue;}
+  c.downcount=-1000000000;slot_module->dispatch(&c,c.pc);if(c.exception)return 0;}
+ return !c.pc;
+}
+static int original_actor_hook(const nflstreet_slot_material *v,const nflstreet_actor_material *expected,unsigned count){
+ static const uint8_t materials[8]={10,11,0x13,0x14,0xe,0xf,0x17,0x18},slots[8]={19,19,20,20,21,21,22,22};
+ if(!hook_backup&&!(hook_backup=malloc(RAM_SIZE)))return 0;memcpy(hook_backup,slot_ram,RAM_SIZE);
+ int ok=0;uint32_t heap=HOOK_HEAP;
+ for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s){uint8_t *e=ptr(slot_ram,HOOK_TABLE+0x20u*s,0x20);memset(e,0,0x20);
+  uint32_t name=0;for(unsigned k=0;k<NFLSTREET_GEAR_TEXTURE_SLOTS;++k){uint32_t q=be(ptr(slot_ram,BINDING_TABLE+0x20u*k,4));
+   if(!strcmp((const char*)ptr(slot_ram,q,1),v[s].material))name=q;}
+  if(!name)goto done;put(e,name);put(e+0x14,v[s].entries);put(e+0x18,v[s].set);put(e+0x1c,v[s].destination);
+  const nflstreet_material_block *x=&v[s].texture_set.entries;if(x->size)memcpy(ptr(slot_ram,x->token,x->size),x->bytes,x->size);}
+ memset(ptr(slot_ram,HOOK_TABLE+0x20u*NFLSTREET_GEAR_TEXTURE_SLOTS,0x20),0,0x20);
+ memset(ptr(slot_ram,HOOK_MODEL,0x40),0,0x40);put(ptr(slot_ram,HOOK_MODEL+0x18,4),0x8028dd10u);memset(ptr(slot_ram,HOOK_ARRAY,8),0,8);
+ if(!hook_call(0x801ebdd4u,HOOK_ARRAY,45,0,0,0,0,&heap)||!hook_call(0x801c7528u,HOOK_ARRAY,0x8028dd10u,0,0,0,0,&heap)||
+    !hook_call(0x801ebba8u,HOOK_ARRAY,HOOK_MODEL,HOOK_TABLE,0,0,0,&heap))goto done;
+ for(unsigned k=0;k<8;++k){uint32_t e=HOOK_TABLE+0x20u*slots[k];if(!hook_call(0x801ebc78u,HOOK_ARRAY,materials[k],1,e,e,0,&heap))goto done;}
+ {uint32_t shaders[2]={be(ptr(slot_ram,R13-0x5638u,4)),be(ptr(slot_ram,R13-0x5634u,4))};
+  if(be(ptr(slot_ram,HOOK_ARRAY,4))!=count)goto done;uint32_t list=be(ptr(slot_ram,HOOK_ARRAY+4,4));
+  for(unsigned i=0;i<count;++i){uint32_t inst=be(ptr(slot_ram,list+4*i,4));const nflstreet_actor_material *m=expected+i;
+   if(!inst||be(ptr(slot_ram,inst+8,4))!=shaders[m->shader]||be(ptr(slot_ram,inst+12,4))!=m->stage_count){fprintf(stderr,"801639C8 hookup shader mismatch material%u\n",i);goto done;}
+   uint32_t st=be(ptr(slot_ram,inst+16,4));
+   for(unsigned k=0;k<m->stage_count;++k){const uint8_t *q=ptr(slot_ram,st+12*k,12);
+    if(be(q)!=m->stages[k].texture||be(q+4)!=m->stages[k].palette||be(q+8)!=m->stages[k].index){fprintf(stderr,"801639C8 hookup stage mismatch material%u stage%u\n",i,k);goto done;}}}}
+ ok=1;++hook_runs;
+done:
+ memcpy(slot_ram,hook_backup,RAM_SIZE);return ok;
+}

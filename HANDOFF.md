@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-12. Latest work: slot material binding (`800E2BE8`/`80164DD8`)
+Updated: 2026-10-13. Latest work: joined player texture/material ownership (`player_surface.*`)
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -51,9 +51,14 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/slot_materials.md` — latest:
-   GX texture sets for the 25 slots and the default material settings; all
-   350 live sets match except draw-time writes. Then `game_roster.md` —
+3. `projects/nfl-street/reconstruction/native_assets/player_surface.md` — latest: one owner
+   builds and releases all 25 slot destinations and their material allocations;
+   28 comparisons, 307 failure/reuse checks and 15 record/name builds per process
+   across three saved contexts repeated twice. Geometry/actor creation and GPU drawing
+   remain separate. Then `slot_materials.md`:
+   GX texture sets for the 25 slots, default material settings and the hookup
+   onto the 45 player material instances; all 350 live sets and 630 live
+   instances match. Then `game_roster.md` —
    the match GAME PLAY table from disc STAT data, selected teams and lineup;
    the live table matches byte for byte. Then `player_record.md` —
    the complete 0x68-byte player record (team colors, color state, side) from
@@ -100,7 +105,8 @@ the original DLL separately as an oracle.
 | Gear texture plan | `gear_texture.*` | Original `800DE3B8`: GEAR records, player record fields, 25 slot index/palette pairs, color requests, slot0 fallback; team-level record bytes captured |
 | Slot textures | `slot_textures.*` | Original 800E2958 layout, 800E2AF0 templates, 800E2CAC/800E27F8 loads; `800D9C0C` recolor reported, not executed |
 | Palette recolor | `palette_recolor.*` | 80148A88 color table, 800D8918 dynclut parsing, 800D9948 ops, 800D9C0C composition; its gate feeds captured color state |
-| Slot materials | `slot_materials.*` | Original `800E2BE8`/`801EBD38` texture sets (GXTexObj/GXTlutObj) and `80164DD8` default settings; model hookup `801EBC78` not modeled |
+| Owned player surface | `player_surface.*` | Joins gear/face requests, 25 owned slots, recoloring, binding, configuration and actor material instances; staged failure cleanup; geometry/actor creation still separate |
+| Slot materials | `slot_materials.*` | Original `800E2BE8`/`801EBD38` texture sets (GXTexObj/GXTlutObj), `80164DD8` settings and the `801C7528`/`801EBBA8`/`801EBC78` hookup onto the 45 material instances; shader/TEV drawing not modeled |
 | GAME roster | `game_roster.*`, `db_fixture.h` (checks) | Original `801E05A4`→`801E1628`/`801E78C4` PLAY copy and `801E7154` renumbering; lineup GILP and team ids are caller inputs |
 | Player record | `player_record.*` | Original `800DE000`/`800DE6C8`: STAT TEAM fields, 1AHP, default color state, side; consumes the native GAME PLAY table |
 | Joined appearance owner | `selected_appearance_assets.*` | Geometry plus face texture, lifetime cleanup and namespace collision checks; not complete material application |
@@ -125,7 +131,20 @@ matches 831 distinct files/views and 2,493 exact temporary allocation/storage/
 release sequences per original process. Connected actor creation matches 3,072
 controlled initialization cases, not gameplay frames.
 
-Latest connection: `slot_materials.c` binds the owned slot textures:
+Latest connection: `nflstreet_player_surface_from_player` consumes a completed
+player record and normalized roster name, builds its gear/face requests, loads
+and recolors all slots, and owns their texture/material allocations. Its gate
+checks composition against the source-matched original-stage evidence, callback
+and allocation failures, and cleanup. Read `player_surface.md`. Connect this
+owner with geometry and actor creation next; do not claim fresh player drawing.
+
+Previous connection: `nflstreet_actor_materials_hook` reproduces actor startup's
+material hookup: the 45 descriptors of `8028DD10` take their slot textures on
+stage "base", and the tattoo slots switch eight arm materials to TwoPass. All
+630 live instances of the 14 captured actors match, and the original sequence
+on fresh arrays matches 819 controlled hookups. Read `slot_materials.md`.
+
+Previous connection: `slot_materials.c` binds the owned slot textures:
 `800E2BE8`/`801EBD38` GX texture sets in the `80276C6C` table, and the actor-startup
 `80164DD8` default settings. All 350 live sets match except draw-time
 `801C7AD4` writes. Per original process, 20,475 selected sets, 513 synthetic
@@ -178,8 +197,10 @@ Continue from `selected_appearance_assets`, rather than rebuilding asset loaders
 
 1. GAME roster, gear plans, slot loading, recoloring, material binding and
    the complete player record are done; do not redo them. Next:
-   - Actor startup `801639C8`: the `801EBC78` hookup of binding-table
-     entries (`800E2FC0` table) onto model materials, then the draw path.
+   - Draw selected players: the OnePass/TwoPass shader (TEV) setup and the
+     `801C7AD4` draw-time texture loads that consume the material instances.
+     Alternatively, render natively from the reconstructed instances and the
+     decoded slot textures in the independent scene.
    - Connect the native menu's team/lineup choices (MTTS rows, STAT GILP) to
      `nflstreet_game_roster_build`. The GILP writer is untraced; see
      `game_roster.md`.
@@ -276,7 +297,7 @@ PYTHONPATH=projects/nfl-street/reconstruction/menus \
   python3 projects/nfl-street/reconstruction/native_assets/verify_face_texture.py
 ```
 
-Latest gate: `verify_slot_textures.py` (about 2 minutes). Gear plan gate: `verify_gear_texture.py`. Face application gate: `verify_texture_apply.py`.
+Latest gate: `verify_player_surface.py` (requires current slot-stage evidence). Stage gate: `verify_slot_textures.py` (about 2 minutes). Gear plan gate: `verify_gear_texture.py`. Face application gate: `verify_texture_apply.py`.
 Other targeted gates in that directory:
 `verify_skeleton_startup.py`, `verify_hair_binding.py`,
 `verify_headwear_state.py`, `verify_hair_resources.py`,

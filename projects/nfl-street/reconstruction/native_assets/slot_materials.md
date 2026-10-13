@@ -4,8 +4,11 @@
 slot textures to named materials. Original `800E2BE8` builds a GX texture set
 for every slot destination and records it in the per-player binding table
 `80276C6C`. Actor startup then applies the default material settings
-(`80164DD8`). For all 14 captured players, the native texture sets equal the
-live game's objects except for fields written later while drawing.
+(`80164DD8`) and hooks the bound textures onto the 45 player materials
+(`801C7528`/`801EBBA8`/`801EBC78`). For all 14 captured players, the native
+texture sets equal the live game's objects except for fields written later
+while drawing. All 630 live actor material instances match the native
+hookup.
 
 ## Source trace
 
@@ -72,6 +75,28 @@ The SDK float constants are 16, ±4/3.99, 32 and 0/10, and the min-filter
 map at `r13-6090` is `0 4 1 5 2 6`. They are used exactly (single-precision
 products, truncating conversion).
 
+- **Material hookup in actor startup `801639C8`.** All three body models'
+  views get `+18` = `8028DD10` from `801C6AA0`, which remaps the body
+  materials by name (`player_model_binding.md`). That is the DOL list of 45
+  material descriptors at `8028D4A0`, each with a material name (eyeL, bicepL,
+  …), a shader name (OnePass or OnePassTX) and one texture name (HEAD,
+  BICEP, …). The shaders are set by `801EBE14`: `r13-5638` = "OnePass" (stage
+  "base", index 0) and `r13-5634` = "TwoPass" ("base" 0, "over" 1). The steps
+  are:
+  1. `801EBDD4` allocates the 45-pointer array at actor `+FEC`.
+  2. `801C7528` creates an instance per descriptor (`801C718C`). Its stage
+     index word comes from `801CCB50`: −1, since the `r13-63F8` list is null.
+  3. `801EBBA8` finds each descriptor's texture name in the binding table
+     (`801EBB44`) and calls `801EBC78` twice. The first call puts the slot's
+     first texture object and, when the first entry has palettes, its palette
+     object into stage "base" (`801C9088`/`801C90AC`/`801C705C`). The second
+     sets the OnePass shader (`801C7150`).
+  4. Eight explicit `801EBC78` calls follow, for materials 10/11, 19/20,
+     14/15 and 23/24 with tattoo slots 19, 20, 21 and 22. When the tattoo slot
+     has a texture, the shader becomes TwoPass. `801C6E28` rebuilds the stage
+     array: stage 0 is kept and stage 1 is zeroed. Stage "over" then gets the
+     tattoo texture and palette.
+
 ## Native API
 
 The private catalog is `slot-materials.smc1` (from
@@ -90,8 +115,11 @@ The private catalog is `slot-materials.smc1` (from
 - `nflstreet_slot_materials_configure` runs `80164DD8` with the catalog list.
   A list name without a slot rejects.
 
-The `801EBC78` hookup of binding entries to model materials (actor startup)
-is not reconstructed here.
+- `nflstreet_actor_materials_hook` gives the final 45 instances: material
+  and texture names, shader (OnePass or TwoPass), stage count and stage
+  entries {texture object, palette object, index}. A descriptor without a
+  slot rejects, because its startup-registry state is not modeled. The
+  catalog also carries the 8028DD10 list and both shader definitions.
 
 ## Verification
 
@@ -129,12 +157,23 @@ actual `801EBD38` and `80164DD8`:
   both mag filters, biases beyond and at ±4/3.99, the flag bytes and
   anisotropy.
 
+- **819 runs of the original hookup sequence** on fresh 45-entry arrays.
+  It runs `801EBDD4`, `801C7528`, `801EBBA8` and the eight tattoo calls with
+  the snapshot's shader registry. Every instance's shader, stage count and
+  stage words match. The variants rotate per player: as-is, empty tattoo
+  slots (→ OnePass), palette-less entries and rotated slot names. The live
+  check also covers all 630 instances of the 14 captured actors (112 of them
+  TwoPass).
+
 Three contexts repeat twice.
 
 The selected data has exactly one image and one palette per set; the sweeps
 cover the rest.
 
-**Sensitivity check.** Nine deliberate faults were each rejected:
+**Sensitivity check.** Fourteen deliberate faults were each rejected. Five
+are in the hookup (palette condition, swapped tattoo slots, a stage dropped
+on rebuild, index 0 instead of −1, TwoPass for an empty tattoo). The other
+nine are:
 
 - Mip-chain size.
 - Flipped wrap rule.
@@ -151,9 +190,9 @@ Private report:
 
 ## Remaining connections
 
-- `801EBC78` and the rest of actor startup `801639C8`: hooking binding
-  entries onto model materials, then drawing.
+- Drawing: the OnePass/TwoPass shader (TEV) setup and the draw path that
+  consumes these instances (`801C7AD4` and its callers).
 - The `8017B570` loader pool.
-- Fresh actor startup and the draw path.
+- Fresh actor startup owning these states end to end.
 
 No selected-player draw or playable match is claimed.

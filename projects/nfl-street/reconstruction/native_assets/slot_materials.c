@@ -9,7 +9,15 @@ static void wr32(uint8_t *p,uint32_t v){p[0]=(uint8_t)(v>>24);p[1]=(uint8_t)(v>>
 static void wr16(uint8_t *p,uint32_t v){p[0]=(uint8_t)(v>>8);p[1]=(uint8_t)v;}
 int nflstreet_slot_material_catalog_open(const uint8_t *b,size_t n,nflstreet_slot_material_catalog *out){
  if(!b||!out||n<12u+NAMES_BYTES||memcmp(b,"SMC1",4)||rd32(b+4)!=1)return 0;
- uint32_t count=rd32(b+8+NAMES_BYTES);if(count>64||n!=12u+NAMES_BYTES+count*SETTING_BYTES)return 0;
+ uint32_t count=rd32(b+8+NAMES_BYTES);if(count>64||n<16u+NAMES_BYTES+count*SETTING_BYTES)return 0;
+ size_t at=12u+NAMES_BYTES+count*SETTING_BYTES;uint32_t descriptors=rd32(b+at);at+=4;
+ if(descriptors>NFLSTREET_ACTOR_MATERIALS_MAX||n-at<descriptors*48u+4u)return 0;
+ out->descriptors=b+at;out->descriptor_count=descriptors;at+=descriptors*48u;
+ for(uint32_t i=0;i<descriptors*3u;++i)if(!memchr(out->descriptors+16u*i,0,16))return 0;
+ if(rd32(b+at)!=2)return 0;at+=4;
+ for(unsigned k=0;k<2;++k){if(n-at<20)return 0;uint32_t stages=rd32(b+at+16);if(!stages||stages>8||n-at-20<stages*20u||!memchr(b+at,0,16))return 0;
+  out->shaders[k]=b+at;out->shader_stages[k]=stages;at+=20u+stages*20u;}
+ if(at!=n)return 0;
  for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s)if(!memchr(b+8+s*NFLSTREET_SLOT_MATERIAL_NAME_BYTES,0,NFLSTREET_SLOT_MATERIAL_NAME_BYTES))return 0;
  for(unsigned i=0;i<count;++i)if(!memchr(b+12+NAMES_BYTES+i*SETTING_BYTES,0,NFLSTREET_SLOT_MATERIAL_NAME_BYTES))return 0;
  out->names=b+8;out->settings=b+12+NAMES_BYTES;out->setting_count=count;return 1;
@@ -129,4 +137,38 @@ int nflstreet_slot_materials_configure(const nflstreet_slot_material_catalog *c,
    if(fmt-8u<2u){if(f==4)f=2;else if(f==5)f=3;a=0;}
    init_tex_lod(x,0.0f,max,bias,f,mag,w[20],w[21],a);}}
  return 1;
+}
+/* 801C6DC0/801C9C64: index of the type-1 stage with this name, or -1. */
+static int stage_index(const nflstreet_slot_material_catalog *c,unsigned shader,const char *name,uint32_t *index){
+ for(unsigned i=0;i<c->shader_stages[shader];++i){const uint8_t *r=c->shaders[shader]+20u+i*20u;
+  if(r[16]==1&&!strncmp((const char*)r,name,16)){*index=rd16(r+18);return 1;}}
+ return 0;
+}
+/* 801C9088/801C90AC on a slot's texture-set entries (binding entry +14). */
+static void slot_stage(const nflstreet_slot_material *b,uint32_t *texture,uint32_t *palette){
+ const nflstreet_texture_set *t=&b->texture_set;*texture=*palette=0;if(!b->entries||!t->entries.bytes)return;
+ const uint8_t *e=t->entries.bytes;*texture=t->textures.token+(uint32_t)(int16_t)rd16(e+8)*0x2cu;
+ if((int16_t)rd16(e+12)>0)*palette=t->palettes.token+(uint32_t)(int16_t)rd16(e+10)*0x28u;
+}
+static int set_stage(const nflstreet_slot_material_catalog *c,nflstreet_actor_material *m,const char *name,uint32_t texture,uint32_t palette){
+ uint32_t i;if(!stage_index(c,m->shader,name,&i)||i>=m->stage_count||i>=2)return 0;m->stages[i].texture=texture;m->stages[i].palette=palette;return 1;}
+static void use_shader(const nflstreet_slot_material_catalog *c,nflstreet_actor_material *m,unsigned shader){ /* 801C7150/801C6E28 */
+ unsigned stages=c->shader_stages[shader];m->shader=shader;if(stages==m->stage_count)return;
+ nflstreet_material_stage kept[2]={{0,0,0},{0,0,0}};for(unsigned i=0;i<stages&&i<m->stage_count&&i<2;++i)kept[i]=m->stages[i];
+ memcpy(m->stages,kept,sizeof kept);m->stage_count=stages;
+}
+int nflstreet_actor_materials_hook(const nflstreet_slot_material_catalog *c,const nflstreet_slot_material b[NFLSTREET_GEAR_TEXTURE_SLOTS],
+ nflstreet_actor_material out[NFLSTREET_ACTOR_MATERIALS_MAX],unsigned *count){
+ static const uint8_t tattoo_materials[8]={10,11,0x13,0x14,0xe,0xf,0x17,0x18},tattoo_slots[8]={19,19,20,20,21,21,22,22};
+ if(!c||!b||!out||!count||c->shader_stages[0]>2||c->shader_stages[1]>2)return 0;
+ for(unsigned i=0;i<c->descriptor_count;++i){nflstreet_actor_material *m=out+i;const char *texture=(const char*)c->descriptors+48u*i+32u;unsigned s=0;
+  memset(m,0,sizeof *m);m->material=(const char*)c->descriptors+48u*i;m->texture=texture;
+  while(s<NFLSTREET_GEAR_TEXTURE_SLOTS&&(!b[s].material||strcmp(b[s].material,texture)))++s;
+  if(s==NFLSTREET_GEAR_TEXTURE_SLOTS)return 0;
+  m->shader=0;m->stage_count=c->shader_stages[0];for(unsigned k=0;k<m->stage_count;++k)m->stages[k].index=UINT32_MAX;
+  uint32_t tex,pal;slot_stage(b+s,&tex,&pal);if(!set_stage(c,m,"base",tex,pal))return 0;use_shader(c,m,0);}
+ for(unsigned k=0;k<8;++k){if(tattoo_materials[k]>=c->descriptor_count)return 0;nflstreet_actor_material *m=out+tattoo_materials[k];uint32_t tex,pal;
+  slot_stage(b+tattoo_slots[k],&tex,&pal);if(!tex){use_shader(c,m,0);continue;}
+  use_shader(c,m,1);if(!set_stage(c,m,"over",tex,pal))return 0;}
+ *count=c->descriptor_count;return 1;
 }

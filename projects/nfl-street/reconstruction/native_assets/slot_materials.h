@@ -7,8 +7,13 @@
    16 bytes each, NUL-terminated, then the 80164DD8 default settings list
    (8028DD90): a count and per entry the name and six words (clamp-wrap byte,
    min filter, mag filter, LOD bias float, max anisotropy, bias-clamp and
-   edge-LOD bytes). */
-typedef struct {const uint8_t *names,*settings;unsigned setting_count;} nflstreet_slot_material_catalog;
+   edge-LOD bytes). Then the 8028DD10 player material list (count and per
+   descriptor the material, shader and texture names, 16 bytes each) and the
+   OnePass/TwoPass shader definitions (name, stage count, 20-byte stage
+   records: name, type byte, flag byte, BE16 stage index). */
+typedef struct {
+ const uint8_t *names,*settings,*descriptors,*shaders[2];unsigned setting_count,descriptor_count,shader_stages[2];
+} nflstreet_slot_material_catalog;
 int nflstreet_slot_material_catalog_open(const uint8_t *,size_t,nflstreet_slot_material_catalog *);
 const char *nflstreet_slot_material_name(const nflstreet_slot_material_catalog *,unsigned slot);
 /* Original 8018B7B8 allocation: the service returns a token and the bytes at
@@ -46,4 +51,24 @@ int nflstreet_slot_materials_bind(const nflstreet_slot_material_catalog *,nflstr
    LOD with the entry's filters, bias and flags (max LOD stays mips-1). A list
    name without a slot rejects (the original would dereference null). */
 int nflstreet_slot_materials_configure(const nflstreet_slot_material_catalog *,nflstreet_slot_material m[NFLSTREET_GEAR_TEXTURE_SLOTS]);
+/* One stage entry of an actor material instance (12 bytes in the original). */
+typedef struct {uint32_t texture,palette,index;} nflstreet_material_stage;
+#define NFLSTREET_ACTOR_MATERIALS_MAX 64u
+/* Final state of one actor material instance after actor startup 801639C8:
+   shader 0 = OnePass (r13-5638), 1 = TwoPass (r13-5634), its stage count and
+   stages. */
+typedef struct {const char *material,*texture;unsigned shader,stage_count;nflstreet_material_stage stages[2];} nflstreet_actor_material;
+/* Original 801C7528 + 801EBBA8 + the eight 801EBC78 tattoo calls of 801639C8
+   for the 8028DD10 list and one player's binding table. Each descriptor's
+   texture name selects the first slot with that name (801EBB44); stage "base"
+   gets that slot's first texture object and, when its first entry has
+   palettes, the entry's palette object (801C9088/801C90AC); its index word is
+   -1 (801CCB50 with no texture-index list, r13-63F8 null). The shader is then
+   OnePass. Materials 10/11, 19/20, 14/15 and 23/24 take tattoo slots
+   19/20/21/22: when that slot has a texture, the shader becomes TwoPass
+   (stage array rebuilt, stage 0 kept, stage 1 zeroed) and stage "over" gets
+   the tattoo texture and palette. A descriptor without a slot rejects (its
+   startup-registry state is not modeled). */
+int nflstreet_actor_materials_hook(const nflstreet_slot_material_catalog *,const nflstreet_slot_material binding[NFLSTREET_GEAR_TEXTURE_SLOTS],
+ nflstreet_actor_material out[NFLSTREET_ACTOR_MATERIALS_MAX],unsigned *count);
 #endif
