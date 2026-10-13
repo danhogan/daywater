@@ -198,9 +198,8 @@ Private report:
 
 ## Remaining connections
 
-- Execute the submission: map these calls onto the independent renderer
-  (TEV presets, texture objects from the owned slot destinations, light
-  channel, display lists with the skinning matrix palette).
+- Execution: `gx_render.c` now runs these calls for the captured players
+  (`player_render.md`).
 - Produce the inputs natively: fresh actors with their model instances,
   skinning matrices (`80162760`), LOD selection and draw flags (`80164000`).
 - The morphed head compile (`801626E0` and `801CBxxx`).

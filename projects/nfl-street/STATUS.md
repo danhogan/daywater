@@ -6,7 +6,17 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: selected faces and hair bind to fresh skeleton resources.** All 14
+**Latest: captured players render natively from the reconstructed draw.** A
+small software GPU now executes the native player-draw calls: display lists,
+skinning matrices, lighting, mipmapped textures, TEV stages, depth and
+blending. All 14 players of three saved contexts render in their own uniforms
+and poses, matching the game's screenshots up to snapshot timing. The register
+states of a real recorded original frame equal what the native calls encode
+(both ways), and 337 slot textures decode identically through two independent
+decoders. Fresh menu-selected actors and the field/scene remain. See
+[native player rendering](reconstruction/native_assets/player_render.md).
+
+**Earlier: selected faces and hair bind to fresh skeleton resources.** All 14
 selected visual owners now stage independent initialized skeleton sources and
 bind their face/hair models. Two native processes match the existing verified
 stages; 210 temporary allocations release, and a late failure preserves every

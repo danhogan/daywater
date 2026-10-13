@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-13. Latest work: transactional fresh face/hair skeleton binding for both selected lineups
+Updated: 2026-10-13. Latest work: captured players render natively by executing the native player-draw GX calls; before that, fresh face/hair skeleton binding
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -51,7 +51,14 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/match_skeletons.md` — latest:
+3. `projects/nfl-street/reconstruction/native_assets/player_render.md` — latest:
+   `gx_render` executes the native draw calls (display lists, matrix loads,
+   lighting, mip textures, integer TEV, depth/blend). All 14 captured
+   players of contexts 14–16 render in uniform and pose. Recorded original
+   draw states equal the SDK encoding of the native calls; 337 textures
+   cross-decode. Snapshot RAM and saved screenshots are not always the same
+   frame. Frame depth/texgens come from `801C769C`, not the transient shadow.
+   Then `projects/nfl-street/reconstruction/native_assets/match_skeletons.md`:
    all 14 selected face/hair sets bind transactionally to 84 fresh source skeleton
    resources. Copies match independent verified stages; 210 temporary allocations
    release; late failure preserves existing geometry. Explicit targets 0/5 and
@@ -150,6 +157,7 @@ the original DLL separately as an oracle.
 | Quick match roster bridge | `quick_match_roster.*` | Menu selection structs to GAME rows/new ids, lineup bits and formation mapping; corrected real picker snapshot produces both mirrored lineups; actor startup open |
 | Selected visual owner | `selected_player_visual.*` | Joins geometry and owned surfaces; rejects cross-owner token collisions before uploads; completed selected-match record is caller-supplied |
 | Owned player surface | `player_surface.*` | Joins gear/face requests, 25 owned slots, recoloring, binding, configuration and actor material instances; staged failure cleanup; geometry/actor creation still separate |
+| GX executor | `gx_render.*` | Software execution of `player_draw` calls: display lists, indexed matrix loads, one-channel lighting, mip textures (all GX formats used), integer TEV, alpha/depth/blend; inspection pixels only |
 | Player draw | `player_draw.*` | Original `80161E10` per-player draw as GX calls: light scaling, 12 model instances, LOD-0 eyes, `801C7B58` materials (NULL/OnePass/TwoPass TEV, `801C7AD4` texture/TLUT loads, parameters), `801C7F18` vertex formats and display lists; head compile `801626E0` supplied; no GPU execution |
 | Slot materials | `slot_materials.*` | Original `800E2BE8`/`801EBD38` texture sets (GXTexObj/GXTlutObj), `80164DD8` settings and the `801C7528`/`801EBBA8`/`801EBC78` hookup onto the 45 material instances; shader/TEV drawing not modeled |
 | GAME roster | `game_roster.*`, `db_fixture.h` (checks) | Original `801E05A4`→`801E1628`/`801E78C4` PLAY copy and `801E7154` renumbering; lineup GILP and team ids are caller inputs |
@@ -264,12 +272,11 @@ Continue from `selected_appearance_assets`, rather than rebuilding asset loaders
 
 1. GAME roster, gear plans, slot loading, recoloring, material binding and
    the complete player record are done; do not redo them. Next:
-   - Draw selected players: the GX submission (`player_draw`) is done.
-     Execute it in the independent renderer. Map TEV presets, texture
-     objects to the owned slot destinations (decoded MMAP planes and
-     recolored palettes), the light channel and the display lists with the
-     skinning matrix palette. Fresh actors must supply the instances,
-     matrices (`80162760`) and LOD/draw flags (`80164000`).
+   - Draw selected players: the submission (`player_draw`) and its
+     execution (`gx_render`) are done for captured actors. Next, fresh
+     actors must supply the instances, matrices (`80162760`) and LOD/draw
+     flags (`80164000`). Draw the field through the same executor, or
+     share depth with the field renderer.
    - Native menu choices now create an owned GAME roster directly via
      `quick_match_session`; original lineup-bit decisions and mirrored copying
      are checked. Feed its selected rows into fresh visual/skeleton/actor owners.
