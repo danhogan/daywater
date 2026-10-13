@@ -10,9 +10,9 @@ from verify_player_startup import source_hashes
 
 NATIVE = (
     "GAME rosters: live GAME PLAY table rebuilt byte-identical (23 rows, 14 lineup values) and 14 captured records "
-    "from it; 86 controlled team pairs (2032 rows, 2032 player records); 2 unmodeled inputs rejected; digest d1313296."
+    "from it; 129 controlled team pairs (3048 rows, 3048 player records); 2 unmodeled inputs rejected; digest e750223f."
 )
-ORIGINAL = "Original GAME roster checks: 87 801E3828/801E3720/801E05A4 loads match every GAME PLAY row byte for byte."
+ORIGINAL = "Original GAME roster checks: 130 801E3828/801E3720/801E05A4 loads match every GAME PLAY row byte for byte."
 SOURCES = (
     "game_roster.c",
     "game_roster.h",
@@ -34,7 +34,7 @@ SOURCES = (
 )
 BOUNDARY = (
     "Native match GAME PLAY table from the disc STAT PLAY/THCD/TEAM tables, the two selected teams and the menu's "
-    "lineup GILP values: original 801E05A4 -> 801E1628/801E78C4 copy with 801E7154 DIGP renumbering (THCD before "
+    "lineup GILP values: original 801E05A4 -> 801E1628/801E78C4 copy with 801E7154 DIGP renumbering scoped to destination team (THCD before "
     "PLAY per team), schema conversion and DIGT = team slot; then complete 800DE000 records from it. The snapshot "
     "supplies selected teams, lineup values, the live GAME table and actor ids. The original runs on emptied GAME "
     "PLAY/THCD tables (the clear before a fresh match is not traced) with the db_teams.dat open marked done; only "
@@ -112,10 +112,11 @@ def main() -> None:
             live_game_rows=23,
             live_lineup_values=14,
             live_records=14,
-            controlled_team_pairs_per_process=86,
-            controlled_rows_per_process=2032,
-            original_loads_per_process=87,
+            controlled_team_pairs_per_process=129,
+            controlled_rows_per_process=3048,
+            original_loads_per_process=130,
             rejected_unmodeled_inputs=2,
+            mirrored_team_pairs_per_process=43,
         )
     except Exception as exc:
         record.update(status="failed", error=str(exc))

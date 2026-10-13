@@ -88,15 +88,15 @@ int main(int argc,char **argv){
      memcmp(record,captured,sizeof record)){fprintf(stderr,"record from native GAME row mismatch player%u\n",p);return 6;}
   ++live_records;}
  unsigned live_rows=roster.table.used;nflstreet_game_roster_close(&roster);
- /* Controlled corpus over disc teams: partners +1 and +7 (team row order),
+ /* Controlled corpus over disc teams: partners +1, +7 and itself (team row order),
     the first seven rows by DIGP of each team as lineup, and a DIOP rewrite. */
  uint32_t digest=2166136261u;unsigned cases=0,rows=0,records_built=0,rejected=0;
- for(unsigned t=0;t<teams.used;++t)for(unsigned k=0;k<2;++k){roster_case c={0};
-  if(!number_of(&teams,t,TAG_DIGT,c.teams)||!number_of(&teams,(t+(k?7u:1u))%teams.used,TAG_DIGT,c.teams+1))return 5;
+ for(unsigned t=0;t<teams.used;++t)for(unsigned k=0;k<3;++k){roster_case c={0};
+  if(!number_of(&teams,t,TAG_DIGT,c.teams)||!number_of(&teams,(t+(k==2?0u:k?7u:1u))%teams.used,TAG_DIGT,c.teams+1))return 5;
   for(unsigned u=0;u<2;++u){uint32_t ids[64];unsigned n=0;
    for(unsigned r=0;r<play.used;++r){uint32_t team,digp;if(!number_of(&play,r,TAG_DIGT,&team)||!number_of(&play,r,TAG_DIGP,&digp))return 5;
     if(team!=c.teams[u])continue;if(n>=64)return 5;unsigned at=n++;while(at&&ids[at-1]>digp){ids[at]=ids[at-1];--at;}ids[at]=digp;}
-   for(unsigned i=0;i<n&&i<7;++i)c.overrides[c.override_count++]=(nflstreet_stat_override){ids[i],TAG_GILP,u+1u};
+   if(k!=2||!u)for(unsigned i=0;i<n&&i<7;++i)c.overrides[c.override_count++]=(nflstreet_stat_override){ids[i],TAG_GILP,k==2?3u:u+1u};
    if(n&&!u)c.overrides[c.override_count++]=(nflstreet_stat_override){ids[n-1],TAG_DIOP,900u+t};}
   if(!nflstreet_game_roster_build(&play,&thcd,&teams,&game_schema,c.teams,2,c.overrides,c.override_count,&roster)){fprintf(stderr,"corpus roster failed %u/%u\n",t,k);return 6;}
 #ifdef NFLSTREET_ROSTER_ORACLE

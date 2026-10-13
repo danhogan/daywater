@@ -31,8 +31,8 @@ template `00001`) and others. Match start `801EA480` calls
   The tables are `8029516C`: THCD, PLAY, TEAM, keyed by DIGT. For one team,
   each table's rows go through a temporary table, are renumbered and
   inserted.
-  - **Renumbering, `801E7154`.** A per-database map gives each source DIGP a
-    new id the first time it is seen: first free slot, linear probing, ids
+  - **Renumbering, `801E7154`.** A per-database map keyed by destination team and source DIGP gives a
+    new id the first time that pair is seen: first free slot, linear probing, ids
     from a prepared list. The DIGT key maps to the new team id.
   - **Order.** The team's THCD rows are visited before its PLAY rows, each in
     ascending source DIGP. Players without a THCD row are therefore numbered
@@ -81,13 +81,13 @@ MTTS team order (19, 1) and the 14 live lineup values, the native table
 equals the live GAME PLAY table in all 23 rows (88 bytes each). The 14
 captured player records rebuild from it byte for byte.
 
-**Verified controlled original comparison, per process.** There are 87 runs
-of the actual `801E3828`/`801E3720`/`801E05A4`: the live pair plus 86
+**Verified controlled original comparison, per process.** There are 130 runs
+of the actual `801E3828`/`801E3720`/`801E05A4`: the live pair plus 129
 controlled pairs. In the controlled pairs, every disc team is paired with
-the next and the seventh-next team. The lineup is set on each team's first
+the next, seventh-next and same team. The lineup is set on each team's first
 seven players, and one player's DIOP is rewritten. In every run:
 
-- The resulting GAME PLAY table equals the native one byte for byte (2,032
+- The resulting GAME PLAY table equals the native one byte for byte (3,048
   rows in total).
 - MTTS DIGT becomes the team slot.
 
@@ -138,3 +138,16 @@ match entry point uses this view plus `source_rows` to reject another database
 and resolve original identity for geometry. This is host lifetime metadata, not
 an original GAME structure field. The original roster gate was rerun after the
 change and retained all prior output comparisons.
+
+## Mirrored team copies — 2026-10-13
+
+**Verified controlled original behavior.** Every one of the 43 STAT teams was
+selected on both sides. Destination-team scoping gives each copy its own GAME
+DIGP namespace while the allocation counter advances globally; copies retain
+the same source STAT row identities. The native override is applied to both
+copies, with one consumed override key tracked once. These 43 cases join the 86
+existing distinct-team cases: 3,048 GAME PLAY rows and complete records per
+process, plus the unchanged 23-row live table and 14 captured records.
+The actual original loader runs 130 times per process across three saved
+contexts repeated twice. No fresh live match, original full menu replay or
+selected-player drawing is claimed. Protected originals remain unchanged.

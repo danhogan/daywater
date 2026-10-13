@@ -30,7 +30,8 @@ typedef struct {const nflstreet_team_table *t;unsigned row;uint32_t digp;} sourc
 static int by_digp(const void *a,const void *b){uint32_t x=((const source_row*)a)->digp,y=((const source_row*)b)->digp;return(x>y)-(x<y);}
 static int by_value(const void *a,const void *b){uint32_t x=*(const uint32_t*)a,y=*(const uint32_t*)b;return(x>y)-(x<y);}
 /* 801E7154 assigns a GAME DIGP the first time a source DIGP is seen. The
-   per-team copy visits THCD before PLAY, each in ascending source DIGP. */
+   mapping is scoped to the destination team. The copy visits THCD before PLAY,
+   each in ascending source DIGP; new ids advance across teams. */
 static int map_id(uint32_t *from,uint32_t *to,unsigned *count,unsigned capacity,uint32_t source,uint32_t *next){
  for(unsigned i=0;i<*count;++i)if(from[i]==source)return 1;
  if(*count>=capacity)return 0;from[*count]=source;to[(*count)++]=(*next)++;return 1;
@@ -50,10 +51,11 @@ int nflstreet_game_roster_build(const nflstreet_team_table *play,const nflstreet
  source_row *rows=malloc(sizeof *rows*(play->used?play->used:1u));uint32_t *from=malloc(sizeof *from*id_capacity),*to=malloc(sizeof *to*id_capacity),
   *ids=malloc(sizeof *ids*id_capacity),next=0;
  r.bytes=calloc(fields+capacity*schema->record_bytes+1u,1);r.source_rows=malloc(sizeof *r.source_rows*(capacity?capacity:1u));
+ uint8_t *applied=calloc(override_count?override_count:1u,1);
  int ok=0;unsigned used=0,copied=0,mapped=0;
- if(!rows||!from||!to||!ids||!r.bytes||!r.source_rows)goto done;
+ if(!rows||!from||!to||!ids||!r.bytes||!r.source_rows||!applied)goto done;
  memcpy(r.bytes,schema->bytes+schema->fields_at,fields);
- for(unsigned u=0;u<team_count;++u){unsigned count=0,team_row=0,found=0;uint32_t v;
+ for(unsigned u=0;u<team_count;++u){unsigned count=0,team_row=0,found=0;uint32_t v;mapped=0;
   for(unsigned t=0;t<teams->used;++t)if(number(teams,t,TAG_DIGT,&v)&&v==selected[u]){if(found++)goto done;team_row=t;}
   if(found!=1||!number(teams,team_row,TAG_PYTT,&v)||v==5)goto done;r.team_rows[u]=team_row;
   for(unsigned p=0;p<play->used;++p){uint32_t digp;if(!number(play,p,TAG_DIGT,&v)||!number(play,p,TAG_DIGP,&digp))goto done;
@@ -69,7 +71,7 @@ int nflstreet_game_roster_build(const nflstreet_team_table *play,const nflstreet
    for(unsigned i=0;i<schema->field_count;++i){nflstreet_team_field g,f;nflstreet_team_table_field(schema,i,&g);nflstreet_team_table_field(play,source_field[i],&f);
     uint32_t value=0;unsigned o;
     for(o=0;o<override_count;++o)if(overrides[o].digp==rows[k].digp&&overrides[o].tag==g.tag)break;
-    if(o<override_count){if(g.type!=3||g.width>32)goto done;value=overrides[o].value;++copied;}
+    if(o<override_count){if(g.type!=3||g.width>32)goto done;value=overrides[o].value;if(!applied[o]){applied[o]=1;++copied;}}
     if(g.type==3&&g.width<=32){if(o==override_count)value=get_bits(s,f.bit_offset,f.width);
      if(i==digp_index)value=id;else if(i==digt_index)value=u;put_bits(d,g.bit_offset,g.width,value);}
     else for(uint32_t b=0;b<g.width;b+=8){uint32_t w=g.width-b<8?g.width-b:8;put_bits(d,g.bit_offset+b,w,get_bits(s,f.bit_offset+b,w));}
@@ -82,6 +84,6 @@ int nflstreet_game_roster_build(const nflstreet_team_table *play,const nflstreet
  r.table.record_bytes=schema->record_bytes;r.table.record_bits=schema->record_bits;r.table.allocated=(uint16_t)capacity;
  r.table.used=(uint16_t)used;r.table.field_count=schema->field_count;ok=1;
 done:
- free(rows);free(from);free(to);free(ids);if(!ok){nflstreet_game_roster_close(&r);return 0;}
+ free(rows);free(from);free(to);free(ids);free(applied);if(!ok){nflstreet_game_roster_close(&r);return 0;}
  *out=r;return 1;
 }

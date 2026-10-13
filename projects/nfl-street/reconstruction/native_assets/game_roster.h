@@ -12,7 +12,8 @@ typedef struct {uint32_t digp,tag,value;} nflstreet_stat_override;
 /* The match GAME PLAY table built by original 801E05A4 -> 801E1628/801E78C4
    for an empty GAME database. For each selected team in MTTS UNLS order, team
    slot u gets GAME DIGT u. New DIGPs are handed out 0,1,2... (801E7154) the
-   first time a source DIGP is copied. The per-team copy visits the team's STAT
+   first time a source DIGP is copied to each destination team. Mirrored teams
+   therefore receive separate ids while sharing STAT source rows. The per-team copy visits the team's STAT
    THCD rows and then its PLAY rows, each in ascending source DIGP, so players
    without a THCD row are numbered after the rest of their team. The PLAY rows
    are stored in ascending source DIGP, converted to the GAME schema by field

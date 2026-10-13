@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-13. Latest work: native picker corrected to loaded STAT rosters (14/14 membership)
+Updated: 2026-10-13. Latest work: original mirrored-team copying verified; corrected picker produces both native GAME lineups
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -54,10 +54,10 @@ Do not spend the next turn on another small speed experiment.
 3. `projects/nfl-street/reconstruction/menus/stat_picker_rosters.md` — latest:
    the native picker now uses loaded STAT membership; new Win32 capture has
    14/14 correct ids. Original fallback projection and native team/field checks
-   pass. New output directory preserves older captures. Mirror teams 1/1 still
-   reject at the bridge; verify original mirrored copying/id reassignment next.
+   pass. New output directory preserves older captures. Mirrored teams 1/1 now
+   produce separate native GAME lineups after original copy/id verification.
    Then `native_assets/quick_match_roster.md`: selection structs map to GAME
-   selected/formation rows and ids; 258 selections and 8,192 original setter
+   selected/formation rows and ids; 387 selections and 8,192 original setter
    cases per process. Legacy 12/14 capture is preserved as a negative regression.
    Then `selected_player_visual.md`:
    508 STAT players ×3 body variants = 1,524 complete-record visual assemblies per
@@ -119,7 +119,7 @@ the original DLL separately as an oracle.
 | Gear texture plan | `gear_texture.*` | Original `800DE3B8`: GEAR records, player record fields, 25 slot index/palette pairs, color requests, slot0 fallback; team-level record bytes captured |
 | Slot textures | `slot_textures.*` | Original 800E2958 layout, 800E2AF0 templates, 800E2CAC/800E27F8 loads; `800D9C0C` recolor reported, not executed |
 | Palette recolor | `palette_recolor.*` | 80148A88 color table, 800D8918 dynclut parsing, 800D9948 ops, 800D9C0C composition; its gate feeds captured color state |
-| Quick match roster bridge | `quick_match_roster.*` | Menu selection structs to GAME rows/new ids, lineup bits and formation mapping; real picker source and mirrored teams still open |
+| Quick match roster bridge | `quick_match_roster.*` | Menu selection structs to GAME rows/new ids, lineup bits and formation mapping; corrected real picker snapshot produces both mirrored lineups; actor startup open |
 | Selected visual owner | `selected_player_visual.*` | Joins geometry and owned surfaces; rejects cross-owner token collisions before uploads; completed selected-match record is caller-supplied |
 | Owned player surface | `player_surface.*` | Joins gear/face requests, 25 owned slots, recoloring, binding, configuration and actor material instances; staged failure cleanup; geometry/actor creation still separate |
 | Slot materials | `slot_materials.*` | Original `800E2BE8`/`801EBD38` texture sets (GXTexObj/GXTlutObj), `80164DD8` settings and the `801C7528`/`801EBBA8`/`801EBC78` hookup onto the 45 material instances; shader/TEV drawing not modeled |
@@ -151,8 +151,10 @@ Latest connection: the native picker bootstrap uses loaded STAT rows instead of
 fallback db_teams membership when a loaded team exists. All 14 ids in the new
 Win32 selection match STAT; source field confirmation/back/notification checks
 and original fallback projections pass. Older captures are preserved. Mirrored
-teams remain rejected: verify original GAME copy/id behavior before enabling
-that route. Read `menus/stat_picker_rosters.md` and `quick_match_roster.md`.
+copying is now verified against the untouched original loader for all 43 STAT
+teams: source-id mapping is scoped to destination team, with distinct GAME ids.
+The bridge accepts the corrected real picker snapshot and preserves both
+lineup/formation maps; legacy wrong-team ids still reject. Read `menus/stat_picker_rosters.md` and `quick_match_roster.md`.
 No fresh actors or match have been created by this milestone.
 
 Previous connection: `nflstreet_selected_player_visual_from_match` consumes native

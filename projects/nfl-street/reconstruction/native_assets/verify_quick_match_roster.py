@@ -7,15 +7,15 @@ import struct
 from pathlib import Path
 from verify_controller_checks import PRIVATE,BASELINES,baseline_hashes,digest,private,run,windows
 from verify_player_startup import source_hashes
-EXPECTED = ("Quick-match rosters: 258 menu selections, 3612 selected GAME rows, 7224 formation mappings; "
-            "264 rejection checks; 8192 lineup-bit cases. STAT unchanged; no actors created.\n"
-            "Retained native menu snapshot: {membership}/14 ids match STAT team membership; mirrored route rejects without creating a roster.")
+EXPECTED = ("Quick-match rosters: 387 menu selections, 5418 selected GAME rows, 10836 formation mappings; "
+            "{rejections} rejection checks; 8192 lineup-bit cases. STAT unchanged; no actors created.\n"
+            "Retained native menu snapshot: {membership}/14 ids match STAT team membership; {route}.")
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--selection',type=Path,default=PRIVATE/'research-temp/nflstreet-team-field-picker-join-20261011/field-picker-window-selection.json')
     parser.add_argument('--expected-membership',type=int,choices=(12,14),default=12)
     parser.add_argument('--output-dir',type=Path,default=PRIVATE/'research-temp/nflstreet-quick-match-roster-20261013')
-    args=parser.parse_args();expected=EXPECTED.format(membership=args.expected_membership)
+    args=parser.parse_args();expected=EXPECTED.format(membership=args.expected_membership,rejections=392+(args.expected_membership!=14),route="both native GAME lineups created with distinct ids" if args.expected_membership==14 else "invalid membership rejects without creating a roster")
     here=Path(__file__).resolve().parent;root=here.parent
     out=private(args.output_dir);out.mkdir(parents=True,exist_ok=True)
     sources=source_hashes(root,tuple('native_assets/'+n for n in ('quick_match_roster.c','quick_match_roster_check.c',
@@ -24,7 +24,7 @@ def main():
       ('menus/team_catalog.c','menus/quick_match_selection.c'))
     before=baseline_hashes();record={'status':'failed','boundary':'Native QuickMatchSelection to GAME row/id/order mapping. '
       'Original8014FD50 scalar bit operation executes with getter/writer services supplied, not an original menu database update. '
-      'Synthetic menu inputs through existing selection builder; current retained picker snapshot rejects as unsupported mirrored teams. '
+      'Synthetic menu inputs through existing selection builder; mirrored teams supported with distinct GAME ids; legacy wrong-team ids rejected. '
       'No visible menu-to-match startup, actor creation, field rendering or gameplay claimed.'}
     try:
         data=PRIVATE/'private/nflstreet/GNNE69-r0'
@@ -58,8 +58,8 @@ def main():
         if any(digest(root/k if not k.startswith('ModernGekko/') else PRIVATE/'tools/ModernGekko-Template/lib/ModernGekko/include'/k.removeprefix('ModernGekko/'))!=v for k,v in sources.items()):raise RuntimeError('Source changed')
         record.update(status='passed',baseline=before,input_sha256=inputs,source_sha256=sources,
           game_roster_report_sha256=digest(stage),logs_sha256=logs,executable_sha256={p.name:digest(p) for p in (native,original)},
-          selections_per_process=258,selected_rows_per_process=3612,formation_mappings_per_process=7224,
-          rejection_checks_per_process=264,original_scalar_cases_per_process=8192,captured_membership_matches=args.expected_membership,captured_player_ids=14)
+          selections_per_process=387,selected_rows_per_process=5418,formation_mappings_per_process=10836,
+          rejection_checks_per_process=392+(args.expected_membership!=14),original_scalar_cases_per_process=8192,captured_membership_matches=args.expected_membership,captured_player_ids=14)
     except Exception as exc:record['error']=str(exc);raise
     finally:(out/'verification.json').write_text(json.dumps(record,indent=2)+'\n')
     print(expected);print('Original setter checks repeat across three contexts; protected baseline unchanged.')

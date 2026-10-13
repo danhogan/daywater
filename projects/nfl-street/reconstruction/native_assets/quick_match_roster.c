@@ -10,7 +10,7 @@ static int field(const nflstreet_team_table *t,uint32_t tag,unsigned *out){unsig
  for(unsigned i=0;i<t->field_count;++i){nflstreet_team_field f;if(!nflstreet_team_table_field(t,i,&f))return 0;if(f.tag==tag){if(found++)return 0;*out=i;}}return found==1;}
 int nflstreet_quick_match_roster_build(const uint8_t *db,size_t size,const nflstreet_team_table *schema,
  const nflstreet_quick_match_selection *s,nflstreet_quick_match_roster *out){
- if(!s||!schema||!out||out->game.bytes||s->team_ids[0]==s->team_ids[1]||s->field_slot>=8||s->field_key>=8)return 0;
+ if(!s||!schema||!out||out->game.bytes||s->field_slot>=8||s->field_key>=8)return 0;
  nflstreet_team_table play,thcd,teams;unsigned team_field,id_field,flag_field;
  if(!nflstreet_team_table_open_tag(db,size,0x59414c50u,&play)||!nflstreet_team_table_open_tag(db,size,0x54484344u,&thcd)||
     !nflstreet_team_table_open_tag(db,size,0x4d414554u,&teams)||!field(&play,DIGT,&team_field)||!field(&play,DIGP,&id_field)||!field(&play,GILP,&flag_field))return 0;

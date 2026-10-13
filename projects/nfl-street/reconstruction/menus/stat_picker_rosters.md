@@ -42,8 +42,9 @@ input was not tested.
 
 The newly emitted Win32 selection is passed to the roster-bridge verifier:
 **14/14 player ids match STAT membership**, replacing the old 12/14 result.
-That snapshot still selects mirrored teams 1/1 and therefore correctly rejects
-at the bridge's currently unverified mirrored-team route. No fresh match starts.
+That snapshot selects mirrored teams 1/1. Subsequent original copy/id checks
+now permit this route, and the bridge creates both native GAME lineups with
+distinct ids. No fresh match starts.
 
 Fallback regression still parses all 32 private blocks / 402 ids. Original
 `8011D628` projection matches 64 side/team comparisons per saved context in
@@ -64,7 +65,7 @@ path, expected membership and private output directory.
 
 ## Remaining
 
-Verify mirrored-team GAME copying/id reassignment against the original, connect
-the real menu selection to the match owner, then create/attach/render fresh
+Connect
+the validated real menu selection to the match owner, then create/attach/render fresh
 actors. The independent scene still uses reference players. Field confirmation
 and a coherent selected-player list are not a playable match.

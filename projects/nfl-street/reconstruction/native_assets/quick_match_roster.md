@@ -11,7 +11,7 @@ It can supply `selected_rows` to `selected_player_visual_from_match`. It does
 not allocate actors or start a match. Open requires an empty/zero-initialized
 output; failure releases staged allocations and preserves output. Close clears
 ownership and can repeat. Source player ids must be unambiguous across copied
-teams; ambiguous overrides reject. Mirrored teams remain unverified and reject.
+teams; ambiguous overrides reject. Mirrored teams are supported: both copies share source rows but receive distinct GAME ids.
 
 ## Original lineup bit operation
 
@@ -37,12 +37,12 @@ PYTHONPATH=projects/nfl-street/reconstruction/menus \
 
 Every process checks:
 
-- 258 input selections constructed through the existing menu selection builder:
-  43 teams × two partners × three seven-player/order variants.
-- 3,612 selected GAME-row mappings and 7,224 formation mappings.
+- 387 input selections constructed through the existing menu selection builder:
+  43 teams × three partners (including themselves) × three seven-player/order variants.
+- 5,418 selected GAME-row mappings and 10,836 formation mappings.
 - GAME GILP values for all copied rows and unchanged source STAT bytes.
-- 264 rejection checks, including occupied output, duplicate/wrong-team players,
-  duplicate formation, invalid field key, mirrored teams and retained snapshot.
+- 392 rejection checks for the corrected capture (393 for the legacy capture), including occupied output, duplicate/wrong-team players,
+  duplicate formation and invalid field key. The corrected retained snapshot builds both lineups; legacy wrong-team membership rejects.
 - 8,192 lineup-bit cases: 1,024 prior words, sides 0..3 and selected false/true.
 
 The original checker dispatches actual `8014FD50` with explicit getter/writer
@@ -61,9 +61,9 @@ selection JSON, not a new public asset or game save.
 ## Historical native picker gap
 
 The retained `field-picker-window-selection.json` selects teams 1/1. Only six
-of each side's seven selected ids belong to STAT team 1 (12/14 total). The bridge
-rejects the mirrored route rather than claiming a valid fresh match. The missing
-membership would also need correction for a non-mirrored handoff.
+of each side's seven selected ids belong to STAT team 1 (12/14 total). That historical bridge rejected the unsupported mirror route; the current
+bridge rejects this old snapshot for wrong-team membership even with mirrors
+supported.
 
 The current preview bootstrap in `menus/team_screen_probe.c` loads every
 `supplied_rosters` entry and its `roster_databases` from `db_teams` fallback
@@ -75,8 +75,8 @@ case. Gate entry point is `menus/verify_team_field_picker.py`; the join source i
 this milestone. Preserve old captures before regenerating them; this bridge
 report currently fingerprints the retained selection.
 
-Remaining: verify mirrored-team copying/id assignment against the original,
-connect the corrected real menu handoff, and create/attach/render fresh actors.
+Remaining at that earlier checkpoint: mirrored copying and real menu handoff.
+The new proof below closes mirrored copying; actor creation/rendering remains.
 No playable menu-to-match flow is claimed.
 
 
@@ -85,6 +85,23 @@ No playable menu-to-match flow is claimed.
 The loaded-STAT roster fix in `../menus/stat_picker_rosters.md` supersedes the
 membership mismatch for newly generated menu selections: the Win32 capture
 now has 14/14 matching ids. The older 12/14 capture remains a negative regression
-and is not overwritten. Mirrored-team copying remains unverified/rejected.
+and is not overwritten. The subsequent proof below verifies mirrored-team copying and enables it.
 To check another private capture, the bridge verifier accepts `--selection`,
 `--expected-membership` (12 for legacy, 14 for corrected) and `--output-dir`.
+
+## Mirrored picker route — 2026-10-13
+
+The mirror restriction is removed after original GAME copying/id reassignment
+matched all 43 same-team selections. Both GILP bits are computed on each source
+row before its two copies are made; the sides can select different seven-player
+sets. The bridge corpus now covers identical and different mirrored lineups,
+checks global uniqueness of GAME ids and preserves both formation orders.
+The corrected Win32 teams 1/1 snapshot now creates 14 selected GAME-row mappings.
+The earlier 12/14 snapshot remains a rejected membership regression.
+
+Current private proof:
+`W:\Daywater\research-temp\nflstreet-mirror-quick-match-20261013\verification.json`.
+It fingerprints the corrected capture and current original GAME proof. This is
+a bridge consuming the emitted selection, not yet a menu-controlled actor factory.
+Next: pass this owned roster through the running match owner, attach fresh
+selected resources/skeletons and draw those actors. No playable match claimed.

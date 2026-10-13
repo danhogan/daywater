@@ -6,7 +6,16 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: the native picker uses the correct STAT roster.** Its new Win32
+**Latest: the corrected picker produces both native GAME lineups.** Choosing
+one team on both sides now works: the untouched original loader confirms that
+copies receive separate player IDs. All43 mirrored teams match byte for byte,
+alongside the 86 existing pair checks, in three saved contexts repeated twice.
+The bridge passes 387 menu selections and accepts the corrected 14/14 picker
+snapshot; the old 12/14 snapshot still rejects. This removes the default choice's
+roster restriction. Fresh actor startup and selected-player drawing remain open.
+See [menu roster bridge](reconstruction/native_assets/quick_match_roster.md).
+
+**Earlier: the native picker uses the correct STAT roster.** Its new Win32
 selection contains 14/14 players belonging to the selected teams, fixing the
 old 12/14 mismatch. Team/field navigation, confirmation, back and notification
 checks pass; original fallback roster projections still match. Old captures
@@ -344,7 +353,7 @@ and original GX rendering remain open. See
 
 The native team menu now receives
 the original forward Quick Game load arguments and browses in both directions.
-Six fresh Windows runs select teams1/1,31/31 or3/3, construct both seven-player
+Six fresh Windows runs select teams 1/1,31/31 or3/3, construct both seven-player
 lineups and resolve selected PLAY15,PLAY318 orPLAY39. Captures repeat within
 each case. A separate untextured athlete inspection pane is connected; shared
 model resources can look identical. Ten legacy live-preview cases and the
