@@ -109,7 +109,8 @@ Private report:
   slot gate runs the original composition instead of recording it. This
   gate's color state (record `+4C..+63`) comes from captured records; its
   native writer is verified in `player_record.md`.
-- **`800E2BE8`/`801EBD38`** material binding of the destinations.
+- `800E2BE8`/`801EBD38` material binding and the `80164DD8` settings are
+  now reconstructed (`slot_materials.md`), and this gate checks them too.
 - The face/cap choice for slot 1 for roster rows.
 - Fresh actor startup that consumes the result.
 

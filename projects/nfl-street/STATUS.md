@@ -6,7 +6,17 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: the match's player table.** When a match starts, the original game
+**Latest: material binding.** Each selected player's 25 textures are now
+attached to their named materials (HAIR, HEAD, TORSO, … GLASSES). The game's
+texture and palette objects are built exactly as the original does
+(`800E2BE8`), and the default settings from actor startup (`80164DD8`) are
+applied: LOD bias −1.3, and clamped decals. For all 14 captured players the
+350 texture sets equal the live objects, apart from fields the game writes
+later while drawing. The actual original code matches 20,475 selected sets
+per process, along with synthetic sweeps of formats, sizes and settings. See
+[material binding evidence](reconstruction/native_assets/slot_materials.md).
+
+**Earlier: the match's player table.** When a match starts, the original game
 copies the two selected teams from its STAT database into a GAME database
 with new player ids. Native code now builds that GAME player table from disc
 data, the two teams and the lineup, and it equals the captured match's table

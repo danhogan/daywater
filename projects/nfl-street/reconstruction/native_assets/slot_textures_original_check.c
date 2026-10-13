@@ -133,3 +133,95 @@ static int original_slot_apply(const nflstreet_slot_textures *t,const int32_t in
  if(o.gx_flushes!=h->palettes){fprintf(stderr,"800D9C0C count mismatch %u/%u\n",o.gx_flushes,h->palettes);return 0;}
  slot_compositions+=o.gx_flushes;slot_loads+=o.loads;++slot_players;return 1;
 }
+/* Original 801EBD38 on each owned destination (already in slot_ram from the
+   original pipeline): 8018B7B8 returns the native tokens in order with the same
+   allocator fill, 801F0BD0 must match the native flush order, and every block
+   byte plus the binding entry words must equal the native ones. */
+#define BIND_ENTRIES 0x81150000u
+typedef struct {const material_heap *heap;unsigned block,flush;} bind_run;
+static int bind_call(uint32_t destination,uint32_t entry,bind_run *r){
+ CPUState c={0};c.ram=slot_ram;c.ram_size=RAM_SIZE;c.msr=0x2000;c.gpr[1]=ORACLE_STACK;c.gpr[2]=0x803b9a40u;c.gpr[13]=R13;
+ c.gpr[3]=destination;c.gpr[4]=entry;c.gpr[5]=6;c.gpr[6]=0;c.pc=0x801ebd38u;
+ for(unsigned step=0;c.pc&&step<2000000u;++step){uint32_t pc=c.pc;
+  if(pc==0x8018b7b8u){const material_heap *h=r->heap;if(r->block>=h->count||c.gpr[3]!=h->sizes[r->block]||c.gpr[4])return 0;
+   uint32_t token=h->tokens[r->block++],rounded=(c.gpr[3]+31u)&~31u;uint8_t *d=ptr(slot_ram,token,rounded);if(!d)return 0;
+   memset(d,h->fill,rounded);c.gpr[3]=token;c.pc=c.lr;continue;}
+  if(pc==0x801f0bd0u){const material_heap *h=r->heap;if(r->flush>=h->flush_count)return 0;const flush_request *f=h->flushes+r->flush++;
+   if(f->token!=c.gpr[3]||f->size!=c.gpr[4])return 0;c.pc=c.lr;continue;}
+  if(pc==0x801af944u||pc==0x801af9ccu){c.gpr[3]=0;c.pc=c.lr;continue;}
+  if(pc==0x801af57cu){c.pc=c.lr;continue;}
+  c.downcount=-1000000000;slot_module->dispatch(&c,c.pc);if(c.exception)return 0;}
+ return !c.pc;
+}
+static int original_slot_bind(const nflstreet_slot_textures *t,const nflstreet_slot_material *a,const material_heap *ha,
+ const nflstreet_slot_material *b,const material_heap *hb){
+ for(unsigned pass=0;pass<2;++pass){const nflstreet_slot_material *m=pass?b:a;bind_run r={pass?hb:ha,0,0};
+  for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s){uint32_t entry=BIND_ENTRIES+0x20u*s;memset(ptr(slot_ram,entry,0x20),0,0x20);
+   if(!bind_call(t->slots[s].token,entry,&r)){fprintf(stderr,"801EBD38 run failed slot%u pass%u\n",s,pass);return 0;}
+   const uint8_t *e=ptr(slot_ram,entry,0x20);
+   if(be(e+0x14)!=m[s].entries||be(e+0x18)!=m[s].set||be(e+0x1c)!=m[s].destination){fprintf(stderr,"801EBD38 entry mismatch slot%u\n",s);return 0;}
+   for(unsigned k=0;k<5;++k){const nflstreet_material_block *x=set_block(&m[s].texture_set,k);
+    if(x->size&&memcmp(ptr(slot_ram,x->token,x->size),x->bytes,x->size)){fprintf(stderr,"801EBD38 block%u mismatch slot%u pass%u\n",k,s,pass);return 0;}}
+   if(!pass)++bind_sets;}
+  if(r.block!=r.heap->count||r.flush!=r.heap->flush_count){fprintf(stderr,"801EBD38 allocation/flush count mismatch\n");return 0;}}
+ return 1;
+}
+/* Original 80164DD8(table, 0) with the default 8028DD90 list on player 0's
+   binding rows (DOL names kept, +14/+18/+1C from native). Each pass first
+   restores that pass's unconfigured native texture objects at their tokens. */
+static int original_slot_configure(const nflstreet_slot_material *a,const material_heap *ha,const uint8_t *ua,
+ const nflstreet_slot_material *b,const material_heap *hb,const uint8_t *ub){
+ for(unsigned pass=0;pass<2;++pass){const nflstreet_slot_material *m=pass?b:a;const material_heap *h=pass?hb:ha;const uint8_t *u=pass?ub:ua;
+  for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s){uint8_t *e=ptr(slot_ram,BINDING_TABLE+0x20u*s,0x20);
+   put(e+0x14,m[s].entries);put(e+0x18,m[s].set);put(e+0x1c,m[s].destination);
+   const nflstreet_material_block *x=&m[s].texture_set.textures;
+   if(x->size)memcpy(ptr(slot_ram,x->token,x->size),u+(x->bytes-h->arena),x->size);}
+  CPUState c={0};c.ram=slot_ram;c.ram_size=RAM_SIZE;c.msr=0x2000;c.gpr[1]=ORACLE_STACK;c.gpr[2]=0x803b9a40u;c.gpr[13]=R13;
+  c.gpr[3]=BINDING_TABLE;c.gpr[4]=0;c.pc=0x80164dd8u;
+  for(unsigned step=0;c.pc&&step<2000000u;++step){c.downcount=-1000000000;slot_module->dispatch(&c,c.pc);if(c.exception)return 0;}
+  if(c.pc)return 0;
+  for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s){const nflstreet_material_block *x=&m[s].texture_set.textures;
+   if(x->size&&memcmp(ptr(slot_ram,x->token,x->size),x->bytes,x->size)){fprintf(stderr,"80164DD8 mismatch slot%u pass%u\n",s,pass);return 0;}}
+  if(!pass)++configure_sets;}
+ return 1;
+}
+/* Original 801EBD38 on one synthetic unrelocated MMAP at token (801C5610
+   relocates it inside 801C8E80): relocated bytes, all blocks, entry words,
+   allocations and flushes must equal the native ones for both fills. */
+static int original_texture_set(const uint8_t *unrelocated,size_t size,uint32_t token,const uint8_t *relocated,
+ const nflstreet_texture_set *a,const material_heap *ha,const nflstreet_texture_set *b,const material_heap *hb){
+ for(unsigned pass=0;pass<2;++pass){const nflstreet_texture_set *t=pass?b:a;bind_run r={pass?hb:ha,0,0};
+  if(token)memcpy(ptr(slot_ram,token,size),unrelocated,size);
+  uint32_t entry=BIND_ENTRIES;memset(ptr(slot_ram,entry,0x20),0,0x20);
+  if(!bind_call(token,entry,&r)||r.block!=r.heap->count||r.flush!=r.heap->flush_count){fprintf(stderr,"801EBD38 sweep run failed (token %08x)\n",token);return 0;}
+  const uint8_t *e=ptr(slot_ram,entry,0x20);
+  if(be(e+0x18)!=t->object.token||be(e+0x1c)!=token||be(e+0x14)!=be(t->object.bytes+0x24)||(token&&memcmp(ptr(slot_ram,token,size),relocated,size))){
+   fprintf(stderr,"801EBD38 sweep entry/relocation mismatch\n");return 0;}
+  for(unsigned k=0;k<5;++k){const nflstreet_material_block *x=set_block(t,k);
+   if(x->size&&memcmp(ptr(slot_ram,x->token,x->size),x->bytes,x->size)){fprintf(stderr,"801EBD38 sweep block%u mismatch pass%u\n",k,pass);return 0;}}
+  if(!pass)++sweep_sets;}
+ return 1;
+}
+/* Original 80164DD8 with a controlled list: names, binding rows and list are
+   written to RAM, the unconfigured native texture sets at their tokens. */
+#define SWEEP_TABLE 0x81158000u
+#define SWEEP_NAMES 0x81159000u
+#define SWEEP_LIST 0x8115a000u
+static int original_configure_sweep(const nflstreet_slot_material *m,const material_heap *h,const uint8_t *unconfigured,
+ const uint8_t *list,unsigned count){
+ for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s){uint8_t *e=ptr(slot_ram,SWEEP_TABLE+0x20u*s,0x20),*n=ptr(slot_ram,SWEEP_NAMES+16u*s,16);
+  memcpy(n,m[s].material,16);memset(e,0,0x20);put(e,SWEEP_NAMES+16u*s);put(e+0x14,m[s].entries);put(e+0x18,m[s].set);put(e+0x1c,m[s].destination);
+  for(unsigned k=0;k<5;++k){const nflstreet_material_block *x=set_block(&m[s].texture_set,k);
+   if(x->size)memcpy(ptr(slot_ram,x->token,x->size),unconfigured+(x->bytes-h->arena),x->size);}}
+ memset(ptr(slot_ram,SWEEP_TABLE+0x20u*NFLSTREET_GEAR_TEXTURE_SLOTS,0x20),0,0x20);
+ for(unsigned i=0;i<=count;++i){uint8_t *d=ptr(slot_ram,SWEEP_LIST+28u*i,28);memset(d,0,28);if(i==count)break;
+  const uint8_t *e=list+i*(NFLSTREET_SLOT_MATERIAL_NAME_BYTES+24u);unsigned s=0;
+  while(strcmp(m[s].material,(const char*)e))++s;put(d,SWEEP_NAMES+16u*s);memcpy(d+4,e+NFLSTREET_SLOT_MATERIAL_NAME_BYTES,24);}
+ CPUState c={0};c.ram=slot_ram;c.ram_size=RAM_SIZE;c.msr=0x2000;c.gpr[1]=ORACLE_STACK;c.gpr[2]=0x803b9a40u;c.gpr[13]=R13;
+ c.gpr[3]=SWEEP_TABLE;c.gpr[4]=SWEEP_LIST;c.pc=0x80164dd8u;
+ for(unsigned step=0;c.pc&&step<2000000u;++step){c.downcount=-1000000000;slot_module->dispatch(&c,c.pc);if(c.exception)return 0;}
+ if(c.pc)return 0;
+ for(unsigned s=0;s<NFLSTREET_GEAR_TEXTURE_SLOTS;++s){const nflstreet_material_block *x=&m[s].texture_set.textures;
+  if(x->size&&memcmp(ptr(slot_ram,x->token,x->size),x->bytes,x->size)){fprintf(stderr,"80164DD8 sweep mismatch slot%u\n",s);return 0;}}
+ ++configure_sweeps;return 1;
+}
