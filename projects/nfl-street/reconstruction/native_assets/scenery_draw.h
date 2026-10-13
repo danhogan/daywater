@@ -30,6 +30,19 @@ typedef struct {
  uint32_t actors;            /* value of r13-7BBC: actor pointer list */
  uint32_t actor_count;       /* r13-7BB8: u16 actor count */
  uint32_t shadow_texture,shadow_tlut; /* values of r13-58E4 and r13-58E0 */
+ uint32_t ring_flags;        /* r13-71DC: bytes enabling ring types 5 (+0) and 7 (+1) */
+ uint32_t ring_colors;       /* 8027BED4: RGBA floats per color index (16 bytes) */
+ float ring_scale;           /* 802536EC: RGB scale */
+ /* Line gates and inputs (800DA074), all read when the original reads them. */
+ uint32_t game_state;        /* value of r13-7078: +30 lines on, +90 field half width */
+ uint32_t gate_7b88;         /* value of r13-7B88: drawing off when its +182 byte is set */
+ uint32_t gate_7f40;         /* value of r13-7F40: off for flags +B64 0xC00880 or +B60 == 4 */
+ uint32_t gate_7258;         /* r13-7258: byte, must be 1 */
+ uint32_t gate_count;        /* 80308560: off when positive */
+ uint32_t mode_source;       /* value of r13-7CF8: mode word (off when 7) */
+ uint32_t mode_cache;        /* r13-7CF4: written with the mode word */
+ uint32_t line_ratio;        /* r13-7260: float */
+ uint32_t line_box;          /* 802714D0: reference box for the distance scale */
 } nflstreet_scenery_context;
 /* Original 801EC8E4(instance, -, lights): frustum test of the bounding box
    against the matrix-library projection when flags bit 14 (801CB3EC/
@@ -72,4 +85,23 @@ int nflstreet_sky_draw(const nflstreet_scenery_context *,nflstreet_render_state 
    coordinates (+10DC); then depth range [0, 1], depth LEQUAL with update
    and the previous fog state. */
 int nflstreet_shadows_draw(const nflstreet_scenery_context *,nflstreet_render_state *);
+/* Original 800E3F7C for a player-select ring object (PSRingA/B): drawn when
+   +F8 is set and +20 bit 1; types 5 and 7 need their r13-71DC/-71DB byte,
+   then get ambient (color index +30: RGB * scale, A) through 801ECD98; then
+   depth LEQUAL without update, the default texture on map 0 and the
+   instance at +3C through 801EC8C0. Type 6 (ground-probed, 800E4BC8) is
+   rejected; per-frame matrices are not modeled (stored instance matrix). */
+int nflstreet_ring_draw(const nflstreet_scenery_context *,uint32_t object,nflstreet_render_state *);
+/* Original 800DA074 for one field line object (0x124 bytes: position +04,
+   RGBA floats +D4..+E0 with alpha +E0 pulsing by +E4 between +E8 and +EC,
+   texture +11C/+120). After the gates, when alpha > 0: the distance scale
+   800D9FA8 (projected size of the reference box at the line, 801EC24C/
+   801CB1C4, through 801DE744's length), render-state reset, fog off, source-
+   alpha blending without depth test, the line color as material, the line
+   texture, the matrix-stack top translated to the line, and a four-vertex
+   strip across the field (x = +-half width, y from the ratio and scale, u
+   0.9/0.1, v from the ratio) written to the pipe; then the fog state. The
+   alpha pulse runs whenever the gates pass. The stack translations are
+   written to the stack slot above the top, as the original does. */
+int nflstreet_line_draw(const nflstreet_scenery_context *,uint32_t object,nflstreet_render_state *);
 #endif

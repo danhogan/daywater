@@ -8,6 +8,10 @@
 #include "scenery_draw.h"
 #define VENUE_MAIN_FIELD 0x8094d31cu
 #define VENUE_FIELD_PASSES 0x80a9753cu
+/* The three player-select ring objects the traversal draws (800E3F7C). */
+static const uint32_t venue_rings[3]={0x80ddfcd0u,0x80de01e4u,0x80de02e8u};
+/* The four field line objects (800DA074), 0x124 bytes apart. */
+static const uint32_t venue_lines[4]={0x80dec17cu,0x80dec2a0u,0x80dec3c4u,0x80dec4e8u};
 static int venue_present(uint8_t *ram){
  static const char *names[2]={"EARS_rField.ea3","EARS_FieldPass1.ea3"};
  const uint32_t models[2]={ram32(ram,VENUE_MAIN_FIELD+0x24+0x54),ram32(ram,VENUE_FIELD_PASSES+0x3d8)};
@@ -22,6 +26,9 @@ static nflstreet_scenery_context venue_context(uint8_t *ram,const nflstreet_play
  c.pass_table=0x8028a004u;c.pass_offset=0x8028a090u;c.pass_alpha=ramf(ram,0x80260588u);c.pass3_alpha=ramf(ram,R13-0x58f4u);
  c.pass_color=ramf(ram,0x80260580u);c.pass_depth=ramf(ram,0x80260584u);
  c.matrix_stack=ram32(ram,R13-0x65e8u);c.sky=0x80385e8cu;c.sky_colors=0x80310a78u;c.sky_tables=0x8038668cu;
+ c.game_state=ram32(ram,R13-0x7078u);c.gate_7b88=ram32(ram,R13-0x7b88u);c.gate_7f40=ram32(ram,R13-0x7f40u);c.gate_7258=R13-0x7258u;
+ c.gate_count=0x80308560u;c.mode_source=ram32(ram,R13-0x7cf8u);c.mode_cache=R13-0x7cf4u;c.line_ratio=R13-0x7260u;c.line_box=0x802714d0u;
+ c.ring_flags=R13-0x71dcu;c.ring_colors=0x8027bed4u;c.ring_scale=ramf(ram,0x802536ecu);
  c.actors=ram32(ram,R13-0x7bbcu);c.actor_count=R13-0x7bb8u;c.shadow_texture=ram32(ram,R13-0x58e4u);c.shadow_tlut=ram32(ram,R13-0x58e0u);
  return c;}
 #endif

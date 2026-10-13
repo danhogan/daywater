@@ -1,5 +1,6 @@
 #include "scenery_draw.h"
 #include "draw_engine.h"
+#include <math.h>
 #define rd32 nflstreet_rd32
 #define GX NFLSTREET_GX
 static float fword(const uint8_t *p){return nflstreet_as_float(rd32(p));}
@@ -163,3 +164,87 @@ int nflstreet_shadows_draw(const nflstreet_scenery_context *c,nflstreet_render_s
    !GX(&d,NFLSTREET_GX_WRITE,1,alpha)||!GX(&d,NFLSTREET_GX_WRITE,4,rd32(a+0x10dc+8*k))||!GX(&d,NFLSTREET_GX_WRITE,4,rd32(a+0x10e0+8*k)))return 0;}
  uint32_t unused;
  return nflstreet_draw_depth_range(&d,0.0f,1.0f)&&GX(&d,NFLSTREET_GX_SET_Z_MODE,1,3,1)&&fog_switch(&d,c,fog,&unused);}
+
+int nflstreet_ring_draw(const nflstreet_scenery_context *c,uint32_t object,nflstreet_render_state *s){
+ if(!c||!c->draw||!c->draw->span||!c->draw->emit||!s||!object)return 0;
+ nflstreet_draw d={c->draw,s};const uint8_t *o=at(&d,object,0xfc);if(!o)return 0;
+ if(!rd32(o+0xf8)||!(rd32(o+0x20)&2))return 1;
+ uint32_t type=rd32(o+0x28);int drawn=1;
+ if(type==6)return 0;
+ if(type==5||type==7){const uint8_t *flag=at(&d,c->ring_flags+(type==5?0u:1u),1);if(!flag)return 0;
+  if(*flag!=1)drawn=0;
+  else{const uint8_t *k=at(&d,c->ring_colors+16u*rd32(o+0x30),16);if(!k)return 0;
+   const float v[4]={fword(k)*c->ring_scale,fword(k+4)*c->ring_scale,fword(k+8)*c->ring_scale,fword(k+12)};
+   if(!ambient(&d,object+0x3c,v))return 0;}}
+ if(!drawn)return 1;
+ return GX(&d,NFLSTREET_GX_SET_Z_MODE,1,3,0)&&nflstreet_draw_texture(&d,0,0,0)&&scenery(&d,c,object+0x3c,1);}
+
+/* 8018941C + 80189BB0: the slot above the top becomes the top translated by v
+   (t_r += (x*m_r0 + y*m_r1 + z*m_r2) with fused multiply-adds). Returns it. */
+static uint8_t *push_translate(nflstreet_draw *d,const nflstreet_scenery_context *c,uint32_t v_token,uint32_t *slot){
+ uint32_t depth,slots;if(!nflstreet_draw_word(d,c->matrix_stack+4,&depth)||!nflstreet_draw_word(d,c->matrix_stack+8,&slots))return NULL;
+ uint32_t top=slots+0x40u*depth;const uint8_t *v=at(d,v_token,12);uint8_t *m;
+ if(!v||!copy16(d,top+0x40,top)||!(m=at(d,top+0x40,0x30)))return NULL;
+ float x=fword(v),y=fword(v+4),z=fword(v+8);
+ for(unsigned r=0;r<3;++r){const uint8_t *q=m+16*r;
+  float t=nflstreet_fmadds(z,fword(q+8),nflstreet_fmadds(x,fword(q),y*fword(q+4)));
+  nflstreet_wr32(m+16*r+12,nflstreet_float_bits(fword(q+12)+t));}
+ *slot=top+0x40;return m;}
+/* 800D9FA8: projected size of the reference box at the line (801EC24C into
+   801CB1C4 bounds, 801DE744 length), mapped to [1, 10.5]. */
+static int distance_scale(nflstreet_draw *d,const nflstreet_scenery_context *c,uint32_t object,float *out){
+ uint32_t slot;if(!push_translate(d,c,object+4,&slot))return 0;
+ if(!copy16(d,c->cull_projection,c->projection)||!copy16(d,c->cull_modelview,slot))return 0;
+ const uint8_t *P=at(d,c->cull_projection,0x40),*M=at(d,c->cull_modelview,0x30),*B=at(d,c->line_box,0x20);if(!P||!M||!B)return 0;
+ float proj[16],m[12],box[8],pts[24],lo[3]={3.4028234663852886e38f,3.4028234663852886e38f,3.4028234663852886e38f},hi[3];
+ for(unsigned k=0;k<3;++k)hi[k]=-lo[k];
+ for(unsigned i=0;i<16;++i)proj[i]=fword(P+4*i);for(unsigned i=0;i<12;++i)m[i]=fword(M+4*i);for(unsigned i=0;i<8;++i)box[i]=fword(B+4*i);
+ corners(box,m,pts);
+ for(unsigned i=0;i<8;++i){const float *p=pts+3*i;float z=p[2];
+  float x=nflstreet_fmadds(proj[0],p[0],proj[2]*z),y=nflstreet_fmadds(proj[5],p[1],proj[6]*z),zz=nflstreet_fmadds(proj[10],z,proj[11]),inv=1.0f/(proj[14]*z);
+  const float q[3]={x*inv,y*inv,zz*inv};
+  for(unsigned k=0;k<3;++k){if(!(q[k]>=lo[k]))lo[k]=q[k];if(!(q[k]<=hi[k]))hi[k]=q[k];}}
+ float dx=hi[0]-lo[0],dy=hi[1]-lo[1],len=sqrtf(nflstreet_fmadds(dx,dx,dy*dy)),scale=0.0f;
+ if(!(len>=0.08f)){float f=0.08f/len;if(!(f<1.0f)){if(!(f<=20.0f))f=20.0f;scale=(f-1.0f)*0.5f;}}
+ *out=scale+1.0f;return 1;}
+static int fwrite4(nflstreet_draw *d,float v){return GX(d,NFLSTREET_GX_WRITE,4,nflstreet_float_bits(v));}
+static int gates(nflstreet_draw *d,const nflstreet_scenery_context *c,int *open){
+ uint32_t v,w;const uint8_t *b;*open=0;
+ if(!nflstreet_draw_word(d,c->game_state+0x30,&v))return 0;if(!v)return 1;
+ if(c->gate_7b88){if(!(b=at(d,c->gate_7b88+0x182,1)))return 0;if(*b)return 1;}
+ if(c->gate_7f40){if(!nflstreet_draw_word(d,c->gate_7f40+0xb64,&v)||!nflstreet_draw_word(d,c->gate_7f40+0xb60,&w))return 0;
+  if((v&0xc00880u)||w==4)return 1;}
+ if(!(b=at(d,c->gate_7258,1)))return 0;if(*b!=1)return 1;
+ if(!nflstreet_draw_word(d,c->gate_count,&v))return 0;if((int32_t)v>0)return 1;
+ uint8_t *cache=at(d,c->mode_cache,4);if(!nflstreet_draw_word(d,c->mode_source,&v)||!cache)return 0;nflstreet_wr32(cache,v);
+ if(v==7)return 1;
+ *open=1;return 1;}
+int nflstreet_line_draw(const nflstreet_scenery_context *c,uint32_t object,nflstreet_render_state *s){
+ if(!c||!c->draw||!c->draw->span||!c->draw->emit||!s||!object)return 0;
+ nflstreet_draw d={c->draw,s};int open;if(!gates(&d,c,&open))return 0;if(!open)return 1;
+ uint8_t *o=at(&d,object,0x124);if(!o)return 0;
+ if(fword(o+0xe0)>0.0f){
+  float scale,width,ratio;uint32_t fog,slot,m[16];if(!distance_scale(&d,c,object,&scale))return 0;
+  nflstreet_draw_reset(&d);
+  uint32_t color=0;for(unsigned k=0;k<4;++k)color|=((uint32_t)nflstreet_fctiwz(fword(o+0xd4+4*k)*255.0f)&0xffu)<<(24-8*k);
+  if(!fog_switch(&d,c,0,&fog)||!GX(&d,NFLSTREET_GX_SET_CULL_MODE,0)||!GX(&d,NFLSTREET_GX_SET_BLEND_MODE,1,4,5,5)||
+     !GX(&d,NFLSTREET_GX_SET_Z_COMP_LOC,0)||!GX(&d,NFLSTREET_GX_SET_Z_MODE,0,3,0)||!nflstreet_draw_depth_range(&d,0.0f,1.0f)||
+     !nflstreet_draw_gx(&d,NFLSTREET_GX_CLEAR_VTX_DESC,0,NULL,NULL,0)||!GX(&d,NFLSTREET_GX_SET_VTX_DESC,9,1)||
+     !GX(&d,NFLSTREET_GX_SET_VTX_ATTR_FMT,0,9,1,4,0)||!nflstreet_draw_gx(&d,NFLSTREET_GX_SET_CHAN_MAT_COLOR,1,(uint32_t[]){4},&color,1)||
+     !GX(&d,NFLSTREET_GX_SET_NUM_CHANS,1)||!GX(&d,NFLSTREET_GX_SET_CHAN_CTRL,4,0,0,0,1,2,1)||!GX(&d,NFLSTREET_GX_SET_VTX_DESC,0xd,1)||
+     !GX(&d,NFLSTREET_GX_SET_VTX_ATTR_FMT,0,0xd,1,4,0)||!GX(&d,NFLSTREET_GX_SET_TEV_OP,0,0)||!GX(&d,NFLSTREET_GX_SET_NUM_TEX_GENS,1)||
+     !GX(&d,NFLSTREET_GX_SET_TEX_COORD_GEN,0,1,4,0x3c,0,0x7d)||!GX(&d,NFLSTREET_GX_SET_NUM_TEV_STAGES,1)||
+     !GX(&d,NFLSTREET_GX_SET_TEV_ORDER,0,0,0,4)||!nflstreet_draw_texture(&d,0,rd32(o+0x11c),rd32(o+0x120))||
+     !push_translate(&d,c,object+4,&slot))return 0;
+  const uint8_t *t=at(&d,slot,0x40),*w=at(&d,c->game_state+0x90,4),*r=at(&d,c->line_ratio,4);if(!t||!w||!r)return 0;
+  for(unsigned i=0;i<16;++i)m[i]=rd32(t+4*i);width=fword(w);ratio=fword(r);
+  if(!nflstreet_draw_gx(&d,NFLSTREET_GX_LOAD_POS_MTX,1,(uint32_t[]){0},m,12)||!GX(&d,NFLSTREET_GX_SET_CURRENT_MTX,0)||
+     !GX(&d,NFLSTREET_GX_BEGIN,0x98,0,4))return 0;
+  const float far_v=1.0f-ratio*0.5f,near_v=ratio*0.5f,y0=scale*((1.0f-ratio)*0.55555999f),y1=scale*((1.0f-ratio)*-0.55555999f);
+  const float v[4][5]={{width,y0,0.0f,0.9f,far_v},{width,y1,0.0f,0.9f,near_v},{-width,y0,0.0f,0.1f,far_v},{-width,y1,0.0f,0.1f,near_v}};
+  for(unsigned i=0;i<4;++i)for(unsigned k=0;k<5;++k)if(!fwrite4(&d,v[i][k]))return 0;
+  uint32_t unused;if(!fog_switch(&d,c,fog,&unused))return 0;}
+ /* Alpha pulse: reverse at the bounds. */
+ float e=fword(o+0xe0)+fword(o+0xe4),step=fword(o+0xe4);nflstreet_wr32(o+0xe0,nflstreet_float_bits(e));
+ if((!(step<=0.0f)&&e>fword(o+0xec))||(!(step>=0.0f)&&!(e>=fword(o+0xe8))))nflstreet_wr32(o+0xe4,nflstreet_float_bits(-step));
+ return 1;}

@@ -151,8 +151,9 @@ int main(int argc,char **argv){
   stats.triangles,stats.culled,stats.clipped,stats.textures,stats.pixels,covered,fnv(2166136261u,bgra,WIDTH*HEIGHT*4));
  /* Scene: the original frame order (field passes 8015B670, main field
     80165DC4, then the players, with the sky 801655D8 first and the actor
-    shadows 801643F4 after the passes) from a fresh copy of the saved RAM into
-    one target with shared depth. Decals, lines, ball and crowd are not drawn. */
+    shadows 801643F4, field lines 800DA074 and player-select rings 800E3F7C after
+    the passes) from a fresh copy of the saved RAM into
+    one target with shared depth. Marks, ball and crowd are not drawn. */
  memcpy(ram,pristine,RAM_BYTES);clear_target(bgra,depth);reset_state(ram,&s);
  if(!venue_present(ram))return 11;
  m=nflstreet_gx_open(span,ram,&frame,&target);if(!m)return 4;
@@ -169,11 +170,13 @@ int main(int argc,char **argv){
  t.count=0;if(!nflstreet_sky_draw(&v,&s)||!execute(m,&t,&scene,"sky",0))return 12;venue_calls+=t.count;
  t.count=0;if(!nflstreet_field_passes_draw(&v,VENUE_FIELD_PASSES,&s)||!execute(m,&t,&scene,"field passes",0))return 12;venue_calls+=t.count;
  t.count=0;if(!nflstreet_shadows_draw(&v,&s)||!execute(m,&t,&scene,"shadows",0))return 12;venue_calls+=t.count;
+ for(unsigned i=0;i<4;++i){t.count=0;if(!nflstreet_line_draw(&v,venue_lines[i],&s)||!execute(m,&t,&scene,"line",i))return 12;venue_calls+=t.count;}
+ for(unsigned i=0;i<3;++i){t.count=0;if(!nflstreet_ring_draw(&v,venue_rings[i],&s)||!execute(m,&t,&scene,"ring",i))return 12;venue_calls+=t.count;}
  t.count=0;if(!nflstreet_field_draw(&v,VENUE_MAIN_FIELD,&s)||!execute(m,&t,&scene,"main field",0))return 12;venue_calls+=t.count;
  if(!draw_players(ram,m,&t,&s,&scene,NULL,&frame,&player_calls))return 5;
  nflstreet_gx_close(m);
  image.bgra=bgra;if(!nflstreet_texture_bmp(&image,argv[3]))return 7;
- printf("Scene render: sky, EARS field passes, shadows and main field (%u GX calls) then 14 actors (%u GX calls); %u display lists, %u triangles "
+ printf("Scene render: sky, EARS field passes, shadows, lines, rings and main field (%u GX calls) then 14 actors (%u GX calls); %u display lists, %u triangles "
   "(%u culled, %u clipped), %u decoded textures, %zu shaded pixels; digest %08x.\n",venue_calls,player_calls,scene.display_lists,
   scene.triangles,scene.culled,scene.clipped,scene.textures,scene.pixels,fnv(2166136261u,bgra,WIDTH*HEIGHT*4));
  memcpy(ram,pristine,RAM_BYTES);

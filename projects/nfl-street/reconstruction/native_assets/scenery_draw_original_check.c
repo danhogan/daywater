@@ -17,9 +17,19 @@ static int venue_hooks(CPUState *c,void *p){(void)p;
  static const uint32_t skipped[]={0x801893c8u,0x8018941cu,0x80189bb0u,0x8018949cu,0x80189ed8u,0x800d75ecu,0x801652bcu,0x8015a5ccu,0x8015a7c4u};
  for(unsigned i=0;i<sizeof skipped/sizeof *skipped;++i)if(c->pc==skipped[i]){c->pc=c->lr;return 1;}
  return 0;}
+/* Ring matrices: also rotation, scale and identity (80189A34, 80189CEC,
+   801894B0, 80189944) return at once. */
+static int ring_hooks(CPUState *c,void *p){
+ static const uint32_t skipped[]={0x80189a34u,0x80189cecu,0x801894b0u,0x80189944u};
+ for(unsigned i=0;i<sizeof skipped/sizeof *skipped;++i)if(c->pc==skipped[i]){c->pc=c->lr;return 1;}
+ return venue_hooks(c,p);}
 static int original_case(const uint8_t *before,const scenery_case *sc,const trace *t,uint8_t *after,const nflstreet_render_state *s){
  memcpy(oracle_ram,before,RAM_BYTES);unsigned n=0,m=0;uint32_t camera=ram32(oracle_ram,R13-0x4f44u);
- if(sc->kind==3){const uint32_t none[6]={0};unsigned m2=0;if(!gx_oracle_run(0x801655d8u,none,t,NULL,NULL,&n))return 0;
+ if(sc->kind==5){for(unsigned i=0;i<4;++i){const uint32_t args[6]={venue_lines[i],0,0,0,0,0};unsigned k=0;trace rest={t->calls+n,t->count-n};
+   if(!gx_oracle_run(0x800da074u,args,&rest,NULL,NULL,&k))return 0;n+=k;}}
+ else if(sc->kind==4){for(unsigned i=0;i<3;++i){const uint32_t args[6]={venue_rings[i],0,0,0,0,0};unsigned k=0;trace rest={t->calls+n,t->count-n};
+   if(!gx_oracle_run(0x800e3f7cu,args,&rest,ring_hooks,NULL,&k))return 0;n+=k;}}
+ else if(sc->kind==3){const uint32_t none[6]={0};unsigned m2=0;if(!gx_oracle_run(0x801655d8u,none,t,NULL,NULL,&n))return 0;
   trace rest={t->calls+n,t->count-n};if(!gx_oracle_run(0x801643f4u,none,&rest,NULL,NULL,&m2))return 0;n+=m2;}
  else if(sc->kind==2){const uint32_t args[6]={sc->instance,camera,sc->lights,0,0,0};if(!gx_oracle_run(0x801ec8e4u,args,t,venue_hooks,NULL,&n))return 0;}
  else{const uint32_t passes[6]={FIELD_PASSES,0,0,0,0,0},field[6]={MAIN_FIELD,0,0,0,0,0};

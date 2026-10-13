@@ -116,7 +116,8 @@ Private files:
 ## Players on the field
 
 The same check also renders a scene. It draws the sky, the EARS field passes,
-the actor shadows and the main field through the verified native scenery draw
+the actor shadows, the field lines, the player-select rings and the main
+field through the verified native scenery draw
 (`scenery_draw.md`), then the 14 players, into one target with shared depth,
 from a fresh copy of the saved RAM. The sky and the shadows use the
 matrix-stack top. The saved stack already holds the next frame's camera, so

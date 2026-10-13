@@ -6,7 +6,15 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: the native scene adds the sky and player shadows.** The sky dome
+**Latest: the native scene matches the game's frame apart from the HUD and small extras.**
+The yellow and blue field lines (`800DA074`) and the red player-select ring
+(`800E3F7C`) are now native and verified against the original: 1,904 runs per
+saved context across all scene routines. The rendered scene has the sky,
+field, shadows, lines, ring and players. The remaining differences are the
+HUD, ground marks, the ball and some effect quads. See
+[scenery and field draw](reconstruction/native_assets/scenery_draw.md).
+
+**Earlier: the native scene adds the sky and player shadows.** The sky dome
 (`801655D8`) and actor drop shadows (`801643F4`) are native, including the
 vertex data the game writes straight to the GPU pipe. The original matches in
 three saved contexts, as saved and in 300 edited cases each. The rendered

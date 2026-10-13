@@ -106,6 +106,40 @@ state plus 300 edited cases. The edits cover:
 - a missing shadow texture (which gives the default texture);
 - the fog byte.
 
+## Player-select rings and field lines
+
+- **`800E3F7C`, the player-select rings.** In the saved match there are
+  three ring objects (`PSRingA`/`PSRingB`, types 5 and 7):
+  - Each is drawn when `+F8` is set and `+20` has bit 1, and types 5 and 7
+    also need their `r13-71DC`/`-71DB` byte.
+  - The ambient comes from color table `8027BED4` at index `+30`: RGB ×
+    `802536EC`, then A, through `801ECD98`.
+  - Then depth LEQUAL without update, the default texture on map 0, and the
+    instance at `+3C` through the scenery draw.
+  - Type 6 (ground-probed by `800E4BC8`) is rejected. Matrices are stored,
+    as for the venue.
+- **`800DA074`, the field lines.** There are four objects at `80DEC17C`,
+  0x124 apart: blue at y −33, red at ±40, yellow at −20.
+  - **Gates, in order:** `r13-7078 → +30`; the `r13-7B88 → +182` byte
+    clear; the `r13-7F40` flags (`+B64 & 0xC00880` or `+B60 == 4`) clear;
+    the `r13-7258` byte equal to 1; `80308560` not positive; and the mode
+    word at `*r13-7CF8` not 7, which is also stored to `r13-7CF4`.
+  - **Distance scale (`800D9FA8`).** The reference box `802714D0` is
+    translated to the line and projected (`801EC24C`: cull copies,
+    `801CAE78` corners, `801CB1C4` bounds). The length of its projected xy
+    extent (`801DE744`; the square root `802165C8` is exact, as `sqrtf`) is
+    turned into a scale. Lengths of at least 0.08 give 1. Otherwise the
+    scale is `1 + (min(0.08/len, 20) − 1)/2`, or 1 when that ratio is
+    below 1.
+  - **Drawing.** The strip has `x = ±` the half-width (`r13-7078 → +90`)
+    and y from the ratio `r13-7260` and the scale. It is drawn with
+    source-alpha blending, no depth test and the line texture.
+  - **Alpha pulse.** `+E0` changes by `+E4` and reverses at `+E8`/`+EC`. It
+    runs whenever the gates pass.
+  - The translations through `80189BB0` (single-precision fused
+    multiply-adds) are written to the stack slot above the top, as the
+    original does.
+
 ## Not modeled
 
 - **Matrices.** Each frame the loops recompute instance model-view
@@ -119,11 +153,15 @@ state plus 300 edited cases. The edits cover:
   (after them) are not modeled; their content is not yet traced. The
   weather draws `8015A5CC`/`8015A7C4` (flags `802A391C/D`, clear here) are
   not modeled either.
-- **Rest of the scene.** The player-select rings (`800E3F7C`, `PSRingA/B`),
-  the yellow and blue lines (`800DA074`), ground marks (`800D75EC` →
-  `80160298`), the effect quads (`8015F450`), ball and ball shadows
-  (`8015CB60`, `801652BC`), ten further models (`80168234`) and the HUD. A
-  frame traversal in the oracle lists them in draw order.
+- **Rest of the scene.**
+  - ground marks (`800D75EC` → `80160298`), which build per-mark matrices
+    with the matrix library's rotate and scale;
+  - effect quads (`8015F450`);
+  - the ball and ball shadows (`8015CB60`, `801652BC`);
+  - ten further models (`80168234`);
+  - the HUD.
+
+  A frame traversal in the oracle lists them in draw order.
 
 ## Verification
 

@@ -15,6 +15,8 @@
 #define R13 0x803a9a40u
 #define CONTROLLED 1200u
 #define SCENE_CASES 301u
+#define RING_CASES 201u
+#define LINE_CASES 201u
 #define CALLS_MAX 32768u
 #define STACK_LO 0x80f38000u
 #define STACK_HI 0x80f47000u
@@ -40,7 +42,9 @@ static float rndf(float lo,float hi){return lo+(hi-lo)*(float)(rnd()&0xffffu)/65
 static uint32_t fbits(float f){uint32_t v;memcpy(&v,&f,4);return v;}
 /* kind 0: both venue loops as saved; 1: loops with edited pass records and
    instances; 2: one instance through 801EC8E4 with edited state; 3: sky
-   (801655D8) and actor shadows (801643F4), first as saved, then edited. */
+   (801655D8) and actor shadows (801643F4), first as saved, then edited;
+   4: the three player-select rings (800E3F7C), as saved, then edited;
+   5: the four field lines (800DA074), as saved, then edited. */
 typedef struct {unsigned kind;uint32_t instance,lights;} scenery_case;
 static const uint32_t flag_bits[13]={1,2,8,0x200,0x4000,0x8000,0x10000,0x20000,0x40000,0x80000,0x100000,0x200000,0x400000};
 static uint32_t venue_instance(unsigned i){
@@ -93,6 +97,28 @@ static void prepare(uint8_t *ram,unsigned index,scenery_case *c){
   for(unsigned i=0;i<20;++i)if(rnd()%5==0)edit_instance(ram,venue_instance(i));
   if(rnd()%4==0)ram_at(ram,R13-0x6208u,1)[0]=(uint8_t)(rnd()%2);
   return;}
+ if(index>=1+CONTROLLED+SCENE_CASES+RING_CASES){c->kind=5;if(index==1+CONTROLLED+SCENE_CASES+RING_CASES)return;
+  for(unsigned i=0;i<4;++i){uint8_t *o=ram_at(ram,venue_lines[i],0x124);
+   if(rnd()%3==0)for(unsigned k=0;k<4;++k)wr32(o+0xd4+4*k,fbits(rndf(-0.2f,1.2f)));
+   if(rnd()%3==0)wr32(o+0xe0,fbits(rnd()%5==0?0.0f:rndf(-0.3f,1.0f)));if(rnd()%3==0)wr32(o+0xe4,fbits(rnd()%5==0?0.0f:rndf(-0.4f,0.4f)));
+   if(rnd()%3==0)for(unsigned k=0;k<3;++k)wr32(o+4+4*k,fbits(rndf(-60.0f,60.0f)));if(rnd()%8==0)wr32(o+0x11c,0);}
+  if(rnd()%4==0)wr32(ram_at(ram,R13-0x7260u,4),fbits(rndf(-0.5f,1.5f)));
+  uint32_t gs=ram32(ram,R13-0x7078u);if(rnd()%5==0)wr32(ram_at(ram,gs+0x30,4),rnd()%2);if(rnd()%4==0)wr32(ram_at(ram,gs+0x90,4),fbits(rndf(1.0f,40.0f)));
+  if(rnd()%8==0)ram_at(ram,ram32(ram,R13-0x7b88u)+0x182,1)[0]=1;
+  if(rnd()%8==0)wr32(ram_at(ram,ram32(ram,R13-0x7f40u)+0xb64,4),rd32(ram_at(ram,ram32(ram,R13-0x7f40u)+0xb64,4))^(0x80u<<(rnd()%4*4)));
+  if(rnd()%8==0)ram_at(ram,R13-0x7258u,1)[0]=(uint8_t)(rnd()%3);if(rnd()%8==0)wr32(ram_at(ram,0x80308560u,4),rnd()%3-1u);
+  if(rnd()%8==0)wr32(ram_at(ram,ram32(ram,R13-0x7cf8u),4),rnd()%2?7u:rnd()%10);
+  uint32_t stack=ram32(ram,R13-0x65e8u),top=ram32(ram,stack+8)+0x40u*ram32(ram,stack+4);
+  if(rnd()%3==0)for(unsigned i=0;i<12;++i)if(rnd()%2)wr32(ram_at(ram,top+4*i,4),fbits(rndf(-30.0f,30.0f)));
+  if(rnd()%4==0)ram_at(ram,R13-0x6208u,1)[0]=(uint8_t)(rnd()%2);
+  return;}
+ if(index>=1+CONTROLLED+SCENE_CASES){c->kind=4;if(index==1+CONTROLLED+SCENE_CASES)return;
+  for(unsigned i=0;i<3;++i){uint8_t *o=ram_at(ram,venue_rings[i],0xfc);static const uint32_t types[4]={5,7,7,3};
+   if(rnd()%3==0)wr32(o+0x28,types[rnd()%4]);if(rnd()%4==0)wr32(o+0x30,rnd()%4);if(rnd()%6==0)wr32(o+0x20,rd32(o+0x20)^2);
+   if(rnd()%8==0)wr32(o+0xf8,0);if(rnd()%3==0)edit_instance(ram,venue_rings[i]+0x3c);}
+  for(unsigned k=0;k<2;++k)if(rnd()%4==0)ram_at(ram,R13-0x71dcu+k,1)[0]=(uint8_t)(rnd()%3);
+  if(rnd()%4==0)for(unsigned k=0;k<16;++k)wr32(ram_at(ram,0x8027bed4u+4*k,4),fbits(rndf(-0.2f,1.4f)));
+  return;}
  if(index>=1+CONTROLLED){c->kind=3;if(index==1+CONTROLLED)return;edit_scene(ram);return;}
  c->kind=2;c->instance=venue_instance(rnd()%20);c->lights=rnd()%256;edit_instance(ram,c->instance);
  if(rnd()%5==0)boundary_box(ram,c->instance);
@@ -119,6 +145,8 @@ static int run_native(uint8_t *ram,const scenery_case *c,trace *t,nflstreet_rend
  nflstreet_player_draw_context x;nflstreet_scenery_context sc=scenery_context(ram,&x,t);t->count=0;saved_state(ram,s);
  if(c->kind==2)return nflstreet_scenery_draw(&sc,c->instance,c->lights,s);
  if(c->kind==3)return nflstreet_sky_draw(&sc,s)&&nflstreet_shadows_draw(&sc,s);
+ if(c->kind==5){for(unsigned i=0;i<4;++i)if(!nflstreet_line_draw(&sc,venue_lines[i],s))return 0;return 1;}
+ if(c->kind==4){for(unsigned i=0;i<3;++i)if(!nflstreet_ring_draw(&sc,venue_rings[i],s))return 0;return 1;}
  return nflstreet_field_passes_draw(&sc,FIELD_PASSES,s)&&nflstreet_field_draw(&sc,MAIN_FIELD,s);}
 #ifdef NFLSTREET_SCENERY_ORACLE
 static unsigned oracle_runs,oracle_calls;
@@ -139,8 +167,8 @@ int main(int argc,char **argv){
  uint8_t *pristine=load_ram(argv[1]),*ram=malloc(RAM_BYTES),*before=malloc(RAM_BYTES);trace t={malloc(CALLS_MAX*sizeof(nflstreet_gx_call)),0};
  if(!pristine||!ram||!before||!t.calls)return 3;
  if(!venue_present(pristine))return 4;
- totals live={0},loops={0},single={0},scene_live={0},scene={0};uint32_t h=2166136261u;unsigned culled=0;
- for(unsigned index=0;index<1+CONTROLLED+SCENE_CASES;++index){
+ totals live={0},loops={0},single={0},scene_live={0},scene={0},ring_live={0},rings={0},line_live={0},lines={0};uint32_t h=2166136261u;unsigned culled=0;
+ for(unsigned index=0;index<1+CONTROLLED+SCENE_CASES+RING_CASES+LINE_CASES;++index){
   memcpy(ram,pristine,RAM_BYTES);scenery_case c;prepare(ram,index,&c);memcpy(before,ram,RAM_BYTES);
   nflstreet_render_state s;if(!run_native(ram,&c,&t,&s)){fprintf(stderr,"native scenery rejected case %u after %u calls\n",index,t.count);
    if(t.count){const nflstreet_gx_call *g=t.calls+t.count-1;fprintf(stderr,"  last op %d args %08x %08x %08x\n",(int)g->op,g->arg[0],g->arg[1],g->arg[2]);}
@@ -150,16 +178,22 @@ int main(int argc,char **argv){
   if(!original_case(before,&c,&t,ram,&s)){fprintf(stderr,"original scenery mismatch case %u (kind %u instance %08x)\n",index,c.kind,c.instance);return 7;}
 #endif
   if(c.kind==2&&ram32(before,R13-0x6230u)&&ram32(before,c.instance+0x54)&&!t.count)++culled;
-  count(&t,c.kind==0?&live:c.kind==1?&loops:c.kind==2?&single:index==1+CONTROLLED?&scene_live:&scene);
+  count(&t,c.kind==0?&live:c.kind==1?&loops:c.kind==2?&single:c.kind==5?(index==1+CONTROLLED+SCENE_CASES+RING_CASES?&line_live:&lines):
+   c.kind==4?(index==1+CONTROLLED+SCENE_CASES?&ring_live:&rings):
+   index==1+CONTROLLED?&scene_live:&scene);
   h=fnv(h,t.calls,t.count*sizeof *t.calls);h=fnv(h,&s,sizeof s);}
  printf("Scenery draw: EARS venue as saved (%u GX calls, %u display lists, %u instances drawn, %u depth ranges, %u fog calls); "
   "%u edited venue loops (%u GX calls, %u display lists, %u instances drawn); %u single instances (%u GX calls, %u display lists, "
   "%u drawn, %u frustum-culled, %u fog calls); sky and shadows as saved (%u GX calls, %u primitives, %u pipe writes) and %u edited "
-  "(%u GX calls, %u primitives, %u pipe writes); digest %08x.\n",live.calls,live.lists,live.instances_drawn,live.depth_ranges,live.fog_calls,
+  "(%u GX calls, %u primitives, %u pipe writes); rings as saved (%u GX calls, %u display lists) and %u edited (%u GX calls, "
+  "%u display lists); lines as saved (%u GX calls, %u pipe writes) and %u edited (%u GX calls, %u primitives, %u pipe writes); "
+  "digest %08x.\n",live.calls,live.lists,live.instances_drawn,live.depth_ranges,live.fog_calls,
   loops.cases,loops.calls,loops.lists,loops.instances_drawn,single.cases,single.calls,single.lists,single.instances_drawn,culled,single.fog_calls,
-  scene_live.calls,scene_live.primitives,scene_live.writes,scene.cases,scene.calls,scene.primitives,scene.writes,h);
+  scene_live.calls,scene_live.primitives,scene_live.writes,scene.cases,scene.calls,scene.primitives,scene.writes,
+  ring_live.calls,ring_live.lists,rings.cases,rings.calls,rings.lists,line_live.calls,line_live.writes,lines.cases,lines.calls,
+  lines.primitives,lines.writes,h);
 #ifdef NFLSTREET_SCENERY_ORACLE
- printf("Original scenery draw: %u runs of 801EC8E4, 80165DC4, 8015B670, 801655D8 and 801643F4 match every GX call (%u calls), the render state and all RAM outside the oracle stack.\n",
+ printf("Original scenery draw: %u runs of 801EC8E4, 80165DC4, 8015B670, 801655D8, 801643F4, 800E3F7C and 800DA074 match every GX call (%u calls), the render state and all RAM outside the oracle stack.\n",
   oracle_runs,oracle_calls);
 #endif
  free(t.calls);free(before);free(ram);free(pristine);return 0;}
