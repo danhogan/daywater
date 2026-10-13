@@ -6,7 +6,16 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: the player draw is reconstructed down to the GPU calls.** Native C
+**Latest: selected faces and hair bind to fresh skeleton resources.** All 14
+selected visual owners now stage independent initialized skeleton sources and
+bind their face/hair models. Two native processes match the existing verified
+stages; 210 temporary allocations release, and a late failure preserves every
+existing geometry buffer. These are explicit host target/copy choices. Body
+skinning, fresh actor/instance state and matrix palettes still need connecting
+to the newly reconstructed player draw. See
+[selected skeleton binding](reconstruction/native_assets/match_skeletons.md).
+
+**Earlier: the player draw is reconstructed down to the GPU calls.** Native C
 now issues exactly what the original sends to the GPU to draw a player
 (`80161E10`): lighting, every model instance, each chunk's material
 (OnePass/TwoPass shader stages, textures and palettes), vertex formats and
