@@ -16,7 +16,7 @@ typedef struct {
    a permutation of those seven. Update only the original side's GILP bit on
    that team's rows, preserving other bits. Build the native GAME roster and
    map selected/formation order to its rows and new ids. No STAT writes.
-   Mirrored teams are unverified and reject. Field slot/key are retained; field availability remains menu-owned.
+   Mirrored teams share source rows and receive distinct GAME ids. Field slot/key are retained; field availability remains menu-owned.
    Source STAT DB must outlive this owner and remain unchanged. Output empty;
    failures preserve output and release staged allocations. No actor creation. */
 int nflstreet_quick_match_roster_build(const uint8_t *stat_db,size_t,const nflstreet_team_table *game_schema,

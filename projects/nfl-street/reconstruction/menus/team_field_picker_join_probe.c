@@ -1,5 +1,5 @@
 /* Joined native source test: actual team completion, field recipient input,
-   then caller-owned quick-match selection record. This never starts a match. */
+   then an owned native quick-match roster surviving menu teardown. No actors yet. */
 #include "team_input_probe.c"
 #include "dispatcher.h"
 #include "field_screen_runtime.h"
@@ -7,6 +7,8 @@
 #include "field_stat_text.h"
 #include "field_screen_preview.h"
 #include "quick_match_selection.h"
+#include "quick_match_session.h"
+static nflstreet_quick_match_session match_session;
 #include <errno.h>
 #include <windows.h>
 
@@ -460,6 +462,26 @@ static int run_field_recipient(nflstreet_team_screen *teams,const char *root) {
        teams->activation.sides[0].active_formation,sizeof selection.formation_players[0])||
        memcmp(selection.formation_players[1],teams->activation.sides[1].active_formation,
        sizeof selection.formation_players[1]))goto fail;
+    char game_path[4096];size_t game_size=0;
+    int game_length=snprintf(game_path,sizeof game_path,"%s\\template\\00001.bin",root);
+    if(game_length<0||(size_t)game_length>=sizeof game_path||!teams->bootstrap)goto fail;
+    uint8_t *game_bytes=join_load(game_path,&game_size,128u*1024u*1024u);
+    int opened=game_bytes&&nflstreet_quick_match_session_open(teams->bootstrap->template_db,
+       teams->bootstrap->template_size,game_bytes,game_size,&selection,&match_session);
+    if(opened){
+        nflstreet_quick_match_session prior=match_session,empty={0},empty_prior=empty;
+        nflstreet_quick_match_selection bad=selection;bad.selected_players[0][1]=bad.selected_players[0][0];
+        if(match_session.stat_bytes==teams->bootstrap->template_db||
+           memcmp(match_session.stat_bytes,teams->bootstrap->template_db,match_session.stat_size)||
+           nflstreet_quick_match_session_open(teams->bootstrap->template_db,teams->bootstrap->template_size,
+               game_bytes,game_size,&selection,&match_session)||memcmp(&prior,&match_session,sizeof prior)||
+           nflstreet_quick_match_session_open(teams->bootstrap->template_db,teams->bootstrap->template_size,
+               game_bytes,game_size,&bad,&empty)||memcmp(&empty,&empty_prior,sizeof empty)||
+           nflstreet_quick_match_session_open(teams->bootstrap->template_db,teams->bootstrap->template_size,
+               game_bytes,0,&selection,&empty)||memcmp(&empty,&empty_prior,sizeof empty))opened=0;
+    }
+    free(game_bytes);
+    if(!opened){fprintf(stderr,"native menu match roster creation rejected\n");goto fail;}
     if(!write_selection_snapshot(&selection)){fprintf(stderr,"could not atomically write private native selection snapshot\n");goto fail;}
     printf("Joined native field source commit request: slot=%u raw DIVE key=%u owner=%u; field cache release requests=%u; FFFD completed.\n",
        state->field_commit_requests[0].ui_slot,state->field_commit_requests[0].raw_key,
@@ -490,5 +512,28 @@ int main(int argc,char **argv) {
     field_sequence=argv[8];if(argc==10)team_sequence=argv[9];
     field_capture_prefix=getenv("DAYWATER_FIELD_JOIN_CAPTURE_PREFIX");
     char *team_args[5]={argv[0],argv[1],argv[2],argv[3],argv[4]};
-    return team_probe_main(5,team_args);
+    int result=team_probe_main(5,team_args);
+    if(!result&&match_session.stat_bytes){
+        nflstreet_quick_match_roster *r=&match_session.roster;
+        if(r->game.source_play.bytes!=match_session.stat_bytes)result=13;
+        unsigned field=UINT32_MAX;
+        for(unsigned f=0;f<r->game.source_play.field_count;++f){nflstreet_team_field v;
+            if(!nflstreet_team_table_field(&r->game.source_play,f,&v)){result=13;break;}
+            if(v.tag==0x44494750u)field=f;}
+        for(unsigned side=0;side<2;++side)for(unsigned p=0;p<7;++p){uint32_t id;
+            unsigned row=r->selected_rows[side][p];
+            if(row>=r->game.table.used||field==UINT32_MAX||
+               !nflstreet_team_table_number(&r->game.source_play,r->game.source_rows[row],field,&id)||
+               id!=r->selection.selected_players[side][p])result=13;}
+        for(unsigned side=0;side<2;++side)for(unsigned p=0;p<14;++p){uint32_t id;
+            unsigned row=r->formation_rows[side][p];
+            if(row>=r->game.table.used||field==UINT32_MAX||
+               !nflstreet_team_table_number(&r->game.source_play,r->game.source_rows[row],field,&id)||
+               id!=r->selection.formation_players[side][p])result=13;}
+        if(!result)printf("Native match roster retained after menu teardown: teams=%u/%u; 14 selected rows; 28 formation mappings; owned STAT; field slot=%u key=%u; no actors or field loaded.\n",
+            r->selection.team_ids[0],r->selection.team_ids[1],r->selection.field_slot,r->selection.field_key);
+    }
+    nflstreet_quick_match_session_close(&match_session);
+    nflstreet_quick_match_session_close(&match_session);
+    return result;
 }

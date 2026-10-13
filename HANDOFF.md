@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-13. Latest work: original mirrored-team copying verified; corrected picker produces both native GAME lineups
+Updated: 2026-10-13. Latest work: field confirmation creates an owned native roster surviving menu teardown
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -51,7 +51,11 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/menus/stat_picker_rosters.md` — latest:
+3. `projects/nfl-street/reconstruction/native_assets/quick_match_session.md` — latest:
+   field confirmation directly creates an owned STAT/GAME roster that survives
+   menu buffer teardown, retaining 14 selected rows, 28 formations and field choice.
+   The host checks identities after teardown and then exits; no actors yet.
+   Then `projects/nfl-street/reconstruction/menus/stat_picker_rosters.md`:
    the native picker now uses loaded STAT membership; new Win32 capture has
    14/14 correct ids. Original fallback projection and native team/field checks
    pass. New output directory preserves older captures. Mirrored teams 1/1 now
@@ -119,6 +123,7 @@ the original DLL separately as an oracle.
 | Gear texture plan | `gear_texture.*` | Original `800DE3B8`: GEAR records, player record fields, 25 slot index/palette pairs, color requests, slot0 fallback; team-level record bytes captured |
 | Slot textures | `slot_textures.*` | Original 800E2958 layout, 800E2AF0 templates, 800E2CAC/800E27F8 loads; `800D9C0C` recolor reported, not executed |
 | Palette recolor | `palette_recolor.*` | 80148A88 color table, 800D8918 dynclut parsing, 800D9948 ops, 800D9C0C composition; its gate feeds captured color state |
+| Quick match session | `quick_match_session.*` | Owns STAT and GAME past menu teardown; created by native field confirmation; no actors yet |
 | Quick match roster bridge | `quick_match_roster.*` | Menu selection structs to GAME rows/new ids, lineup bits and formation mapping; corrected real picker snapshot produces both mirrored lineups; actor startup open |
 | Selected visual owner | `selected_player_visual.*` | Joins geometry and owned surfaces; rejects cross-owner token collisions before uploads; completed selected-match record is caller-supplied |
 | Owned player surface | `player_surface.*` | Joins gear/face requests, 25 owned slots, recoloring, binding, configuration and actor material instances; staged failure cleanup; geometry/actor creation still separate |
@@ -155,7 +160,10 @@ copying is now verified against the untouched original loader for all 43 STAT
 teams: source-id mapping is scoped to destination team, with distinct GAME ids.
 The bridge accepts the corrected real picker snapshot and preserves both
 lineup/formation maps; legacy wrong-team ids still reject. Read `menus/stat_picker_rosters.md` and `quick_match_roster.md`.
-No fresh actors or match have been created by this milestone.
+The later `quick_match_session` owner connects creation directly to field
+confirmation and survives menu teardown. Current private proof is
+`W:\Daywater\research-temp\nflstreet-menu-match-owner-20261013\verification.json`.
+No fresh actors or playable match have been created by these milestones.
 
 Previous connection: `nflstreet_selected_player_visual_from_match` consumes native
 GAME rows, resolves their exact source STAT identity, builds complete records
@@ -236,9 +244,10 @@ Continue from `selected_appearance_assets`, rather than rebuilding asset loaders
      `801C7AD4` draw-time texture loads that consume the material instances.
      Alternatively, render natively from the reconstructed instances and the
      decoded slot textures in the independent scene.
-   - Connect the native menu's team/lineup choices (MTTS rows, STAT GILP) to
-     `nflstreet_game_roster_build`. The GILP writer is untraced; see
-     `game_roster.md`.
+   - Native menu choices now create an owned GAME roster directly via
+     `quick_match_session`; original lineup-bit decisions and mirrored copying
+     are checked. Feed its selected rows into fresh visual/skeleton/actor owners.
+     See `quick_match_session.md` and `quick_match_roster.md`.
    - Note: the original DB layer is a statement interpreter (`801B4510`). A
      snapshot-hosted original run works once synchronization returns and
      `r13-6354` marks the `db_teams.dat` open done.

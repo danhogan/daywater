@@ -20,6 +20,7 @@ for source in "${sources[@]}"; do
 done
 "$zig" cc "${flags[@]}" "$root/team_field_picker_join_probe.c" \
   "${paths[@]}" "$out/field_screen_runtime.o" "$out/field_screen_preview.o" \
-  "$root/../native_assets/texture.c" -lgdi32 -luser32 \
+  "$root/../native_assets/texture.c" "$root/../native_assets/quick_match_session.c" \
+  "$root/../native_assets/quick_match_roster.c" "$root/../native_assets/game_roster.c" -lgdi32 -luser32 \
   -o "$out/team-field-picker-join.exe"
 echo "Built $out/team-field-picker-join.exe"

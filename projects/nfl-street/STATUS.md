@@ -6,7 +6,15 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: the corrected picker produces both native GAME lineups.** Choosing
+**Latest: field confirmation creates a retained native roster.** The actual
+menu host now builds the roster directly when the field is confirmed and owns
+its source database through menu teardown. Both lineups, formation orders and
+field choice remain valid after menu buffers are freed. Three navigation flows
+and the Win32 self-test pass; back creates no owner. The host currently validates
+and exits. Fresh actors, field loading and playable startup remain unfinished.
+See [native match ownership](reconstruction/native_assets/quick_match_session.md).
+
+**Earlier: the corrected picker produces both native GAME lineups.** Choosing
 one team on both sides now works: the untouched original loader confirms that
 copies receive separate player IDs. All43 mirrored teams match byte for byte,
 alongside the 86 existing pair checks, in three saved contexts repeated twice.

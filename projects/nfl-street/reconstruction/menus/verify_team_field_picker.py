@@ -26,7 +26,8 @@ def main():
               'Actual native team completion routed to coordinator5 and source field8 recipient. '
               'Source inputs/timers select a field; native record retains both seven-player '
               'lineups and 14-word formations. Explicit no-profile, logical-device, statistic, '
-              'clock and archive inputs. Full original lifecycle and fresh match creation excluded.'}
+              'clock and archive inputs. Confirm creates an owned native roster that survives menu teardown; '
+              'occupied outputs and invalid selection/schema reject. No actors, field load or full original lifecycle.'}
     report = out / 'verification.json'
     try:
         before = baseline_hashes()
@@ -35,13 +36,14 @@ def main():
         entries=tuple('menus/'+name+'.c' for name in compiled)+tuple('menus/'+name for name in (
           'team_field_picker_join_probe.c','field_screen_probe.c','field_screen_preview.c',
           'build_windows_team_field_picker_join.sh','verify_team_field_picker.py',
-          'team_preview_check.c','build_windows_team_preview_checks.sh'))+('native_assets/texture.c','native_assets/verify_player_startup.py',)
+          'team_preview_check.c','build_windows_team_preview_checks.sh'))+('native_assets/texture.c','native_assets/quick_match_session.c','native_assets/quick_match_roster.c','native_assets/game_roster.c','native_assets/verify_player_startup.py',)
         include_dirs=(Path(os.environ.get('DAYWATER_MODERNGEKKO_HEADERS',str(PRIVATE/'tools/ModernGekko-Template/lib/ModernGekko/include'))),root,root.parent/'native_assets')
         sources=source_hashes(root.parent,entries,include_dirs)
         inputs = {
             'team_source': PRIVATE / 'research-temp/nflstreet-original-menus-20261009/nested/uis_all/00000/00007.bin',
             'field_source': PRIVATE / 'research-temp/nflstreet-original-menus-20261009/nested/uis_all/00000/00008.bin',
             'coordinator': PRIVATE / 'research-temp/nflstreet-original-menus-20261009/nested/uis_all/00000/00005.bin',
+            'game_schema': PRIVATE / 'private/nflstreet/GNNE69-r0/unpacked/template/00001.bin',
             'template': PRIVATE / 'private/nflstreet/GNNE69-r0/unpacked/template/00002.bin',
         }
         unpacked=PRIVATE/'private/nflstreet/GNNE69-r0/unpacked'
@@ -80,6 +82,8 @@ def main():
                 expected = f'teams={team}/{team}; selected roster counts=7/7; formation arrays retained; source field UI slot=1 raw DIVE key=1;'
                 if expected not in text or 'Quick-match input guards pass:' not in text:
                     raise RuntimeError(f'Incomplete team/field selection: {name}')
+                retained=f'Native match roster retained after menu teardown: teams={team}/{team}; 14 selected rows; 28 formation mappings; owned STAT; field slot=1 key=1; no actors or field loaded.'
+                if retained not in text:raise RuntimeError('Menu-owned match roster did not survive teardown')
                 observed = re.findall(r'Field source numeric event([45]) accepted; [^\n]*?root\+0x90 cursor=(\d+)', text)
                 if observed != [('5', '1'), ('4', '0'), ('5', '1')]:
                     raise RuntimeError(f'Actual forward/reverse cursor trace differs: {name}: {observed}')
@@ -148,6 +152,8 @@ def main():
                 raise RuntimeError('Corrected picker lost STAT membership')
             record['roster_bridge_report_sha256']=digest(bridge_out/'verification.json')
             record['stat_membership_matches']=14
+            if 'Native match roster retained after menu teardown: teams=1/1; 14 selected rows; 28 formation mappings; owned STAT; field slot=1 key=1; no actors or field loaded.' not in text:raise RuntimeError('Win32 commit did not retain its native roster')
+            record['owned_match_roster']={'status':'passed','selected_rows':14,'formation_mappings':28,'stat_lifetime':'owned beyond menu teardown','actors_created':0,'failure_guards':['occupied output','duplicate selection','invalid schema'],'close_repeats':True}
             record['win32_window'] = {'status': 'passed', 'source_inputs': [5, 4, 5, 7],
                                       'slot': 1, 'raw_key': 1, 'selection_sha256': digest(selection),
                                       'log_sha256': digest(log), 'manual_input_tested': False}
