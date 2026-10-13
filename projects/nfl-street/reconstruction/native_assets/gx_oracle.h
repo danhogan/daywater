@@ -26,7 +26,8 @@ static const sdk_entry sdk[]={
  {0x802073f8u,NFLSTREET_GX_SET_TEV_ORDER,4},{0x802075d0u,NFLSTREET_GX_SET_NUM_TEV_STAGES,1},{0x8020791cu,NFLSTREET_GX_SET_BLEND_MODE,4},
  {0x80207c38u,NFLSTREET_GX_CALL_DISPLAY_LIST,2},{0x80207f1cu,NFLSTREET_GX_SET_CURRENT_MTX,1},{0x80207f54u,NFLSTREET_GX_LOAD_TEX_MTX,0},
  {0x8020810cu,NFLSTREET_GX_SET_VIEWPORT,0},{0x80207e7cu,NFLSTREET_GX_LOAD_POS_MTX,0},{0x80207eccu,NFLSTREET_GX_LOAD_NRM_MTX,0},
- {0x802079c8u,NFLSTREET_GX_SET_Z_MODE,3},{0x802079fcu,NFLSTREET_GX_SET_Z_COMP_LOC,1},{0x80207600u,NFLSTREET_GX_SET_FOG,1}};
+ {0x802079c8u,NFLSTREET_GX_SET_Z_MODE,3},{0x802079fcu,NFLSTREET_GX_SET_Z_COMP_LOC,1},{0x80207600u,NFLSTREET_GX_SET_FOG,1},
+ {0x80203fc0u,NFLSTREET_GX_BEGIN,3},{0x80206e90u,NFLSTREET_GX_SET_TEV_OP,2}};
 static int capture(const CPUState *c,const sdk_entry *e,nflstreet_gx_call *g){
  memset(g,0,sizeof *g);g->op=e->op;for(unsigned i=0;i<e->args;++i)g->arg[i]=c->gpr[3+i];
  const uint8_t *p;
@@ -57,6 +58,17 @@ static void put_state(uint8_t *ram,const nflstreet_render_state *s){
  for(unsigned i=0;i<sizeof w/sizeof *w;++i)wr32(ram_at(ram,base+w[i].at,4),w[i].value);
  wr32(ram_at(ram,R13-0x6220u,4),s->light_set);wr32(ram_at(ram,R13-0x5630u,4),s->light_mask);
  for(unsigned i=0;i<4;++i)wr32(ram_at(ram,0x80293a54u+4*i,4),s->matrix_cache[i]);}
+/* Immediate vertex data the game writes to the GX pipe (0xCC008000) reaches
+   the external-write callback; each write is compared like a call. */
+static struct {const trace *t;unsigned n;int failed;} pipe;
+static void pipe_write(CPUState *c,uint32_t address,uint64_t value,uint8_t size){(void)c;
+ nflstreet_gx_call g;memset(&g,0,sizeof g);g.op=NFLSTREET_GX_WRITE;g.arg[0]=size;g.arg[1]=(uint32_t)value;
+ if(pipe.failed)return;
+ if(address!=0xcc008000u||size>4){fprintf(stderr,"unexpected external write %08x size %u\n",address,size);pipe.failed=1;return;}
+ if(pipe.n>=pipe.t->count||memcmp(&g,pipe.t->calls+pipe.n,sizeof g)){fprintf(stderr,"GX pipe write %u differs\n",pipe.n);
+  print_call("original",&g);if(pipe.n<pipe.t->count)print_call("native",pipe.t->calls+pipe.n);pipe.failed=1;return;}
+ ++pipe.n;}
+static void pipe_write32(CPUState *c,uint32_t address,uint32_t value,uint8_t region){(void)region;pipe_write(c,address,value,4);}
 /* A service hook returns 1 when it handled the entry (the caller's pc is
    set), 0 to execute it, -1 to fail. */
 typedef int (*gx_service)(CPUState *,void *);
@@ -64,21 +76,25 @@ typedef int (*gx_service)(CPUState *,void *);
    the number recorded. */
 static int gx_oracle_run(uint32_t pc,const uint32_t args[6],const trace *t,gx_service service,void *context,unsigned *calls){
  CPUState c;memset(&c,0,sizeof c);c.ram=oracle_ram;c.ram_size=RAM_BYTES;c.msr=0x2000;c.hid2=0xe0000000u;
- c.gpr[1]=STACK_HI-0x40u;c.gpr[2]=0x803b9a40u;c.gpr[13]=R13;for(unsigned i=0;i<6;++i)c.gpr[3+i]=args[i];c.pc=pc;unsigned n=0;
+ c.external_write=pipe_write;c.external_write32=pipe_write32;pipe.t=t;pipe.n=0;pipe.failed=0;
+ c.gpr[1]=STACK_HI-0x40u;c.gpr[2]=0x803b9a40u;c.gpr[13]=R13;for(unsigned i=0;i<6;++i)c.gpr[3+i]=args[i];c.pc=pc;
  for(unsigned step=0;c.pc;++step){
+  if(pipe.failed)return 0;
   if(step>40000000u){fprintf(stderr,"%08x did not return (pc %08x)\n",pc,c.pc);return 0;}
   int h=service?service(&c,context):0;if(h<0)return 0;if(h)continue;
   uint32_t at=c.pc;
+  /* OS cache maintenance (DCFlushRange and neighbours) has no effect on RAM here. */
+  if(at>=0x801f0b00u&&at<0x801f1000u){c.pc=c.lr;continue;}
   if(at>=0x80200000u&&at<0x80210000u&&at!=0x80205140u&&at!=0x8020514cu){
    const sdk_entry *e=NULL;for(unsigned i=0;i<sizeof sdk/sizeof *sdk;++i)if(sdk[i].pc==at)e=sdk+i;
    nflstreet_gx_call g;
    if(!e||!capture(&c,e,&g)){fprintf(stderr,"unexpected SDK entry %08x (lr %08x)\n",at,c.lr);return 0;}
-   if(n>=t->count||memcmp(&g,t->calls+n,sizeof g)){fprintf(stderr,"GX call %u of %u differs (lr %08x)\n",n,t->count,c.lr);
-    print_call("original",&g);if(n<t->count)print_call("native",t->calls+n);return 0;}
-   ++n;c.pc=c.lr;continue;}
+   if(pipe.n>=t->count||memcmp(&g,t->calls+pipe.n,sizeof g)){fprintf(stderr,"GX call %u of %u differs (lr %08x)\n",pipe.n,t->count,c.lr);
+    print_call("original",&g);if(pipe.n<t->count)print_call("native",t->calls+pipe.n);return 0;}
+   ++pipe.n;c.pc=c.lr;continue;}
   c.downcount=-1000000000;gx_module->dispatch(&c,c.pc);
   if(c.exception){fprintf(stderr,"%08x: exception at %08x (lr %08x)\n",pc,c.pc,c.lr);return 0;}}
- *calls=n;return 1;}
+ if(pipe.failed)return 0;*calls=pipe.n;return 1;}
 /* Whole RAM outside the oracle stack, after writing the native state. */
 static int gx_oracle_same_ram(uint8_t *after,const nflstreet_render_state *s){
  put_state(after,s);const uint32_t lo=STACK_LO-RAM_BASE,hi=STACK_HI-RAM_BASE;

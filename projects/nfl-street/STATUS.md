@@ -6,7 +6,15 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: players render standing on the native EARS field.** The scenery
+**Latest: the native scene adds the sky and player shadows.** The sky dome
+(`801655D8`) and actor drop shadows (`801643F4`) are native, including the
+vertex data the game writes straight to the GPU pipe. The original matches in
+three saved contexts, as saved and in 300 edited cases each. The rendered
+scene now has the sky, field, shadows and players. The rings, lines, ground
+marks, ball and HUD remain. See
+[scenery and field draw](reconstruction/native_assets/scenery_draw.md).
+
+**Earlier: players render standing on the native EARS field.** The scenery
 draw (`801EC8E4`) and the two venue loops that draw the field are now native,
 down to the GPU calls, sharing the player draw's render engine. 1,201 runs of
 the untouched original per saved context match every call, the render state

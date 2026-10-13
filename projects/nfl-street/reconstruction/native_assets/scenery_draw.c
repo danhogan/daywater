@@ -107,3 +107,59 @@ int nflstreet_field_passes_draw(const nflstreet_scenery_context *c,uint32_t obje
  nflstreet_draw d={c->draw,s};const uint8_t *offset=at(&d,c->pass_offset,0x10);if(!offset)return 0;
  return pass(&d,c,object,0,c->pass_alpha)&&pass(&d,c,object,1,c->pass_alpha)&&pass(&d,c,object,2,fword(offset+0xc))&&
   pass(&d,c,object,3,c->pass3_alpha)&&pass(&d,c,object,4,c->pass_alpha);}
+
+/* 8018941C push then 80189ED8: the stack slot above the top becomes a copy
+   of it (RAM effect), and m receives it. 8018949C pops later. */
+static int stack_top(nflstreet_draw *d,const nflstreet_scenery_context *c,int push,uint32_t m[16]){
+ uint32_t depth,slots;if(!nflstreet_draw_word(d,c->matrix_stack+4,&depth)||!nflstreet_draw_word(d,c->matrix_stack+8,&slots))return 0;
+ uint32_t top=slots+0x40u*depth;if(push&&!copy16(d,top+0x40,top))return 0;
+ const uint8_t *t=at(d,push?top+0x40:top,0x40);if(!t)return 0;for(unsigned i=0;i<16;++i)m[i]=rd32(t+4*i);return 1;}
+static int write16(nflstreet_draw *d,uint32_t v){return GX(d,NFLSTREET_GX_WRITE,2,v&0xffff);}
+int nflstreet_sky_draw(const nflstreet_scenery_context *c,nflstreet_render_state *s){
+ if(!c||!c->draw||!c->draw->span||!c->draw->emit||!s)return 0;
+ nflstreet_draw d={c->draw,s};uint32_t m[16],saved[3];nflstreet_draw_reset(&d);
+ if(!stack_top(&d,c,1,m))return 0;
+ saved[0]=m[3];saved[1]=m[7];saved[2]=m[11];m[3]=m[7]=m[11]=0;
+ if(!nflstreet_draw_gx(&d,NFLSTREET_GX_LOAD_POS_MTX,1,(uint32_t[]){0},m,12)||!GX(&d,NFLSTREET_GX_SET_CURRENT_MTX,0))return 0;
+ const uint8_t *counts=at(&d,c->sky_tables+0xf02,6);if(!counts)return 0;
+ unsigned colors=nflstreet_rd16(counts),quads=nflstreet_rd16(counts+2),tris=nflstreet_rd16(counts+4);
+ for(unsigned i=0;i<colors;++i){const uint8_t *f=at(&d,c->sky_tables+16u*i,12);uint8_t *o=at(&d,c->sky_colors+3u*i,3);if(!f||!o)return 0;
+  for(unsigned k=0;k<3;++k)o[k]=(uint8_t)nflstreet_fctiwz(fword(f+4*k)*255.0f);}
+ if(!GX(&d,NFLSTREET_GX_SET_CHAN_CTRL,0,0,0,1,1,2,1)||!nflstreet_draw_gx(&d,NFLSTREET_GX_CLEAR_VTX_DESC,0,NULL,NULL,0)||
+    !GX(&d,NFLSTREET_GX_SET_VTX_DESC,9,3)||!GX(&d,NFLSTREET_GX_SET_VTX_DESC,0xb,3)||!GX(&d,NFLSTREET_GX_SET_NUM_TEV_STAGES,1)||
+    !GX(&d,NFLSTREET_GX_SET_TEV_ORDER,0,0xff,0xff,4)||!GX(&d,NFLSTREET_GX_SET_TEV_OP,0,4)||!GX(&d,NFLSTREET_GX_SET_NUM_TEX_GENS,1)||
+    !GX(&d,NFLSTREET_GX_SET_TEX_COORD_GEN,0,0,4,0x3c,0,0x7d)||!GX(&d,NFLSTREET_GX_SET_VTX_ATTR_FMT,0,9,1,4,0)||
+    !GX(&d,NFLSTREET_GX_SET_VTX_ATTR_FMT,0,0xb,0,1,0)||!GX(&d,NFLSTREET_GX_SET_ARRAY,9,c->sky,0x10)||
+    !GX(&d,NFLSTREET_GX_SET_ARRAY,0xb,c->sky_colors,3)||!GX(&d,NFLSTREET_GX_BEGIN,0x80,0,(quads&0x3fffu)<<2))return 0;
+ static const uint8_t quad_order[8]={6,0xe,4,0xc,2,0xa,0,8},tri_order[6]={0,6,2,8,4,0xa};
+ for(unsigned i=0;i<quads;++i){const uint8_t *q=at(&d,c->sky_tables+0x100u+16u*i,16);if(!q)return 0;
+  for(unsigned k=0;k<8;++k)if(!write16(&d,nflstreet_rd16(q+quad_order[k])))return 0;}
+ if(!GX(&d,NFLSTREET_GX_BEGIN,0x90,0,tris*3u))return 0;
+ for(unsigned i=0;i<tris;++i){const uint8_t *q=at(&d,c->sky_tables+0x900u+12u*i,12);if(!q)return 0;
+  for(unsigned k=0;k<6;++k)if(!write16(&d,nflstreet_rd16(q+tri_order[k])))return 0;}
+ m[3]=saved[0];m[7]=saved[1];m[11]=saved[2];
+ return nflstreet_draw_gx(&d,NFLSTREET_GX_LOAD_POS_MTX,1,(uint32_t[]){0},m,12)&&GX(&d,NFLSTREET_GX_SET_CURRENT_MTX,0);}
+static int color_byte(nflstreet_draw *d,const uint8_t *f){return GX(d,NFLSTREET_GX_WRITE,1,(uint32_t)nflstreet_fctiwz(fword(f)*255.0f)&0xffu);}
+int nflstreet_shadows_draw(const nflstreet_scenery_context *c,nflstreet_render_state *s){
+ if(!c||!c->draw||!c->draw->span||!c->draw->emit||!s)return 0;
+ nflstreet_draw d={c->draw,s};uint32_t fog,m[16];nflstreet_draw_reset(&d);
+ if(!fog_switch(&d,c,1,&fog)||!GX(&d,NFLSTREET_GX_SET_CULL_MODE,0)||!GX(&d,NFLSTREET_GX_SET_BLEND_MODE,1,4,5,5)||
+    !GX(&d,NFLSTREET_GX_SET_Z_COMP_LOC,0)||!GX(&d,NFLSTREET_GX_SET_Z_MODE,1,3,0)||!nflstreet_draw_depth_range(&d,0.01f,0.01f)||
+    !nflstreet_draw_gx(&d,NFLSTREET_GX_CLEAR_VTX_DESC,0,NULL,NULL,0)||!GX(&d,NFLSTREET_GX_SET_VTX_DESC,9,1)||
+    !GX(&d,NFLSTREET_GX_SET_VTX_ATTR_FMT,0,9,1,4,0)||!GX(&d,NFLSTREET_GX_SET_VTX_DESC,0xb,1)||!GX(&d,NFLSTREET_GX_SET_VTX_ATTR_FMT,0,0xb,1,5,0)||
+    !GX(&d,NFLSTREET_GX_SET_NUM_CHANS,1)||!GX(&d,NFLSTREET_GX_SET_CHAN_CTRL,4,0,1,1,0,0,2)||!GX(&d,NFLSTREET_GX_SET_VTX_DESC,0xd,1)||
+    !GX(&d,NFLSTREET_GX_SET_VTX_ATTR_FMT,0,0xd,1,4,0)||!GX(&d,NFLSTREET_GX_SET_TEV_OP,0,0)||!GX(&d,NFLSTREET_GX_SET_NUM_TEX_GENS,1)||
+    !GX(&d,NFLSTREET_GX_SET_TEX_COORD_GEN,0,1,4,0x3c,0,0x7d)||!GX(&d,NFLSTREET_GX_SET_NUM_TEV_STAGES,1)||
+    !GX(&d,NFLSTREET_GX_SET_TEV_ORDER,0,0,0,4)||!nflstreet_draw_texture(&d,0,c->shadow_texture,c->shadow_tlut)||
+    !stack_top(&d,c,0,m)||!nflstreet_draw_gx(&d,NFLSTREET_GX_LOAD_POS_MTX,1,(uint32_t[]){0},m,12)||!GX(&d,NFLSTREET_GX_SET_CURRENT_MTX,0))return 0;
+ const uint8_t *count=at(&d,c->actor_count,2);if(!count)return 0;
+ for(unsigned i=0;i<nflstreet_rd16(count);++i){uint32_t actor;const uint8_t *a;
+  if(!c->actors||!nflstreet_draw_word(&d,c->actors+4u*i,&actor)||!(a=at(&d,actor,0x1340)))return 0;
+  if(!a[0x133d])continue;
+  uint32_t alpha=(uint32_t)nflstreet_fctiwz(fword(a+0x10a8)*255.0f)&0xffu;
+  if(!GX(&d,NFLSTREET_GX_BEGIN,0xa0,0,4))return 0;
+  for(unsigned k=0;k<4;++k)if(!GX(&d,NFLSTREET_GX_WRITE,4,rd32(a+0x10ac+12*k))||!GX(&d,NFLSTREET_GX_WRITE,4,rd32(a+0x10b0+12*k))||
+   !GX(&d,NFLSTREET_GX_WRITE,4,rd32(a+0x10b4+12*k))||!color_byte(&d,a+0x109c)||!color_byte(&d,a+0x10a0)||!color_byte(&d,a+0x10a4)||
+   !GX(&d,NFLSTREET_GX_WRITE,1,alpha)||!GX(&d,NFLSTREET_GX_WRITE,4,rd32(a+0x10dc+8*k))||!GX(&d,NFLSTREET_GX_WRITE,4,rd32(a+0x10e0+8*k)))return 0;}
+ uint32_t unused;
+ return nflstreet_draw_depth_range(&d,0.0f,1.0f)&&GX(&d,NFLSTREET_GX_SET_Z_MODE,1,3,1)&&fog_switch(&d,c,fog,&unused);}

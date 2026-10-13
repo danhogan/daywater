@@ -74,6 +74,38 @@ matrix library, and returns for the OS cache-maintenance routines at
   (`801C9D5C`), whose setup matches NULL. A further setup (`801C9EEC`,
   texture replace) exists in the DOL but is not used here and is rejected.
 
+## Sky and actor shadows
+
+- **`801655D8`, the sky dome.** It resets the render state, pushes the
+  matrix-stack top (`r13-65E8 → {-, depth, slots}`) and loads it with the
+  translation cleared. It computes the dome colors (`8038668C` floats ×
+  255, truncated) into `80310A78` and sets up one unlit vertex-color stage
+  (`GXSetTevOp` pass color). Positions (F32, stride 16, `80385E8C`) and
+  colors (RGB8) are indexed. The dome's quads and triangles (counts
+  `80387590/92`; index tables `8038678C`/`80386F8C`, written in reverse
+  vertex order) go to the pipe, and then the full matrix is loaded again.
+- **`801643F4`, actor drop shadows.** It resets, switches fog on, and sets
+  no cull, source-alpha blending, early depth test without update at depth
+  range [0.01, 0.01], the shadow texture (`r13-58E4/-58E0`) and the
+  matrix-stack top. Each actor with `+133D` set gets one four-vertex fan:
+  stored corners `+10AC`, color and alpha `+109C..+10A8` × 255, texture
+  coordinates `+10DC`. Afterwards it restores depth [0, 1], LEQUAL with
+  update, and the fog state.
+
+Immediate vertex data is written straight to the GX pipe (`0xCC008000`) by
+game code, not through SDK calls. Natively it is recorded as
+`NFLSTREET_GX_WRITE` entries after `NFLSTREET_GX_BEGIN`. The oracle captures
+the same writes through the CPU state's external-write callbacks and compares
+them in sequence with the SDK calls. Both routines run fully original,
+matrix stack included. In each saved context there are 301 runs: the saved
+state plus 300 edited cases. The edits cover:
+- sky colors, including values outside [0, 1];
+- dome counts;
+- matrix-stack depth and top values;
+- actor shadow flags, colors and corners, and the actor count;
+- a missing shadow texture (which gives the default texture);
+- the fog byte.
+
 ## Not modeled
 
 - **Matrices.** Each frame the loops recompute instance model-view
@@ -87,7 +119,11 @@ matrix library, and returns for the OS cache-maintenance routines at
   (after them) are not modeled; their content is not yet traced. The
   weather draws `8015A5CC`/`8015A7C4` (flags `802A391C/D`, clear here) are
   not modeled either.
-- **Rest of the scene.** Decals, ball, sky, crowd and HUD.
+- **Rest of the scene.** The player-select rings (`800E3F7C`, `PSRingA/B`),
+  the yellow and blue lines (`800DA074`), ground marks (`800D75EC` →
+  `80160298`), the effect quads (`8015F450`), ball and ball shadows
+  (`8015CB60`, `801652BC`), ten further models (`80168234`) and the HUD. A
+  frame traversal in the oracle lists them in draw order.
 
 ## Verification
 

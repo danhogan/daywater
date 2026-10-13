@@ -19,7 +19,9 @@ static int venue_hooks(CPUState *c,void *p){(void)p;
  return 0;}
 static int original_case(const uint8_t *before,const scenery_case *sc,const trace *t,uint8_t *after,const nflstreet_render_state *s){
  memcpy(oracle_ram,before,RAM_BYTES);unsigned n=0,m=0;uint32_t camera=ram32(oracle_ram,R13-0x4f44u);
- if(sc->kind==2){const uint32_t args[6]={sc->instance,camera,sc->lights,0,0,0};if(!gx_oracle_run(0x801ec8e4u,args,t,venue_hooks,NULL,&n))return 0;}
+ if(sc->kind==3){const uint32_t none[6]={0};unsigned m2=0;if(!gx_oracle_run(0x801655d8u,none,t,NULL,NULL,&n))return 0;
+  trace rest={t->calls+n,t->count-n};if(!gx_oracle_run(0x801643f4u,none,&rest,NULL,NULL,&m2))return 0;n+=m2;}
+ else if(sc->kind==2){const uint32_t args[6]={sc->instance,camera,sc->lights,0,0,0};if(!gx_oracle_run(0x801ec8e4u,args,t,venue_hooks,NULL,&n))return 0;}
  else{const uint32_t passes[6]={FIELD_PASSES,0,0,0,0,0},field[6]={MAIN_FIELD,0,0,0,0,0};
   if(!gx_oracle_run(0x8015b670u,passes,t,venue_hooks,NULL,&n))return 0;
   trace rest={t->calls+n,t->count-n};if(!gx_oracle_run(0x80165dc4u,field,&rest,venue_hooks,NULL,&m))return 0;n+=m;}

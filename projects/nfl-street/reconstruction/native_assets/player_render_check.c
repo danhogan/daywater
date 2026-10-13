@@ -150,19 +150,30 @@ int main(int argc,char **argv){
   "%u decoded textures, %zu shaded pixels, %zu covered; digest %08x.\n",PLAYERS,calls,stats.display_lists,stats.primitives,
   stats.triangles,stats.culled,stats.clipped,stats.textures,stats.pixels,covered,fnv(2166136261u,bgra,WIDTH*HEIGHT*4));
  /* Scene: the original frame order (field passes 8015B670, main field
-    80165DC4, then the players) from a fresh copy of the saved RAM into one
-    target with shared depth. Decals, ball, sky and crowd are not drawn. */
+    80165DC4, then the players, with the sky 801655D8 first and the actor
+    shadows 801643F4 after the passes) from a fresh copy of the saved RAM into
+    one target with shared depth. Decals, lines, ball and crowd are not drawn. */
  memcpy(ram,pristine,RAM_BYTES);clear_target(bgra,depth);reset_state(ram,&s);
  if(!venue_present(ram))return 11;
  m=nflstreet_gx_open(span,ram,&frame,&target);if(!m)return 4;
  nflstreet_gx_stats scene;memset(&scene,0,sizeof scene);unsigned venue_calls=0,player_calls=0;
  nflstreet_player_draw_context x=draw_context(ram,&t);nflstreet_scenery_context v=venue_context(ram,&x);
+ /* The saved matrix stack already holds the next frame's camera; the drawn
+    frame's view is the stored main-field matrix without the venue
+    translation (80165DC4: view * T(object +4)). */
+ {const uint8_t *mv=ram_at(ram,VENUE_MAIN_FIELD+0x24+8,0x30),*pos=ram_at(ram,VENUE_MAIN_FIELD+4,12);uint32_t stack=v.matrix_stack;
+  uint8_t *top=ram_at(ram,ram32(ram,stack+8)+0x40u*ram32(ram,stack+4),0x30);if(!mv||!pos||!top)return 13;
+  float m[12],p3[3];for(unsigned i=0;i<12;++i){uint32_t w=rd32(mv+4*i);memcpy(m+i,&w,4);}for(unsigned i=0;i<3;++i){uint32_t w=rd32(pos+4*i);memcpy(p3+i,&w,4);}
+  for(unsigned r=0;r<3;++r){m[4*r+3]-=m[4*r]*p3[0]+m[4*r+1]*p3[1]+m[4*r+2]*p3[2];}
+  for(unsigned i=0;i<12;++i){uint32_t w;memcpy(&w,m+i,4);top[4*i]=(uint8_t)(w>>24);top[4*i+1]=(uint8_t)(w>>16);top[4*i+2]=(uint8_t)(w>>8);top[4*i+3]=(uint8_t)w;}}
+ t.count=0;if(!nflstreet_sky_draw(&v,&s)||!execute(m,&t,&scene,"sky",0))return 12;venue_calls+=t.count;
  t.count=0;if(!nflstreet_field_passes_draw(&v,VENUE_FIELD_PASSES,&s)||!execute(m,&t,&scene,"field passes",0))return 12;venue_calls+=t.count;
+ t.count=0;if(!nflstreet_shadows_draw(&v,&s)||!execute(m,&t,&scene,"shadows",0))return 12;venue_calls+=t.count;
  t.count=0;if(!nflstreet_field_draw(&v,VENUE_MAIN_FIELD,&s)||!execute(m,&t,&scene,"main field",0))return 12;venue_calls+=t.count;
  if(!draw_players(ram,m,&t,&s,&scene,NULL,&frame,&player_calls))return 5;
  nflstreet_gx_close(m);
  image.bgra=bgra;if(!nflstreet_texture_bmp(&image,argv[3]))return 7;
- printf("Scene render: EARS field passes and main field (%u GX calls) then 14 actors (%u GX calls); %u display lists, %u triangles "
+ printf("Scene render: sky, EARS field passes, shadows and main field (%u GX calls) then 14 actors (%u GX calls); %u display lists, %u triangles "
   "(%u culled, %u clipped), %u decoded textures, %zu shaded pixels; digest %08x.\n",venue_calls,player_calls,scene.display_lists,
   scene.triangles,scene.culled,scene.clipped,scene.textures,scene.pixels,fnv(2166136261u,bgra,WIDTH*HEIGHT*4));
  memcpy(ram,pristine,RAM_BYTES);

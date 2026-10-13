@@ -40,6 +40,9 @@ typedef enum {
  NFLSTREET_GX_SET_Z_MODE,         /* 802079C8 enable, compare, update */
  NFLSTREET_GX_SET_Z_COMP_LOC,     /* 802079FC before texturing */
  NFLSTREET_GX_SET_FOG,            /* 80207600 type; data = color, start, end, near, far */
+ NFLSTREET_GX_BEGIN,              /* 80203FC0 primitive, vertex format, vertex count */
+ NFLSTREET_GX_WRITE,              /* immediate data written to the GX pipe 0xCC008000: bytes (1, 2, 4), value */
+ NFLSTREET_GX_SET_TEV_OP,         /* 80206E90 stage, mode (modulate, decal, blend, replace, pass color) */
  NFLSTREET_GX_OPS
 } nflstreet_gx_op;
 typedef struct {nflstreet_gx_op op;uint32_t arg[7];uint32_t data[16];} nflstreet_gx_call;

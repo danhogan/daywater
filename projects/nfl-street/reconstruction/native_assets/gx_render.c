@@ -29,6 +29,7 @@ struct nflstreet_gx_machine {
  uint32_t maps[8],tluts[32];
  struct {uint32_t texture,name;} names[NAMES_MAX];unsigned name_count;
  decoded cache[DECODED_MAX];unsigned cached;
+ uint8_t *imm;size_t imm_size,imm_need,imm_capacity; /* immediate primitive: command, count, vertex bytes */
  nflstreet_gx_stats *stats;
 };
 static const uint8_t *view(nflstreet_gx_machine *m,uint32_t token,uint32_t size){return token?m->span(m->memory,token,size):NULL;}
@@ -292,6 +293,15 @@ static void triangle(nflstreet_gx_machine *m,const vertex *a,const vertex *b,con
  for(unsigned st=0;st<m->stages;++st){unsigned map=m->order[st][1];
   if(map!=0xff&&!maps[map&7].texture&&m->maps[map&7])maps[map&7].texture=texture(m,m->maps[map&7],&maps[map&7].mode);}
  for(unsigned i=1;i+1<n;++i)raster(m,maps,s,s+i,s+i+1);}
+static int primitive(nflstreet_gx_machine *m,unsigned cmd,const uint8_t **at,const uint8_t *end);
+/* Bytes of one vertex under the current descriptors (vertex format 0). */
+static size_t vertex_bytes(const nflstreet_gx_machine *m){
+ size_t n=0;for(unsigned attr=0;attr<21;++attr){unsigned d=m->desc[attr];if(!d)continue;
+  if(attr<=8)n+=1;else if(d==2)n+=1;else if(d==3)n+=2;else{int k=attribute_size(attr,m->cnt[attr],m->type[attr]);if(k<=0)return 0;n+=(size_t)k;}}
+ return n;}
+static int immediate_flush(nflstreet_gx_machine *m){
+ if(!m->imm_need||m->imm_size<m->imm_need)return 1;const uint8_t *at=m->imm+1,*end=m->imm+m->imm_size;
+ m->imm_need=0;return primitive(m,m->imm[0],&at,end);}
 static int primitive(nflstreet_gx_machine *m,unsigned cmd,const uint8_t **at,const uint8_t *end){
  if((size_t)(end-*at)<2)return 0;unsigned count=rd16(*at),kind=cmd&0xf8;*at+=2;
  if((cmd&7)!=0)return 0;
@@ -330,7 +340,7 @@ int nflstreet_gx_run(nflstreet_gx_machine *m,const nflstreet_gx_call *calls,unsi
   case NFLSTREET_GX_CLEAR_VTX_DESC:memset(m->desc,0,sizeof m->desc);break;
   case NFLSTREET_GX_SET_VTX_ATTR_FMT:if(a[0]||a[1]>20)return 0;m->cnt[a[1]]=(uint8_t)a[2];m->type[a[1]]=(uint8_t)a[3];m->frac[a[1]]=(uint8_t)a[4];break;
   case NFLSTREET_GX_SET_ARRAY:if(a[0]>24)return 0;m->base[a[0]]=a[1];m->stride[a[0]]=a[2];break;
-  case NFLSTREET_GX_SET_TEX_COORD_GEN:if(a[0]>7||a[1]!=1)return 0;m->tg_src[a[0]]=a[2];m->tg_mtx[a[0]]=a[3];break;
+  case NFLSTREET_GX_SET_TEX_COORD_GEN:if(a[0]>7||a[1]>1)return 0;m->tg_src[a[0]]=a[2];m->tg_mtx[a[0]]=a[3];break;
   case NFLSTREET_GX_SET_NUM_TEX_GENS:m->texgens=a[0];break;
   case NFLSTREET_GX_SET_CULL_MODE:m->cull=a[0]==1?2:a[0]==2?1:a[0];break;
   case NFLSTREET_GX_LOAD_LIGHT:{unsigned l=0;while(l<8&&a[0]!=1u<<l)++l;if(l==8)return 0;
@@ -349,6 +359,24 @@ int nflstreet_gx_run(nflstreet_gx_machine *m,const nflstreet_gx_call *calls,unsi
   case NFLSTREET_GX_SET_Z_MODE:m->zmode=(a[0]&1)|(a[1]&7)<<1|(a[2]&1)<<4;break;
   case NFLSTREET_GX_SET_Z_COMP_LOC:m->zearly=!a[0];break;
   case NFLSTREET_GX_SET_FOG:if(a[0])return 0;break;
+  /* GXBegin then the vertex bytes the game writes to the pipe. */
+  case NFLSTREET_GX_BEGIN:{if(m->imm_need||a[1]||(a[0]&0xf8)!=a[0])return 0;size_t v=vertex_bytes(m),need=3+v*(a[2]&0xffff);if(!v)return 0;
+   if(need>m->imm_capacity){uint8_t *b=realloc(m->imm,need);if(!b)return 0;m->imm=b;m->imm_capacity=need;}
+   m->imm[0]=(uint8_t)a[0];m->imm[1]=(uint8_t)(a[2]>>8);m->imm[2]=(uint8_t)a[2];m->imm_size=3;m->imm_need=need;
+   if(!immediate_flush(m))return 0;break;}
+  case NFLSTREET_GX_WRITE:{unsigned bytes=a[0];if(!m->imm_need||(bytes!=1&&bytes!=2&&bytes!=4)||m->imm_size+bytes>m->imm_need)return 0;
+   for(unsigned k=0;k<bytes;++k)m->imm[m->imm_size++]=(uint8_t)(a[1]>>(8*(bytes-1-k)));
+   if(!immediate_flush(m))return 0;break;}
+  /* GXSetTevOp: the SDK's register images (stage 0 at 80298AB8/80298AE0,
+     later stages at 80298ACC/80298AF4) for modulate, decal, blend, replace
+     and pass color. */
+  case NFLSTREET_GX_SET_TEV_OP:{static const uint32_t color[2][5]={{0x08f8af,0x08a89f,0x08ac8f,0x08fff8,0x08fffa},{0x08f80f,0x08089f,0x080c8f,0x08fff8,0x08fff0}},
+    alpha[2][5]={{0x08f2f0,0x08ffd0,0x08f2f0,0x08ffc0,0x08ffd0},{0x08f070,0x08ff80,0x08f070,0x08ffc0,0x08ff80}};
+   if(a[0]>15||a[1]>4)return 0;uint32_t cw=color[a[0]?1:0][a[1]],aw=alpha[a[0]?1:0][a[1]];
+   const uint32_t ops[5]={cw>>18&1,cw>>16&3,cw>>20&3,cw>>19&1,cw>>22&3},aops[5]={aw>>18&1,aw>>16&3,aw>>20&3,aw>>19&1,aw>>22&3};
+   m->cin[a[0]][0]=cw>>12&15;m->cin[a[0]][1]=cw>>8&15;m->cin[a[0]][2]=cw>>4&15;m->cin[a[0]][3]=cw&15;
+   m->ain[a[0]][0]=aw>>13&7;m->ain[a[0]][1]=aw>>10&7;m->ain[a[0]][2]=aw>>7&7;m->ain[a[0]][3]=aw>>4&7;
+   for(unsigned k=0;k<5;++k){m->cop[a[0]][k]=ops[k];m->aop[a[0]][k]=aops[k];}break;}
   case NFLSTREET_GX_INIT_TEX_OBJ_TLUT:{unsigned k=0;while(k<m->name_count&&m->names[k].texture!=a[0])++k;
    if(k==m->name_count){if(k>=NAMES_MAX)return 0;++m->name_count;}m->names[k].texture=a[0];m->names[k].name=a[1];break;}
   case NFLSTREET_GX_LOAD_TEX_OBJ:if(a[1]>7)return 0;m->maps[a[1]]=a[0];break;
@@ -377,5 +405,5 @@ nflstreet_gx_machine *nflstreet_gx_open(nflstreet_draw_span span,void *memory,co
  m->alpha[0]=m->alpha[3]=7;m->stages=1;m->texgens=1;m->zmode=frame->zmode;
  memcpy(m->viewport,frame->viewport,sizeof m->viewport);
  return m;}
-void nflstreet_gx_close(nflstreet_gx_machine *m){if(!m)return;
+void nflstreet_gx_close(nflstreet_gx_machine *m){if(!m)return;free(m->imm);
  for(unsigned i=0;i<m->cached;++i)for(unsigned l=0;l<m->cache[i].levels;++l)free(m->cache[i].level[l].rgba);free(m);}

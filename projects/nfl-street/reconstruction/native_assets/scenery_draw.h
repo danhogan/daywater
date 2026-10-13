@@ -23,6 +23,13 @@ typedef struct {
  uint32_t pass_offset;       /* 8028A090: field pass 2 translation (alpha at +0C) */
  float pass_alpha,pass3_alpha; /* 80260588 and r13-58F4 */
  float pass_color,pass_depth;  /* 80260580 (RGB scale) and 80260584 (depth threshold) */
+ uint32_t matrix_stack;      /* value of r13-65E8: {-, depth, slots}, 0x40 bytes per slot */
+ uint32_t sky;               /* 80385E8C: dome vertex positions (16 bytes each) */
+ uint32_t sky_colors;        /* 80310A78: dome vertex colors (RGB8), written each frame */
+ uint32_t sky_tables;        /* 8038668C: color floats (16 bytes each), then index tables and counts */
+ uint32_t actors;            /* value of r13-7BBC: actor pointer list */
+ uint32_t actor_count;       /* r13-7BB8: u16 actor count */
+ uint32_t shadow_texture,shadow_tlut; /* values of r13-58E4 and r13-58E0 */
 } nflstreet_scenery_context;
 /* Original 801EC8E4(instance, -, lights): frustum test of the bounding box
    against the matrix-library projection when flags bit 14 (801CB3EC/
@@ -48,4 +55,21 @@ int nflstreet_field_draw(const nflstreet_scenery_context *,uint32_t object,nflst
    updates as above; 800D75EC (between layers 3 and 4) and 801652BC (after)
    are not modeled. */
 int nflstreet_field_passes_draw(const nflstreet_scenery_context *,uint32_t object,nflstreet_render_state *);
+/* Original 801655D8 (sky dome): render-state reset, the matrix-stack top
+   pushed and loaded with its translation cleared, dome colors computed into
+   sky_colors (each float * 255, truncated), one unlit vertex-color stage,
+   indexed positions (F32 xyz, stride 16) and colors (RGB8, stride 3), then
+   the dome quads (indices from the table's quad entries, reverse order) and
+   triangles written to the pipe, and the full matrix restored. The tables
+   are {colors 8038668C, quads 8038678C, triangles 80386F8C, counts
+   8038758E/90/92} relative to sky_tables. */
+int nflstreet_sky_draw(const nflstreet_scenery_context *,nflstreet_render_state *);
+/* Original 801643F4 (actor drop shadows): render-state reset, fog on
+   (801EDDF8(1)), no cull, source-alpha blending, early depth test without
+   update at depth range [0.01, 0.01], the shadow texture, the matrix-stack
+   top, then for each actor whose +133D is set a four-vertex fan from its
+   stored corners (+10AC), color/alpha (+109C..+10A8, * 255) and texture
+   coordinates (+10DC); then depth range [0, 1], depth LEQUAL with update
+   and the previous fog state. */
+int nflstreet_shadows_draw(const nflstreet_scenery_context *,nflstreet_render_state *);
 #endif

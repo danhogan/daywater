@@ -21,5 +21,7 @@ static nflstreet_scenery_context venue_context(uint8_t *ram,const nflstreet_play
  c.fog_start=ramf(ram,R13-0x6214u);c.fog_end=ramf(ram,R13-0x6210u);c.fog_off=ramf(ram,0x80268e28u);c.depth_trim=ramf(ram,R13-0x622cu);
  c.pass_table=0x8028a004u;c.pass_offset=0x8028a090u;c.pass_alpha=ramf(ram,0x80260588u);c.pass3_alpha=ramf(ram,R13-0x58f4u);
  c.pass_color=ramf(ram,0x80260580u);c.pass_depth=ramf(ram,0x80260584u);
+ c.matrix_stack=ram32(ram,R13-0x65e8u);c.sky=0x80385e8cu;c.sky_colors=0x80310a78u;c.sky_tables=0x8038668cu;
+ c.actors=ram32(ram,R13-0x7bbcu);c.actor_count=R13-0x7bb8u;c.shadow_texture=ram32(ram,R13-0x58e4u);c.shadow_tlut=ram32(ram,R13-0x58e0u);
  return c;}
 #endif

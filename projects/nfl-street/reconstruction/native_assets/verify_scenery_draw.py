@@ -10,19 +10,25 @@ from verify_player_startup import source_hashes
 VENUE = {
     14: "EARS venue as saved (2517 GX calls, 388 display lists, 20 instances drawn, 29 depth ranges, 20 fog calls); "
     "300 edited venue loops (1089613 GX calls, 175904 display lists, 5598 instances drawn); 900 single instances "
-    "(316992 GX calls, 52864 display lists, 735 drawn, 54 frustum-culled, 620 fog calls); digest 75fe35de.",
+    "(316992 GX calls, 52864 display lists, 735 drawn, 54 frustum-culled, 620 fog calls); sky and shadows as saved "
+    "(865 GX calls, 16 primitives, 808 pipe writes) and 300 edited (208401 GX calls, 3721 primitives, "
+    "192258 pipe writes); digest 234a4d48.",
     15: "EARS venue as saved (2497 GX calls, 388 display lists, 20 instances drawn, 29 depth ranges, 0 fog calls); "
     "300 edited venue loops (1084933 GX calls, 175904 display lists, 5598 instances drawn); 900 single instances "
-    "(316514 GX calls, 52864 display lists, 735 drawn, 54 frustum-culled, 142 fog calls); digest b44e4f91.",
+    "(316514 GX calls, 52864 display lists, 735 drawn, 54 frustum-culled, 142 fog calls); sky and shadows as saved "
+    "(867 GX calls, 16 primitives, 808 pipe writes) and 300 edited (208777 GX calls, 3721 primitives, "
+    "192258 pipe writes); digest 8b7f3adf.",
     16: "EARS venue as saved (2517 GX calls, 388 display lists, 20 instances drawn, 29 depth ranges, 20 fog calls); "
     "300 edited venue loops (1089613 GX calls, 175904 display lists, 5598 instances drawn); 900 single instances "
-    "(316992 GX calls, 52864 display lists, 735 drawn, 54 frustum-culled, 620 fog calls); digest 8cfce71e.",
+    "(316992 GX calls, 52864 display lists, 735 drawn, 54 frustum-culled, 620 fog calls); sky and shadows as saved "
+    "(865 GX calls, 16 primitives, 808 pipe writes) and 300 edited (208401 GX calls, 3721 primitives, "
+    "192258 pipe writes); digest d0abef02.",
 }
 NATIVE = {context: "Scenery draw: " + text for context, text in VENUE.items()}
 ORIGINAL = {
-    context: "Original scenery draw: 1201 runs of 801EC8E4, 80165DC4 and 8015B670 match every GX call "
-    f"({calls} calls), the render state and all RAM outside the oracle stack."
-    for context, calls in ((14, 1409122), (15, 1403944), (16, 1409122))
+    context: "Original scenery draw: 1502 runs of 801EC8E4, 80165DC4, 8015B670, 801655D8 and 801643F4 match every "
+    f"GX call ({calls} calls), the render state and all RAM outside the oracle stack."
+    for context, calls in ((14, 1618388), (15, 1613588), (16, 1618388))
 }
 SOURCES = (
     "scenery_draw.c",
@@ -42,7 +48,8 @@ BOUNDARY = (
     "80165DC4 (main field) and 8015B670/8015B564 (field passes with 801ECD98 ambient and 801ECD54 depth writes). "
     "Compared as GX SDK calls, render-state globals and all RAM against the original module with the matrix-stack "
     "updates (801893C8, 8018941C, 80189BB0, 8018949C, 80189ED8) and the unmodeled callees 800D75EC, 801652BC, "
-    "8015A5CC and 8015A7C4 returning at once: instances keep their stored model-view matrices. Venue objects are "
+    "8015A5CC and 8015A7C4 returning at once: instances keep their stored model-view matrices. The sky 801655D8 and "
+    "actor shadows 801643F4 run unhooked (immediate vertex data compared as GX pipe writes). Venue objects are "
     "the ones the original scene traversal draws in the saved match."
 )
 
@@ -111,8 +118,9 @@ def main() -> None:
             venue_instances=20,
             controlled_loops_per_context=300,
             controlled_instances_per_context=900,
-            original_runs_per_process=1201,
-            original_gx_calls={"14": 1409122, "15": 1403944, "16": 1409122},
+            original_runs_per_process=1502,
+            sky_shadow_cases_per_context=301,
+            original_gx_calls={"14": 1618388, "15": 1613588, "16": 1618388},
         )
     except Exception as exc:
         record.update(status="failed", error=str(exc))

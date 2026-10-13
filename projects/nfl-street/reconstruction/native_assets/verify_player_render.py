@@ -26,12 +26,12 @@ RENDER = {
     "textures, 30139 shaded pixels, 21608 covered; digest ac372641.",
 }
 SCENE = {
-    14: "(2517 GX calls) then 14 actors (4955 GX calls); 728 display lists, 26244 triangles (9957 culled, 3014 "
-    "clipped), 326 decoded textures, 640107 shaded pixels; digest efeb6e91.",
-    15: "(2497 GX calls) then 14 actors (4955 GX calls); 728 display lists, 26244 triangles (9925 culled, 3009 "
-    "clipped), 326 decoded textures, 639354 shaded pixels; digest c2859c1f.",
-    16: "(2517 GX calls) then 14 actors (4947 GX calls); 728 display lists, 26185 triangles (9910 culled, 3009 "
-    "clipped), 324 decoded textures, 639424 shaded pixels; digest 9ae1ef16.",
+    14: "(3390 GX calls) then 14 actors (4955 GX calls); 728 display lists, 26344 triangles (9957 culled, 3075 "
+    "clipped), 327 decoded textures, 944114 shaded pixels; digest bd6a8364.",
+    15: "(3372 GX calls) then 14 actors (4955 GX calls); 728 display lists, 26344 triangles (9925 culled, 3070 "
+    "clipped), 327 decoded textures, 943097 shaded pixels; digest c98bf69b.",
+    16: "(3390 GX calls) then 14 actors (4947 GX calls); 728 display lists, 26285 triangles (9910 culled, 3070 "
+    "clipped), 325 decoded textures, 943599 shaded pixels; digest c44fbd48.",
 }
 SOURCES = (
     "gx_render.c",
@@ -57,7 +57,7 @@ BOUNDARY = (
     "Checked: every recorded one-stage player draw state of the 2026-10-08 original frame capture equals the SDK "
     "encoding of the native calls and vice versa; all non-empty captured slot textures decode identically through "
     "their GX objects and through the independent MMAP reader; renders repeat exactly. Inspection images only: "
-    "exact original pixels, sky, decals, ball, shadows, HUD and fresh selected actors are not claimed."
+    "exact original pixels, lines, decals, ball, crowd, HUD and fresh selected actors are not claimed."
 )
 
 
@@ -91,7 +91,7 @@ def main() -> None:
             scene = out / f"scene-{i}.bmp"
             expected = (
                 f"Player render: 14 actors, {RENDER[i]}\n"
-                f"Scene render: EARS field passes and main field {SCENE[i]}\n{TEXTURES}\n{STATE}"
+                f"Scene render: sky, EARS field passes, shadows and main field {SCENE[i]}\n{TEXTURES}\n{STATE}"
             )
             traces = []
             for repeat in range(2):
