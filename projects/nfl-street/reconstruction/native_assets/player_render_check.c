@@ -22,6 +22,7 @@ static uint8_t *ram_at(uint8_t *ram,uint32_t a,uint32_t n){return a>=RAM_BASE&&(
 static uint32_t ram32(uint8_t *ram,uint32_t a){const uint8_t *p=ram_at(ram,a,4);return p?rd32(p):0;}
 static float ramf(uint8_t *ram,uint32_t a){uint32_t v=ram32(ram,a);float f;memcpy(&f,&v,4);return f;}
 #include "venue_fixture.h"
+#include "hud_fixture.h"
 static uint32_t fnv(uint32_t h,const void *p,size_t n){const uint8_t *b=p;for(size_t i=0;i<n;++i)h=(h^b[i])*16777619u;return h;}
 static uint8_t *span(void *m,uint32_t token,uint32_t size){return ram_at(m,token,size);}
 typedef struct {nflstreet_gx_call *calls;unsigned count;} trace;
@@ -174,10 +175,16 @@ int main(int argc,char **argv){
  for(unsigned i=0;i<3;++i){t.count=0;if(!nflstreet_ring_draw(&v,venue_rings[i],&s)||!execute(m,&t,&scene,"ring",i))return 12;venue_calls+=t.count;}
  t.count=0;if(!nflstreet_field_draw(&v,VENUE_MAIN_FIELD,&s)||!execute(m,&t,&scene,"main field",0))return 12;venue_calls+=t.count;
  if(!draw_players(ram,m,&t,&s,&scene,NULL,&frame,&player_calls))return 5;
+ /* HUD: the HUD camera's screen view (8017D16C; the saved stack holds the
+    last camera's), then the name tags (800DADC0) over the scene. */
+ if(!hud_present(ram))return 11;
+ nflstreet_hud_context hud=hud_context(ram,&v);unsigned hud_calls=0;
+ t.count=0;if(!nflstreet_camera_view(&hud,HUD_CAMERA,&s)||t.count)return 12;
+ for(unsigned i=0;i<HUD_NAME_TAG_COUNT;++i){t.count=0;if(!nflstreet_name_tag_draw(&hud,hud_name_tag(i),&s)||!execute(m,&t,&scene,"name tag",i))return 12;hud_calls+=t.count;}
  nflstreet_gx_close(m);
  image.bgra=bgra;if(!nflstreet_texture_bmp(&image,argv[3]))return 7;
- printf("Scene render: sky, EARS field passes, shadows, lines, rings and main field (%u GX calls) then 14 actors (%u GX calls); %u display lists, %u triangles "
-  "(%u culled, %u clipped), %u decoded textures, %zu shaded pixels; digest %08x.\n",venue_calls,player_calls,scene.display_lists,
+ printf("Scene render: sky, EARS field passes, shadows, lines, rings and main field (%u GX calls) then 14 actors (%u GX calls) and name tags (%u GX calls); %u display lists, %u triangles "
+  "(%u culled, %u clipped), %u decoded textures, %zu shaded pixels; digest %08x.\n",venue_calls,player_calls,hud_calls,scene.display_lists,
   scene.triangles,scene.culled,scene.clipped,scene.textures,scene.pixels,fnv(2166136261u,bgra,WIDTH*HEIGHT*4));
  memcpy(ram,pristine,RAM_BYTES);
  unsigned decoded=0;size_t decoded_pixels=0;

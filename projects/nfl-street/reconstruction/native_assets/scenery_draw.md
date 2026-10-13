@@ -159,7 +159,7 @@ state plus 300 edited cases. The edits cover:
   - effect quads (`8015F450`);
   - the ball and ball shadows (`8015CB60`, `801652BC`);
   - ten further models (`80168234`);
-  - the HUD.
+  - the HUD's uis screens (the name tags are in `hud_draw.md`).
 
   A frame traversal in the oracle lists them in draw order.
 
@@ -225,6 +225,7 @@ Private report:
 
 ## Use
 
-`player_render_check.c` draws the passes and the main field, then the 14
-players, into one target with shared depth (`player_render.md`). Fresh
-native scene state and the sky, decals, shadows, ball and HUD remain.
+`player_render_check.c` draws the sky, passes, shadows, lines, rings and
+main field, then the 14 players and the name tags, into one target with
+shared depth (`player_render.md`). Fresh native scene state, ground marks,
+the ball and the uis screens remain.

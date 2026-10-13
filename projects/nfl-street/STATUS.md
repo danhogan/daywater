@@ -25,7 +25,16 @@ assignments and LOD are explicit fixture inputs; fresh actor instances, natural
 head roots/pose selection and matrix token publication remain open. See
 [owned attachment palettes](reconstruction/native_assets/match_attachment_palettes.md).
 
-**Latest rendering: the native scene matches the game's frame apart from the HUD and small extras.**
+**Latest rendering: player name tags, the in-match text renderer and the HUD camera are native.**
+The text layout and glyph quads (`80186B1C`), the name tags (`800DADC0`) and
+the screen camera view (`8017D16C`, the first piece of the matrix library:
+rotations, sine polynomial, translation) match the original: 1,001 runs per
+saved context, every GX call, pipe write and RAM byte, with 18 deliberate
+faults caught. In the native scene the "Thomas" tag lands on the selected
+player's ring, as in the game. The scoreboard and meters (uis screens)
+remain. See [HUD text and name tags](reconstruction/native_assets/hud_draw.md).
+
+**Earlier rendering: the native scene matches the game's frame apart from the HUD and small extras.**
 The yellow and blue field lines (`800DA074`) and the red player-select ring
 (`800E3F7C`) are now native and verified against the original: 1,904 runs per
 saved context across all scene routines. The rendered scene has the sky,

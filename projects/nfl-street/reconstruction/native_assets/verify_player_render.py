@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from verify_controller_checks import PRIVATE, baseline_hashes, digest, private, run, windows
+from verify_hud_draw import SOURCES as HUD_SOURCES
 from verify_player_draw import SOURCES as DRAW_SOURCES
 from verify_player_startup import source_hashes
 from verify_scenery_draw import SOURCES as SCENERY_SOURCES
@@ -26,12 +27,15 @@ RENDER = {
     "textures, 30139 shaded pixels, 21608 covered; digest ac372641.",
 }
 SCENE = {
-    14: "(3658 GX calls) then 14 actors (4955 GX calls); 731 display lists, 26594 triangles (9957 culled, "
-    "3077 clipped), 330 decoded textures, 957811 shaded pixels; digest ecc1092b.",
-    15: "(3626 GX calls) then 14 actors (4955 GX calls); 731 display lists, 26594 triangles (9925 culled, "
-    "3072 clipped), 330 decoded textures, 961967 shaded pixels; digest bec5c51a.",
-    16: "(3658 GX calls) then 14 actors (4947 GX calls); 731 display lists, 26535 triangles (9910 culled, "
-    "3072 clipped), 328 decoded textures, 957156 shaded pixels; digest 79bc5b7e.",
+    14: "(3658 GX calls) then 14 actors (4955 GX calls) and name tags (472 GX calls); 731 display lists, "
+    "26618 triangles (9957 culled, 3077 clipped), 332 decoded textures, 958710 shaded pixels; digest "
+    "3c9b8e2a.",
+    15: "(3626 GX calls) then 14 actors (4955 GX calls) and name tags (470 GX calls); 731 display lists, "
+    "26618 triangles (9925 culled, 3072 clipped), 332 decoded textures, 962896 shaded pixels; digest "
+    "a91b845c.",
+    16: "(3658 GX calls) then 14 actors (4947 GX calls) and name tags (472 GX calls); 731 display lists, "
+    "26559 triangles (9910 culled, 3072 clipped), 330 decoded textures, 958065 shaded pixels; digest "
+    "61aef95b.",
 }
 SOURCES = (
     "gx_render.c",
@@ -41,6 +45,13 @@ SOURCES = (
     "player_draw.h",
     "scenery_draw.c",
     "scenery_draw.h",
+    "scenery_shared.h",
+    "hud_draw.c",
+    "hud_draw.h",
+    "matrix_stack.c",
+    "matrix_stack.h",
+    "venue_fixture.h",
+    "hud_fixture.h",
     "draw_engine.c",
     "draw_engine.h",
     "texture.c",
@@ -57,8 +68,8 @@ BOUNDARY = (
     "Checked: every recorded one-stage player draw state of the 2026-10-08 original frame capture equals the SDK "
     "encoding of the native calls and vice versa; all non-empty captured slot textures decode identically through "
     "their GX objects and through the independent MMAP reader; renders repeat exactly. Inspection images only: "
-    "exact original pixels, ground marks, ball, effect quads, further models, HUD and fresh selected actors are not "
-    "claimed."
+    "exact original pixels, ground marks, ball, effect quads, further models, the scoreboard and meters, and fresh "
+    "selected actors are not claimed. The name tags draw under the HUD camera's verified screen view."
 )
 
 
@@ -70,10 +81,15 @@ def main() -> None:
     report = out / "verification.json"
     draw_report = private(PRIVATE / "research-temp/nflstreet-player-draw-20261013/verification.json")
     scenery_report = private(PRIVATE / "research-temp/nflstreet-scenery-draw-20261013/verification.json")
+    hud_report = private(PRIVATE / "research-temp/nflstreet-hud-draw-20261013/verification.json")
     entries = tuple("native_assets/" + name for name in SOURCES)
     record: dict[str, object] = {"status": "running", "boundary": BOUNDARY}
     try:
-        for path, names in ((draw_report, DRAW_SOURCES), (scenery_report, SCENERY_SOURCES)):
+        for path, names in (
+            (draw_report, DRAW_SOURCES),
+            (scenery_report, SCENERY_SOURCES),
+            (hud_report, HUD_SOURCES),
+        ):
             reference = json.loads(path.read_text())
             required = tuple("native_assets/" + name for name in names)
             if reference["status"] != "passed" or source_hashes(root, required) != reference["source_sha256"]:
@@ -118,6 +134,7 @@ def main() -> None:
             source_sha256=sources,
             draw_report_sha256=digest(draw_report),
             scenery_report_sha256=digest(scenery_report),
+            hud_report_sha256=digest(hud_report),
             log_sha256=logs,
             image_sha256=images,
             executable_sha256=digest(exe),

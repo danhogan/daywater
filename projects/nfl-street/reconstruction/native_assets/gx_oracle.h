@@ -74,8 +74,10 @@ static void pipe_write32(CPUState *c,uint32_t address,uint32_t value,uint8_t reg
 typedef int (*gx_service)(CPUState *,void *);
 /* Runs pc(args) from oracle_ram, compares recorded calls with t; *calls is
    the number recorded. */
+/* First float argument (f1) for the next runs; 0 by default. */
+static double gx_oracle_f1;
 static int gx_oracle_run(uint32_t pc,const uint32_t args[6],const trace *t,gx_service service,void *context,unsigned *calls){
- CPUState c;memset(&c,0,sizeof c);c.ram=oracle_ram;c.ram_size=RAM_BYTES;c.msr=0x2000;c.hid2=0xe0000000u;
+ CPUState c;memset(&c,0,sizeof c);c.fpr[1]=gx_oracle_f1;c.ram=oracle_ram;c.ram_size=RAM_BYTES;c.msr=0x2000;c.hid2=0xe0000000u;
  c.external_write=pipe_write;c.external_write32=pipe_write32;pipe.t=t;pipe.n=0;pipe.failed=0;
  c.gpr[1]=STACK_HI-0x40u;c.gpr[2]=0x803b9a40u;c.gpr[13]=R13;for(unsigned i=0;i<6;++i)c.gpr[3+i]=args[i];c.pc=pc;
  for(unsigned step=0;c.pc;++step){

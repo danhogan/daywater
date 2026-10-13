@@ -1,5 +1,5 @@
 #include "scenery_draw.h"
-#include "draw_engine.h"
+#include "scenery_shared.h"
 #include <math.h>
 #define rd32 nflstreet_rd32
 #define GX NFLSTREET_GX
@@ -41,11 +41,19 @@ static int fog_apply(nflstreet_draw *d,const nflstreet_scenery_context *c,uint8_
  const uint8_t *cam=at(d,c->fog_camera+0xe8,8);if(!cam)return 0;
  v[1]=nflstreet_float_bits(c->fog_start);v[2]=nflstreet_float_bits(c->fog_end);v[3]=rd32(cam);v[4]=rd32(cam+4);
  return nflstreet_draw_gx(d,NFLSTREET_GX_SET_FOG,1,&c->fog_type,v,5);}
-/* 801EDDF8: set the fog byte, returning the previous state. */
-static int fog_switch(nflstreet_draw *d,const nflstreet_scenery_context *c,uint32_t value,uint32_t *previous){
+int nflstreet_scenery_fog_switch(nflstreet_draw *d,const nflstreet_scenery_context *c,uint32_t value,uint32_t *previous){
  uint8_t *f=at(d,c->fog,1);if(!f)return 0;*previous=value;
  if(*f!=(uint8_t)value){*f=(uint8_t)value;if(!fog_apply(d,c,*f))return 0;*previous=*f==0;}
  return 1;}
+#define fog_switch nflstreet_scenery_fog_switch
+int nflstreet_play_held(nflstreet_draw *d,const nflstreet_scenery_context *c,int *held){
+ uint32_t v,w;*held=0;if(!c->gate_7f40)return 1;
+ if(!nflstreet_draw_word(d,c->gate_7f40+0xb64,&v)||!nflstreet_draw_word(d,c->gate_7f40+0xb60,&w))return 0;
+ *held=(v&0xc00880u)||w==4;return 1;}
+int nflstreet_play_mode(nflstreet_draw *d,const nflstreet_scenery_context *c,uint32_t *mode){
+ uint8_t *cache=at(d,c->mode_cache,4);if(!nflstreet_draw_word(d,c->mode_source,mode)||!cache)return 0;nflstreet_wr32(cache,*mode);return 1;}
+int nflstreet_play_counting(nflstreet_draw *d,const nflstreet_scenery_context *c,int *counting){
+ uint32_t v;if(!nflstreet_draw_word(d,c->gate_count,&v))return 0;*counting=(int32_t)v>0;return 1;}
 static int chan(nflstreet_draw *d,uint32_t ch,uint32_t enable,uint32_t amb,uint32_t mat,uint32_t lights,uint32_t diffuse,uint32_t attn){
  return GX(d,NFLSTREET_GX_SET_CHAN_CTRL,ch,enable,amb,mat,lights,diffuse,attn);}
 static int scenery(nflstreet_draw *d,const nflstreet_scenery_context *c,uint32_t instance,uint32_t lights){
@@ -209,15 +217,13 @@ static int distance_scale(nflstreet_draw *d,const nflstreet_scenery_context *c,u
  *out=scale+1.0f;return 1;}
 static int fwrite4(nflstreet_draw *d,float v){return GX(d,NFLSTREET_GX_WRITE,4,nflstreet_float_bits(v));}
 static int gates(nflstreet_draw *d,const nflstreet_scenery_context *c,int *open){
- uint32_t v,w;const uint8_t *b;*open=0;
+ uint32_t v;const uint8_t *b;int held,counting;*open=0;
  if(!nflstreet_draw_word(d,c->game_state+0x30,&v))return 0;if(!v)return 1;
  if(c->gate_7b88){if(!(b=at(d,c->gate_7b88+0x182,1)))return 0;if(*b)return 1;}
- if(c->gate_7f40){if(!nflstreet_draw_word(d,c->gate_7f40+0xb64,&v)||!nflstreet_draw_word(d,c->gate_7f40+0xb60,&w))return 0;
-  if((v&0xc00880u)||w==4)return 1;}
+ if(!nflstreet_play_held(d,c,&held))return 0;if(held)return 1;
  if(!(b=at(d,c->gate_7258,1)))return 0;if(*b!=1)return 1;
- if(!nflstreet_draw_word(d,c->gate_count,&v))return 0;if((int32_t)v>0)return 1;
- uint8_t *cache=at(d,c->mode_cache,4);if(!nflstreet_draw_word(d,c->mode_source,&v)||!cache)return 0;nflstreet_wr32(cache,v);
- if(v==7)return 1;
+ if(!nflstreet_play_counting(d,c,&counting))return 0;if(counting)return 1;
+ if(!nflstreet_play_mode(d,c,&v))return 0;if(v==7)return 1;
  *open=1;return 1;}
 int nflstreet_line_draw(const nflstreet_scenery_context *c,uint32_t object,nflstreet_render_state *s){
  if(!c||!c->draw||!c->draw->span||!c->draw->emit||!s||!object)return 0;
