@@ -6,7 +6,14 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: one owner for player textures and materials.** Fresh player-record and
+**Latest: selected geometry and materials share one owner.** Face/body/hair
+resources now join the 25 texture slots and 45 material instances. Two fresh
+Windows processes check 1,206 assemblies each and reject cross-owner token
+collisions before uploads. These use controlled native colors; actual selected-
+team record ingestion, skeleton/actor startup and drawing remain open. See
+[selected visual evidence](reconstruction/native_assets/selected_player_visual.md).
+
+**Earlier: one owner for player textures and materials.** Fresh player-record and
 roster-name inputs now feed an owned surface that joins all 25 texture slots,
 recoloring, material binding/settings and the 45 material instances. Across
 three saved contexts repeated twice, 28 builds per process match the separately
