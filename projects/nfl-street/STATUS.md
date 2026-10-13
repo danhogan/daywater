@@ -6,7 +6,16 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: selected geometry and materials share one owner.** Face/body/hair
+**Latest: complete native match records feed selected visuals.** The assembly
+now uses the exact STAT identity mapped by each native GAME row and builds its
+full player record, including team/color state. All 508 STAT players pass across
+three body variants in two fresh Windows processes. The earlier controlled-
+color fixture is replaced. Borrowed source provenance rejects the wrong database;
+the original GAME-roster gate still passes. Menu wiring, skeleton/actor startup
+and selected-player drawing remain unfinished. See
+[selected record handoff](reconstruction/native_assets/selected_player_visual.md).
+
+**Earlier: selected geometry and materials share one owner.** Face/body/hair
 resources now join the 25 texture slots and 45 material instances. Two fresh
 Windows processes check 1,206 assemblies each and reject cross-owner token
 collisions before uploads. These use controlled native colors; actual selected-

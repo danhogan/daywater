@@ -2,6 +2,7 @@
 #define NFLSTREET_SELECTED_PLAYER_VISUAL_H
 #include "selected_player_geometry.h"
 #include "player_surface.h"
+#include "game_roster.h"
 typedef struct {
  const nflstreet_team_player_resolver *resolver;
  const nflstreet_body_resource_pool *bodies;
@@ -25,6 +26,14 @@ typedef struct {
    spans are checked against the face/hair and borrowed body resource spans. */
 int nflstreet_selected_player_visual_open(const uint8_t *team_db,size_t,uint32_t team,uint32_t player,
  const uint8_t record[NFLSTREET_GEAR_PLAYER_RECORD_BYTES],const nflstreet_selected_player_visual_context *,
+ nflstreet_selected_player_visual *);
+/* Native match entry point. stat_db must be the exact source STAT database
+   used to build match; source_rows resolves GAME row to its STAT identity.
+   Builds the complete player record using STAT TEAM/LCGP from that database and
+   explicit original side input, then opens geometry/surface for that identity.
+   Does not read a captured record or infer side from controller position. */
+int nflstreet_selected_player_visual_from_match(const uint8_t *stat_db,size_t,
+ const nflstreet_game_roster *,unsigned game_row,unsigned side,const nflstreet_selected_player_visual_context *,
  nflstreet_selected_player_visual *);
 void nflstreet_selected_player_visual_close(nflstreet_selected_player_visual *);
 #endif

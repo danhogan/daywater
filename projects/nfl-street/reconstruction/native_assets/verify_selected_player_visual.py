@@ -6,9 +6,11 @@ from pathlib import Path
 from verify_controller_checks import PRIVATE, baseline_hashes, digest, private, run, windows
 from verify_player_startup import source_hashes
 
-EXPECTED = ("Selected player visuals: 402 roster rows x3 bodies = 1206 geometry/surface assemblies; "
-            "45 named-face fallbacks; 10 pre-upload collision/failure guards; occupied outputs reject and close repeats. "
-            "Controlled native color context + disc gear fields, no runtime DOL/module/snapshot.")
+EXPECTED = ("Selected player visuals: 508 roster rows x3 bodies = 1524 geometry/surface assemblies; "
+            "0 named-face fallbacks; 13 pre-upload collision/failure guards; occupied outputs reject and close repeats. "
+            "Native STAT-to-GAME records and selected STAT geometry, no runtime DOL/module/snapshot.\n"
+            "Fresh roster handoff: 480 controlled team-pair builds; source_rows joins each selected STAT identity "
+            "to its complete native GAME player record.")
 
 def main():
     here = Path(__file__).resolve().parent
@@ -16,9 +18,10 @@ def main():
     out = private(PRIVATE / "research-temp/nflstreet-selected-visual-20261013")
     out.mkdir(parents=True, exist_ok=True)
     record = {"status": "failed", "boundary": "Host ownership joins selected geometry and owned surfaces. "
-              "402 disc roster rows, three explicit body variants; record gear fields from each selected row, "
-              "color context from a native-built template GAME/player record. This does not verify selected "
-              "team colors, full actor creation, skeleton attachment, GPU drawing or live match startup."}
+              "508 STAT roster rows, three explicit body variants; source_rows maps each GAME row to its STAT "
+              "identity; complete player record and colors follow from native GAME and STAT TEAM/LCGP. Side "
+              "input is explicitly 0 in this corpus. This does not verify full actor creation, skeleton "
+              "attachment, GPU drawing, menu-driven loading or live match startup."}
     build = here / "build_windows_selected_player_visual_check.sh"
     compiled = re.findall(r'"\$root/([^"\n]+\.c)"', build.read_text())
     entries = tuple("native_assets/" + name for name in compiled) + (
@@ -57,7 +60,7 @@ def main():
             raise RuntimeError("Trace, source, input or baseline changed")
         record.update(status="passed", baseline=before, source_sha256=sources, input_sha256=inputs,
                       stage_report_sha256=refs, executable_sha256=digest(exe), logs_sha256=logs,
-                      rows=402, assemblies_per_process=1206, face_fallbacks_per_process=45, rejection_guards_per_process=10)
+                      rows=508, assemblies_per_process=1524, face_fallbacks_per_process=0, rejection_guards_per_process=13, roster_builds_per_process=480)
     except Exception as exc:
         record["error"] = str(exc)
         raise

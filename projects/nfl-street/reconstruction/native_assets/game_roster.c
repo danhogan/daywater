@@ -77,6 +77,7 @@ int nflstreet_game_roster_build(const nflstreet_team_table *play,const nflstreet
    r.source_rows[used++]=rows[k].row;}
  }
  if(copied!=override_count)goto done;
+ r.source_play=*play;
  r.table.bytes=r.bytes;r.table.size=fields+capacity*schema->record_bytes;r.table.fields_at=0;r.table.records_at=fields;
  r.table.record_bytes=schema->record_bytes;r.table.record_bits=schema->record_bits;r.table.allocated=(uint16_t)capacity;
  r.table.used=(uint16_t)used;r.table.field_count=schema->field_count;ok=1;

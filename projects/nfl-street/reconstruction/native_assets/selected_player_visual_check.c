@@ -38,26 +38,26 @@ int main(int argc,char **argv){
  nflstreet_selected_player_visual_context c={&resolver,&owned_bodies,&gear,&local_hair,&dynamic,&records,0,0x10000000u,0x50000000u,
   {&catalog,&materials,&textures,&dynclut,&color_table,0x60000000u,0x62000000u,0x63000000u,0x10000u,0xa5,upload,NULL}};
  unsigned rows=0,builds=0,guards=0,fallbacks=0;
- uint32_t context_teams[2]={0};unsigned team_field=UINT32_MAX;
- for(unsigned i=0;i<teams.field_count;++i){nflstreet_team_field f;if(!nflstreet_team_table_field(&teams,i,&f))return 4;if(f.tag==0x44494754u)team_field=i;}
- if(!nflstreet_team_table_number(&teams,0,team_field,context_teams)||!nflstreet_team_table_number(&teams,1,team_field,context_teams+1))return 4;
- nflstreet_game_roster context_match={0};uint8_t color_record[NFLSTREET_GEAR_PLAYER_RECORD_BYTES]={0};
- if(!nflstreet_game_roster_build(&stat_play,&thcd,&teams,&game_schema,context_teams,2,NULL,0,&context_match)||
-    !nflstreet_player_record_build(&context_match.table,0,&records,&teams,&player_colors,&catalog,0,color_record))return 5;
- nflstreet_game_roster_close(&context_match);
- for(unsigned entry=1;entry<=32;++entry){char path[4096];size_t size;
-  if(snprintf(path,sizeof path,"%s/db_teams/%05u.bin",argv[4],entry)>=(int)sizeof path)return 4;
-  uint8_t *db=input(path,&size);nflstreet_team_table play;if(!db||!nflstreet_team_table_open_tag(db,size,0x59414c50u,&play))return 4;
-  unsigned ti=UINT32_MAX,pi=UINT32_MAX;for(unsigned i=0;i<play.field_count;++i){nflstreet_team_field f;
-   if(!nflstreet_team_table_field(&play,i,&f))return 4;if(f.tag==0x44494754u)ti=i;if(f.tag==0x44494750u)pi=i;}
-  for(unsigned row=0;row<play.used;++row){uint32_t team,player;uint8_t record[NFLSTREET_GEAR_PLAYER_RECORD_BYTES]={0};
-   if(!nflstreet_team_table_number(&play,row,ti,&team)||!nflstreet_team_table_number(&play,row,pi,&player))return 4;if(!team)continue;
-   /* Controlled color context built wholly natively; selected gear fields
-      come from this disc roster row. This does not assert selected team colors. */
-   memcpy(record,color_record,sizeof record);
-   if(!nflstreet_gear_player_record_from_play(&play,row,&records,record))return 5;
+ unsigned ti=UINT32_MAX,pi=UINT32_MAX,team_field=UINT32_MAX,type_field=UINT32_MAX;
+ for(unsigned i=0;i<stat_play.field_count;++i){nflstreet_team_field f;if(!nflstreet_team_table_field(&stat_play,i,&f))return 4;
+  if(f.tag==0x44494754u)ti=i;if(f.tag==0x44494750u)pi=i;}
+ for(unsigned i=0;i<teams.field_count;++i){nflstreet_team_field f;if(!nflstreet_team_table_field(&teams,i,&f))return 4;
+  if(f.tag==0x44494754u)team_field=i;if(f.tag==0x50595454u)type_field=i;}
+ nflstreet_game_roster match={0};uint32_t selected[2]={UINT32_MAX,0};unsigned cases=0;
+ const uint8_t *db=template_db;size_t size=template_size;
+ for(unsigned row=0;row<stat_play.used;++row){uint32_t team,player;uint8_t record[NFLSTREET_GEAR_PLAYER_RECORD_BYTES]={0};
+  if(!nflstreet_team_table_number(&stat_play,row,ti,&team)||!nflstreet_team_table_number(&stat_play,row,pi,&player))return 4;
+  if(!team)continue;
+  if(selected[0]!=team){nflstreet_game_roster_close(&match);selected[0]=team;selected[1]=0;
+   for(unsigned tr=0;tr<teams.used&&!selected[1];++tr){uint32_t partner,kind;
+    if(!nflstreet_team_table_number(&teams,tr,team_field,&partner)||!nflstreet_team_table_number(&teams,tr,type_field,&kind))return 4;
+    if(partner!=team&&kind!=5)selected[1]=partner;}
+   if(!nflstreet_game_roster_build(&stat_play,&thcd,&teams,&game_schema,selected,2,NULL,0,&match)){fprintf(stderr,"roster failed team%u\n",team);return 5;}++cases;
+  }
+  unsigned match_row=UINT32_MAX;for(unsigned mr=0;mr<match.table.used;++mr)if(match.source_rows[mr]==row){if(match_row!=UINT32_MAX)return 5;match_row=mr;}
+  if(match_row==UINT32_MAX||!nflstreet_player_record_build(&match.table,match_row,&records,&teams,&player_colors,&catalog,0,record))return 5;
    for(unsigned variant=0;variant<3;++variant){c.body_variant=variant;nflstreet_selected_player_visual v={0};
-    if(!nflstreet_selected_player_visual_open(db,size,team,player,record,&c,&v))return 6;
+    if(!nflstreet_selected_player_visual_from_match(db,size,&match,match_row,0,&c,&v)){fprintf(stderr,"visual failed row%u team%u player%u\n",row,team,player);return 6;}
     nflstreet_selected_player_geometry g={0};nflstreet_player_surface surface={0};
     if(!nflstreet_selected_player_geometry_open(c.resolver,db,size,team,player,c.bodies,variant,c.headwear,c.local_hair,c.face_identity,c.hair_identity,&g)||
        !equal_geometry(&v.geometry,&g)||!nflstreet_player_surface_from_player(&c.surface,&records,&dynamic,record,g.base.manifest.normalized_name,&surface)||
@@ -75,11 +75,18 @@ int main(int argc,char **argv){
      nflstreet_selected_player_visual out={0},before=out;nflstreet_selected_player_visual_context bad=c;bad.surface.flush=rejected_upload;
      if(nflstreet_selected_player_visual_open(db,size,team,player,record,&bad,&out)||memcmp(&out,&before,sizeof out))return 8;++guards;
     }
+    if(!builds){nflstreet_selected_player_visual out={0},saved=out;unsigned prior=uploads;
+     if(nflstreet_selected_player_visual_from_match(db,size,&match,match.table.used,0,&c,&out)||memcmp(&out,&saved,sizeof out)||uploads!=prior)return 8;++guards;
+     if(nflstreet_selected_player_visual_from_match(db,size,&match,match_row,256,&c,&out)||memcmp(&out,&saved,sizeof out)||uploads!=prior)return 8;++guards;
+     uint8_t *other=malloc(size);if(!other)return 8;memcpy(other,db,size);
+     if(nflstreet_selected_player_visual_from_match(other,size,&match,match_row,0,&c,&out)||memcmp(&out,&saved,sizeof out)||uploads!=prior)return 8;
+     free(other);++guards;
+    }
     nflstreet_selected_player_visual before=v;if(nflstreet_selected_player_visual_open(db,size,team,player,record,&c,&v)||memcmp(&v,&before,sizeof v))return 8;
     nflstreet_selected_player_visual_close(&v);nflstreet_selected_player_visual_close(&v);++builds;
    }++rows;
-  }free(db);
  }
+ nflstreet_game_roster_close(&match);
  nflstreet_dynclut_table_close(&dynclut);free(schema);free(template_db);for(unsigned i=0;i<6;++i)free(data[i]);close_assets();
- printf("Selected player visuals: %u roster rows x3 bodies = %u geometry/surface assemblies; %u named-face fallbacks; %u pre-upload collision/failure guards; occupied outputs reject and close repeats. Controlled native color context + disc gear fields, no runtime DOL/module/snapshot.\n",rows,builds,fallbacks,guards);return 0;
+ printf("Selected player visuals: %u roster rows x3 bodies = %u geometry/surface assemblies; %u named-face fallbacks; %u pre-upload collision/failure guards; occupied outputs reject and close repeats. Native STAT-to-GAME records and selected STAT geometry, no runtime DOL/module/snapshot.\n",rows,builds,fallbacks,guards);printf("Fresh roster handoff: %u controlled team-pair builds; source_rows joins each selected STAT identity to its complete native GAME player record.\n",cases);return 0;
 }

@@ -21,6 +21,9 @@ typedef struct {uint32_t digp,tag,value;} nflstreet_stat_override;
    owns field descriptors and records; source_rows maps GAME rows to STAT rows. */
 typedef struct {
  uint8_t *bytes;nflstreet_team_table table;unsigned *source_rows;
+ /* Borrowed source identity; source bytes/schema must remain unchanged while
+    this roster is consumed. Does not own or free the STAT database. */
+ nflstreet_team_table source_play;
  unsigned team_rows[NFLSTREET_GAME_TEAMS_MAX];
 } nflstreet_game_roster;
 /* Two selected teams are supported (the verified case). Rejects a team with no STAT TEAM row, a PYTT 5 (created) team (skipped by

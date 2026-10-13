@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-13. Latest work: joined selected geometry and player surfaces (`selected_player_visual.*`)
+Updated: 2026-10-13. Latest work: complete native match records feed selected visuals (`selected_player_visual_from_match`)
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -52,10 +52,12 @@ Do not spend the next turn on another small speed experiment.
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
 3. `projects/nfl-street/reconstruction/native_assets/selected_player_visual.md` — latest:
-   1,206 joined geometry/surface assemblies per process from disc rows and three
-   body variants, with pre-upload namespace guards. Color context is controlled,
-   not the selected team’s final uniform. Fresh selected-team ingestion/record
-   handoff, skeleton/actor creation and drawing remain open. Then `player_surface.md`: one owner
+   508 STAT players ×3 body variants = 1,524 complete-record visual assemblies per
+   process. The native GAME roster retains its borrowed STAT source; source_rows
+   resolves the exact geometry identity and full record. Side input is explicitly
+   0 in this corpus; menu wiring, actor/skeleton startup and drawing remain open.
+   This supersedes the earlier 402-row controlled-color corpus. Then `player_surface.md`:
+   one owner
    builds and releases all 25 slot destinations and their material allocations;
    28 comparisons, 307 failure/reuse checks and 15 record/name builds per process
    across three saved contexts repeated twice. Geometry/actor creation and GPU drawing
@@ -136,12 +138,14 @@ matches 831 distinct files/views and 2,493 exact temporary allocation/storage/
 release sequences per original process. Connected actor creation matches 3,072
 controlled initialization cases, not gameplay frames.
 
-Latest connection: `nflstreet_selected_player_visual_open` joins selected
-face/body/hair geometry with the player surface, including token collision
-checks before uploads. Its corpus uses controlled native colors, not proof of
-selected-team uniforms. Do not confuse local db_teams rows with template STAT
-rows; attempted direct handoffs rejected. Read `selected_player_visual.md` and
-verify actual selected-team ingestion/records before native match integration.
+Latest connection: `nflstreet_selected_player_visual_from_match` consumes native
+GAME rows, resolves their exact source STAT identity, builds complete records
+and opens geometry/surface with those colors. All 508 STAT players pass with
+three body variants. Source provenance rejects a different database; source
+bytes must stay alive and unchanged. Local db_teams membership differs from STAT
+and is an original fallback path; do not substitute it for loaded STAT rows.
+The prior controlled-color limit is superseded. Read `selected_player_visual.md`.
+Menu/lineup wiring, skeleton/actor startup and drawing remain unfinished.
 
 Previous connection: `nflstreet_player_surface_from_player` consumes a completed
 player record and normalized roster name, builds its gear/face requests, loads

@@ -127,3 +127,14 @@ Private report:
 - GAME TEAM/THCD rows natively, created teams (save data) and `db_teams.dat`
   teams.
 - `800E2BE8`/`801EBD38` material binding and fresh actor startup.
+
+
+## Borrowed source provenance — 2026-10-13
+
+The host roster retains `source_play`, the exact borrowed source table used to
+build it. Source bytes/schema must remain unchanged and alive until the roster
+and its consumers are done; close does not free that source. The selected visual
+match entry point uses this view plus `source_rows` to reject another database
+and resolve original identity for geometry. This is host lifetime metadata, not
+an original GAME structure field. The original roster gate was rerun after the
+change and retained all prior output comparisons.
