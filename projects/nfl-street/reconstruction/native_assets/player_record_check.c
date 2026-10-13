@@ -6,14 +6,11 @@
    record is rebuilt from a copy whose written bytes are poisoned. A controlled
    corpus then rewrites the ITGT and 1AHP fields of GAME rows. */
 #include "player_record.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "game_roster.h"
+#include "db_fixture.h"
 #define CAPTURED_PLAYERS 14u
 #define GAME_ROWS 23u
 #define PLAYER_RECORDS 0x802aaa60u
-#define RAM_BASE 0x80000000u
-#define RAM_BYTES (24u*1024u*1024u)
 #define R13 0x803a9a40u
 #define ACTORS (R13-0x7bbcu)
 #define SIDE_FLAG (R13-0x6f68u)
@@ -29,51 +26,6 @@
 #define TAG_DIGP 0x44494750u
 #define TAG_1AHP 0x31414850u
 #define POISON 0xa5u
-static uint8_t *load_data(const char *path,size_t *size){FILE *f=fopen(path,"rb");if(!f)return NULL;
- if(fseek(f,0,SEEK_END)){fclose(f);return NULL;}long n=ftell(f);if(n<=0||fseek(f,0,SEEK_SET)){fclose(f);return NULL;}
- uint8_t *b=malloc((size_t)n);if(!b||fread(b,1,(size_t)n,f)!=(size_t)n){free(b);fclose(f);return NULL;}fclose(f);*size=(size_t)n;return b;}
-static uint32_t rd32(const uint8_t *p){return(uint32_t)p[0]<<24|(uint32_t)p[1]<<16|(uint32_t)p[2]<<8|p[3];}
-static uint16_t rd16(const uint8_t *p){return(uint16_t)((unsigned)p[0]<<8|p[1]);}
-static const uint8_t *ram_at(const uint8_t *ram,uint32_t a,size_t n){return a>=RAM_BASE&&(uint64_t)a-RAM_BASE+n<=RAM_BYTES?ram+(a-RAM_BASE):NULL;}
-static uint32_t fnv(uint32_t h,const void *p,size_t n){const uint8_t *b=p;for(size_t i=0;i<n;++i)h=(h^b[i])*16777619u;return h;}
-/* Schema of an on-disc table that may hold no records (template 00001 is the
-   empty GAME layout): record bytes/bits and field descriptors only. */
-static int disc_schema(const uint8_t *b,size_t n,uint32_t tag,nflstreet_team_table *out){
- if(!b||n<28||memcmp(b,"DB\0\x08",4)||rd32(b+8)!=n)return 0;uint32_t count=rd32(b+16);if(!count||count>64||28u+(size_t)count*8u>n)return 0;
- for(unsigned i=0;i<count;++i)if(rd32(b+24+i*8)==tag){size_t at=28u+(size_t)count*8u+rd32(b+28+i*8);if(at>n||n-at<36)return 0;
-  nflstreet_team_table t={0};t.bytes=b;t.size=n;t.record_bytes=rd32(b+at+4);t.record_bits=rd32(b+at+8);t.field_count=b[at+24];t.fields_at=at+36;
-  if((size_t)t.field_count*16u>n-t.fields_at)return 0;*out=t;return 1;}
- return 0;
-}
-/* Live table header (candidate layout, consistent across three tables): +0
-   records, +8 tag, +C record bytes, +10 record bits, +58 allocated, +5C used,
-   +62 field count, +64 field descriptors. The schema must equal the on-disc one. */
-static int ram_table(const uint8_t *ram,uint32_t header,uint32_t tag,const nflstreet_team_table *schema,nflstreet_team_table *out){
- const uint8_t *h=ram_at(ram,header,0x64);if(!h||rd32(h+8)!=tag)return 0;
- nflstreet_team_table t={0};t.bytes=ram;t.size=RAM_BYTES;t.records_at=rd32(h)-RAM_BASE;t.fields_at=header+0x64u-RAM_BASE;
- t.record_bytes=rd32(h+12);t.record_bits=rd32(h+16);t.allocated=rd16(h+0x58);t.used=rd16(h+0x5c);t.field_count=h[0x62];
- if(rd32(h)<RAM_BASE||t.used>t.allocated||t.record_bytes!=schema->record_bytes||t.record_bits!=schema->record_bits||t.field_count!=schema->field_count||
-    !ram_at(ram,rd32(h),(size_t)t.used*t.record_bytes)||memcmp(ram+t.fields_at,schema->bytes+schema->fields_at,(size_t)t.field_count*16u))return 0;
- *out=t;return 1;
-}
-static int field_of(const nflstreet_team_table *t,uint32_t tag,nflstreet_team_field *f){
- for(unsigned i=0;i<t->field_count;++i)if(nflstreet_team_table_field(t,i,f)&&f->tag==tag)return 1;return 0;}
-/* Writes one numeric field of a row in a RAM image laid out like t. */
-static int set_number(uint8_t *ram,const nflstreet_team_table *t,unsigned row,uint32_t tag,uint32_t value){
- nflstreet_team_field f;if(row>=t->used||!field_of(t,tag,&f)||f.type!=3||f.width>32)return 0;
- uint8_t *p=ram+t->records_at+(size_t)row*t->record_bytes;
- for(unsigned i=0;i<f.width;++i){uint32_t at=f.bit_offset+f.width-1u-i;uint8_t bit=(uint8_t)(0x80u>>(at&7u));
-  if((value>>i)&1u)p[at>>3]|=bit;else p[at>>3]&=(uint8_t)~bit;}
- return 1;
-}
-static int number_of(const nflstreet_team_table *t,unsigned row,uint32_t tag,uint32_t *value){
- for(unsigned i=0;i<t->field_count;++i){nflstreet_team_field f;if(nflstreet_team_table_field(t,i,&f)&&f.tag==tag)return nflstreet_team_table_number(t,row,i,value);}
- return 0;
-}
-static int find(const nflstreet_team_table *t,uint32_t tag,uint32_t id,unsigned *row){
- for(unsigned r=0;r<t->used;++r){uint32_t v;if(number_of(t,r,tag,&v)&&v==id){*row=r;return 1;}}
- return 0;
-}
 /* Every byte 800DE000 writes; +0B, +3D and +65..+67 are retained. */
 static void poison(uint8_t r[NFLSTREET_GEAR_PLAYER_RECORD_BYTES]){
  for(unsigned i=0;i<0x65;++i)if(i!=0x0b&&i!=0x3d)r[i]=POISON;}
@@ -95,7 +47,7 @@ int main(int argc,char **argv){
  uint8_t *ram=data[3];nflstreet_gear_texture_catalog catalog;
  nflstreet_team_table gear,teams,colors,game_schema,game,live_teams;
  if(sizes[3]!=RAM_BYTES||!nflstreet_gear_texture_catalog_open(data[0],sizes[0],&catalog)||
-    !disc_schema(data[1],sizes[1],TAG_PLAY,&game_schema)||!nflstreet_team_table_open_tag(data[2],sizes[2],TAG_GEAR,&gear)||
+    !nflstreet_db_schema_open(data[1],sizes[1],TAG_PLAY,&game_schema)||!nflstreet_team_table_open_tag(data[2],sizes[2],TAG_GEAR,&gear)||
     !nflstreet_team_table_open_tag(data[2],sizes[2],TAG_TEAM,&teams)||!nflstreet_team_table_open_tag(data[2],sizes[2],TAG_LCGP,&colors)||
     !nflstreet_gear_records_build(&gear,&catalog,&records)||!ram_table(ram,GAME_PLAY,TAG_PLAY,&game_schema,&game)||
     !ram_table(ram,STAT_TEAM,TAG_TEAM,&teams,&live_teams)||game.used!=GAME_ROWS)return 3;

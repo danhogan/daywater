@@ -6,7 +6,17 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: complete player records.** Native code now reconstructs the rest of
+**Latest: the match's player table.** When a match starts, the original game
+copies the two selected teams from its STAT database into a GAME database
+with new player ids. Native code now builds that GAME player table from disc
+data, the two teams and the lineup, and it equals the captured match's table
+byte for byte. The original copy, rerun inside the snapshot, matches the
+native table for 87 team pairs. The new-id order has a quirk: players
+without a `THCD` row are numbered last. All 14 captured player records now
+follow from disc data plus the menu's choices. See
+[GAME table evidence](reconstruction/native_assets/game_roster.md).
+
+**Earlier: complete player records.** Native code now reconstructs the rest of
 the original per-player record writer (`800DE000`): team colors, the 24-byte
 color state used for recoloring, and the home/away side byte (`800DE6C8`).
 The team data comes from the disc's template database. For all 14 players in

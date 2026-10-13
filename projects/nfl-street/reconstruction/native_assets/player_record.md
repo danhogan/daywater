@@ -118,10 +118,10 @@ Private report:
 
 ## Remaining connections
 
-- Building the match GAME database from the menu selection (team choice,
-  DIGP renumbering, the copied PLAY/TEAM rows), so selected players need no
-  snapshot. Compared with their closest STAT rows, the captured GAME rows
-  differ only in `DIGP` (21 of 23 rows), `GILP` (14) and `DIGT` (12).
+- The GAME PLAY table is now built natively from disc STAT data, the
+  selected teams and the lineup (`game_roster.md`). The 14 captured records
+  also rebuild from that native table. This gate still reads the live GAME
+  table as its fixture.
 - Save-data created teams.
 - `800E2BE8`/`801EBD38` material binding, the slot-1 face/cap choice and
   fresh actor startup.

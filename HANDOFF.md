@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-12. Latest work: complete player records (`800DE000`)
+Updated: 2026-10-12. Latest work: native match GAME player table (`801E05A4`)
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -51,7 +51,9 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/player_record.md` — latest:
+3. `projects/nfl-street/reconstruction/native_assets/game_roster.md` — latest:
+   the match GAME PLAY table from disc STAT data, selected teams and lineup;
+   the live table matches byte for byte. Then `player_record.md` —
    the complete 0x68-byte player record (team colors, color state, side) from
    the match GAME PLAY row; all 14 live records match. Then `palette_recolor.md` —
    color table, dynclut op lists and recoloring; all 350 live slots match. Then
@@ -96,7 +98,8 @@ the original DLL separately as an oracle.
 | Gear texture plan | `gear_texture.*` | Original `800DE3B8`: GEAR records, player record fields, 25 slot index/palette pairs, color requests, slot0 fallback; team-level record bytes captured |
 | Slot textures | `slot_textures.*` | Original 800E2958 layout, 800E2AF0 templates, 800E2CAC/800E27F8 loads; `800D9C0C` recolor reported, not executed |
 | Palette recolor | `palette_recolor.*` | 80148A88 color table, 800D8918 dynclut parsing, 800D9948 ops, 800D9C0C composition; its gate feeds captured color state |
-| Player record | `player_record.*` | Original `800DE000`/`800DE6C8`: STAT TEAM fields, 1AHP, default color state, side; GAME PLAY table is a snapshot fixture |
+| GAME roster | `game_roster.*`, `db_fixture.h` (checks) | Original `801E05A4`→`801E1628`/`801E78C4` PLAY copy and `801E7154` renumbering; lineup GILP and team ids are caller inputs |
+| Player record | `player_record.*` | Original `800DE000`/`800DE6C8`: STAT TEAM fields, 1AHP, default color state, side; consumes the native GAME PLAY table |
 | Joined appearance owner | `selected_appearance_assets.*` | Geometry plus face texture, lifetime cleanup and namespace collision checks; not complete material application |
 | Actor creation | `player_bound_startup.*` and its dependencies | Connected factory → constructor → appearance → model binding; resource/catalog/render services still supplied |
 
@@ -119,7 +122,14 @@ matches 831 distinct files/views and 2,493 exact temporary allocation/storage/
 release sequences per original process. Connected actor creation matches 3,072
 controlled initialization cases, not gameplay frames.
 
-Latest connection: `player_record.c` completes the per-player record. All 14
+Latest connection: `game_roster.c` builds the match GAME PLAY table from
+disc STAT PLAY/THCD/TEAM, the two selected teams and the lineup GILP values.
+The live table is rebuilt byte for byte and the 14 captured records follow.
+87 original match-start loads per process (rerun in the snapshot on emptied
+GAME tables) match. New DIGPs come from the THCD pass before PLAY. Read
+`game_roster.md`.
+
+Previous connection: `player_record.c` completes the per-player record. All 14
 captured records rebuild byte-identically from their GAME PLAY rows (disc STAT
 TEAM/LCGP/GEAR), and 4,318 original `800DE6C8` calls on the live databases
 match all 104 bytes per process. The match's player rows are GAME rows
@@ -157,13 +167,15 @@ remaining palette composition/material consumers are still explicit boundaries.
 
 Continue from `selected_appearance_assets`, rather than rebuilding asset loaders.
 
-1. Gear plans, slot loading, recoloring and the complete player record are
-   done; do not redo them. Next, either:
-   - Build the match GAME database natively. Trace who copies STAT PLAY/TEAM
-     rows into GAME at match setup, renumbers DIGP and rewrites DIGT/GILP.
-     The RAM GAME PLAY header is at `804B1194`; see `player_record.md`. Check
-     `menus/match_player_query.*` and `match_start.*` first.
-   - Or do `800E2BE8`/`801EBD38` material binding of slot destinations.
+1. GAME roster, gear plans, slot loading, recoloring and the complete player
+   record are done; do not redo them. Next:
+   - Do `800E2BE8`/`801EBD38` material binding of slot destinations.
+   - Connect the native menu's team/lineup choices (MTTS rows, STAT GILP) to
+     `nflstreet_game_roster_build`. The GILP writer is untraced; see
+     `game_roster.md`.
+   - Note: the original DB layer is a statement interpreter (`801B4510`). A
+     snapshot-hosted original run works once synchronization returns and
+     `r13-6354` marks the `db_teams.dat` open done.
    Do not infer field meanings or choose variants from filenames alone.
 2. Direct `80164CE4` image/palette application is now reconstructed and
    verified; do not redo it. Connect remaining composition/material consumers.
