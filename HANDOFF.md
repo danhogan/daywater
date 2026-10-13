@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-12. Latest work: original palette recoloring (`800D9C0C`)
+Updated: 2026-10-12. Latest work: complete player records (`800DE000`)
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -51,7 +51,9 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/palette_recolor.md` — latest:
+3. `projects/nfl-street/reconstruction/native_assets/player_record.md` — latest:
+   the complete 0x68-byte player record (team colors, color state, side) from
+   the match GAME PLAY row; all 14 live records match. Then `palette_recolor.md` —
    color table, dynclut op lists and recoloring; all 350 live slots match. Then
    `slot_textures.md` —
    owned 25-slot texture destinations and the live-match comparison. Then
@@ -93,7 +95,8 @@ the original DLL separately as an oracle.
 | Face application | `texture_apply.*` | Original image/palette copies into owned templates; explicit cache/upload services, not original GPU verification |
 | Gear texture plan | `gear_texture.*` | Original `800DE3B8`: GEAR records, player record fields, 25 slot index/palette pairs, color requests, slot0 fallback; team-level record bytes captured |
 | Slot textures | `slot_textures.*` | Original 800E2958 layout, 800E2AF0 templates, 800E2CAC/800E27F8 loads; `800D9C0C` recolor reported, not executed |
-| Palette recolor | `palette_recolor.*` | 80148A88 color table, 800D8918 dynclut parsing, 800D9948 ops, 800D9C0C composition; color state captured |
+| Palette recolor | `palette_recolor.*` | 80148A88 color table, 800D8918 dynclut parsing, 800D9948 ops, 800D9C0C composition; its gate feeds captured color state |
+| Player record | `player_record.*` | Original `800DE000`/`800DE6C8`: STAT TEAM fields, 1AHP, default color state, side; GAME PLAY table is a snapshot fixture |
 | Joined appearance owner | `selected_appearance_assets.*` | Geometry plus face texture, lifetime cleanup and namespace collision checks; not complete material application |
 | Actor creation | `player_bound_startup.*` and its dependencies | Connected factory → constructor → appearance → model binding; resource/catalog/render services still supplied |
 
@@ -116,7 +119,14 @@ matches 831 distinct files/views and 2,493 exact temporary allocation/storage/
 release sequences per original process. Connected actor creation matches 3,072
 controlled initialization cases, not gameplay frames.
 
-Latest connection: `palette_recolor.c` completes slot textures. All 350 live
+Latest connection: `player_record.c` completes the per-player record. All 14
+captured records rebuild byte-identically from their GAME PLAY rows (disc STAT
+TEAM/LCGP/GEAR), and 4,318 original `800DE6C8` calls on the live databases
+match all 104 bytes per process. The match's player rows are GAME rows
+(renumbered copies of template `00002` STAT rows), not the `db_teams` blocks
+used as the gear corpus. Read `player_record.md`.
+
+Previous connection: `palette_recolor.c` completes slot textures. All 350 live
 slots of the 14 captured players are byte-identical; the original
 `800D9C0C` matches 4,163 compositions and 3,072 op sweeps per process.
 
@@ -147,16 +157,14 @@ remaining palette composition/material consumers are still explicit boundaries.
 
 Continue from `selected_appearance_assets`, rather than rebuilding asset loaders.
 
-1. Gear plans, slot loading and recoloring are done; do not redo them. Next:
-   compute record `+3C/+3E/+4C..+63/+5E/+64` natively (`800DE000` team/STAT
-   queries, `8014FB4C`/`800DD64C`/`800DD6CC`, `8014F9D8`, `800DE6C8`), then
-   `800E2BE8`/`801EBD38` material binding of slot destinations. Remaining
-   record inputs: `800DE000` team/STAT queries for `+3C/+3E`, `8014FB4C`/
-   `800DD64C`/`800DD6CC` for `+4C..+63`, `8014F9D8` for `+5E`, and the side flag
-   from `800DE6C8`. These are currently taken from captured records. Then feed
-   the planned slots through `800E2E48` request records (`nflstreet_texture_request`
-   in `face_texture.h`) into texture acquisition. Do not infer field meanings
-   or choose variants from filenames alone.
+1. Gear plans, slot loading, recoloring and the complete player record are
+   done; do not redo them. Next, either:
+   - Build the match GAME database natively. Trace who copies STAT PLAY/TEAM
+     rows into GAME at match setup, renumbers DIGP and rewrites DIGT/GILP.
+     The RAM GAME PLAY header is at `804B1194`; see `player_record.md`. Check
+     `menus/match_player_query.*` and `match_start.*` first.
+   - Or do `800E2BE8`/`801EBD38` material binding of slot destinations.
+   Do not infer field meanings or choose variants from filenames alone.
 2. Direct `80164CE4` image/palette application is now reconstructed and
    verified; do not redo it. Connect remaining composition/material consumers.
    Useful source routines:

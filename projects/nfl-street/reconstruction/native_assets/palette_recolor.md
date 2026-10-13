@@ -107,8 +107,9 @@ Native code rejects each of these instead; none occurs in the data. The
 The selected players' texture memory is now complete and matches the
 original. Still open:
 
-- `800DE000` team/STAT queries that compute the color state (currently taken
-  from captured team records) and the side flag.
+- The color state and side flag are now native (`player_record.md`); this gate
+  still feeds them from captured records. The match GAME database that
+  supplies player rows is not yet built natively.
 - `800E2BE8`/`801EBD38` material binding of the destinations.
 - The slot-1 face/cap choice for roster rows.
 - Fresh actor startup and drawing with these textures.

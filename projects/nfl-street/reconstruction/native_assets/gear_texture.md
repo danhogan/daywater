@@ -82,7 +82,7 @@ names follow `headwear_state.md`.
 | Record `+46` | u16 | `800DDEBC` headwear state | `+65` decision | Verified: original `800DDEBC` |
 | Record `+48` | u8 | `800DDF44` (GRTI=1, GEID=`+10`; GRSI 1D..21 → 1..5, else 0) | Not used by this plan | Verified: original `800DDF44` |
 | Record `+49/+4A/+4B` | u8 | `8014EC68` PLEX / `8014F050` PJEN / `8014EC40` TBYP | `+4A` → `800DDBE8` kind 1; `+4B` HEAVY test | Verified getters |
-| Record `+3C`, `+3E`, `+4C..+63`, `+64` | u8, u16, 24 B, u8 | `800DE000` team/STAT queries and caller side flag (`800DE6C8`) | `800DDBE8` kinds 2–5, `800E3020`, AWAY test | Captured values; writer not reconstructed |
+| Record `+3C`, `+3E`, `+4C..+63`, `+64` | u8, u16, 24 B, u8 | `800DE000` STAT TEAM fields, `1AHP`, `800DD64C`/`800DD6CC` defaults, `800DE6C8` side | `800DDBE8` kinds 2–5, `800E3020`, AWAY test | Verified in `player_record.md`; this corpus takes them from captured records |
 | GEAR `+00/+04/+08` | u32 | GPKY / GRTI / GEID | Search key | Verified: 282 rows × 2 fills |
 | GEAR `+0C`, `+2D` | 31 B + NUL | GRNM / GBST text (type 0, width 248), truncated at first space | `+2D` is the key name | Verified (same) |
 | GEAR `+4E..+5D` | u8 ×16 | Part flags (tags at `80285968`) | `800DD720` selectors | Verified (same) |
@@ -104,11 +104,12 @@ the same modeling:
 The new oracle fills every query item with the original copy routines, so
 the terminator behavior now comes from original code.
 
-**Candidate observation, not a gate:** four of the 14 captured records
-(three from team 19 and one from team 1) match their on-disc PLAY rows in
-every player-derived field except words `+30/+34/+38`. Original `800DE334`
-rewrites record query words after creation, which is consistent with that
-difference. The match-time writer is not traced here.
+**Superseded observation.** An earlier note found four captured records
+matching `db_teams` PLAY rows except words `+30/+34/+38`. The match actually
+reads GAME PLAY rows. Their `8014F60C` fields equal template `00002` STAT
+rows, and all 14 captured records are rebuilt from them byte for byte
+(`player_record.md`). The `db_teams` roster rows below are controlled inputs,
+not the match's rows.
 
 ## Verification
 
@@ -188,9 +189,9 @@ catalogs and diagnostics stay on W:.
 Native code now knows which texture/palette entry each selected player's 25
 appearance slots request. Still open:
 
-- The `800DE000` team/STAT queries (`+3C/+3E/+4C..+63`), which come from
-  captured values here.
-- The side-flag source (`800DE6C8`).
+- The `800DE000` team fields and the `800DE6C8` side byte are now
+  reconstructed in `player_record.md`. This corpus still takes them from
+  captured records.
 - `800E217C` color-state application.
 - `800E2E48` request records feeding `800E27F8` acquisition and
   `80164CE4` application for these slots.

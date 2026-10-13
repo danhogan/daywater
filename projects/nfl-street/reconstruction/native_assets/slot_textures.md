@@ -106,8 +106,9 @@ Private report:
 
 - `800D9C0C` palette composition is now reconstructed in
   `palette_recolor.md`. With it, all 350 live slots are byte-identical, and the
-  slot gate runs the original composition instead of recording it. The color
-  state (record `+4C..+63`) still comes from captured team records.
+  slot gate runs the original composition instead of recording it. This
+  gate's color state (record `+4C..+63`) comes from captured records; its
+  native writer is verified in `player_record.md`.
 - **`800E2BE8`/`801EBD38`** material binding of the destinations.
 - The face/cap choice for slot 1 for roster rows.
 - Fresh actor startup that consumes the result.

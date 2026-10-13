@@ -6,7 +6,18 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: original palette recoloring.** Native code now rebuilds the boot
+**Latest: complete player records.** Native code now reconstructs the rest of
+the original per-player record writer (`800DE000`): team colors, the 24-byte
+color state used for recoloring, and the home/away side byte (`800DE6C8`).
+The team data comes from the disc's template database. For all 14 players in
+the captured match, the record rebuilt from the match's player row equals the
+live record in all 104 bytes. The actual original routine, run on the game's
+own live databases, matches 4,318 calls per process across 44 teams, both
+sides and a field sweep, in three contexts twice. The match's player rows
+(the GAME database built at match setup) still come from the snapshot. See
+[player record evidence](reconstruction/native_assets/player_record.md).
+
+**Earlier: original palette recoloring.** Native code now rebuilds the boot
 color table (template DB `CPAL`/`CPHR`) and parses all 129 `pladyncl`
 recolor documents. It applies the original eight palette operations after
 each slot texture is loaded. For all 14 players in the captured match, every
