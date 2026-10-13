@@ -22,7 +22,8 @@ struct nflstreet_gx_machine {
  unsigned texgens,stages;
  uint32_t tg_src[8],tg_mtx[8],order[16][3],cin[16][4],ain[16][4],cop[16][5],aop[16][5];
  int regs[4][4];
- uint32_t enable,amb_src,mat_src,light_mask,diffuse,attenuation;uint8_t amb[4],mat[4],lights[8][64];
+ struct {uint32_t enable,amb_src,mat_src,light_mask,diffuse;} ctrl[2]; /* channel 0: color, alpha */
+ uint8_t amb[4],mat[4],lights[8][64];uint32_t zmode,zearly;
  uint32_t cull,alpha[5],blend[4];
  float viewport[6];
  uint32_t maps[8],tluts[32];
@@ -145,16 +146,21 @@ static void color_of(const uint8_t *p,unsigned type,float o[4]){
  default:memcpy(c,p,4);}
  for(unsigned k=0;k<4;++k)o[k]=c[k];}
 static void normalize3(float v[3]){float n=sqrtf(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);if(n>0)for(unsigned i=0;i<3;++i)v[i]/=n;}
-/* GX lighting for channel 0 (COLOR0A0): ambient + sum of clamped N.L times
-   light color, clamped, then material * (light + light>>7) >> 8. */
+/* GX lighting of channel 0, color (RGB) and alpha controlled separately:
+   material from the register or vertex color; with lighting, ambient plus
+   each enabled light's color times clamped N.L (no attenuation), clamped,
+   then material * (light + light>>7) >> 8; without, the material alone. */
 static void light(nflstreet_gx_machine *m,const float pos[3],const float n[3],const float vtx[4],float out[4]){
  int mat[4],acc[4];
- for(unsigned c=0;c<4;++c){mat[c]=m->mat_src?(int)lroundf(vtx[c]):m->mat[c];acc[c]=!m->enable?255:m->amb_src?(int)lroundf(vtx[c]):m->amb[c];}
- if(m->enable)for(unsigned l=0;l<8;++l){if(!(m->light_mask>>l&1))continue;const uint8_t *o=m->lights[l];
+ for(unsigned c=0;c<4;++c){const unsigned k=c<3?0:1;mat[c]=m->ctrl[k].mat_src?(int)lroundf(vtx[c]):m->mat[c];
+  acc[c]=!m->ctrl[k].enable?255:m->ctrl[k].amb_src?(int)lroundf(vtx[c]):m->amb[c];}
+ for(unsigned l=0;l<8;++l){unsigned use[2]={m->ctrl[0].enable&&(m->ctrl[0].light_mask>>l&1),m->ctrl[1].enable&&(m->ctrl[1].light_mask>>l&1)};
+  if(!use[0]&&!use[1])continue;const uint8_t *o=m->lights[l];
   float dir[3];for(unsigned k=0;k<3;++k)dir[k]=as_float(rd32(o+0x28+4*k))-pos[k];
   float len=sqrtf(dir[0]*dir[0]+dir[1]*dir[1]+dir[2]*dir[2]);if(len==0)memcpy(dir,n,sizeof dir);else for(unsigned k=0;k<3;++k)dir[k]/=len;
-  float d=dir[0]*n[0]+dir[1]*n[1]+dir[2]*n[2];if(m->diffuse==2&&d<0)d=0;if(m->diffuse==0)d=1;
-  for(unsigned c=0;c<4;++c)acc[c]+=(int)lroundf(d*(float)o[0xc+c]);}
+  for(unsigned c=0;c<4;++c){const unsigned k=c<3?0:1;if(!use[k])continue;
+   float d=dir[0]*n[0]+dir[1]*n[1]+dir[2]*n[2];if(m->ctrl[k].diffuse==2&&d<0)d=0;if(m->ctrl[k].diffuse==0)d=1;
+   acc[c]+=(int)lroundf(d*(float)o[0xc+c]);}}
  for(unsigned c=0;c<4;++c){int a=acc[c]<0?0:acc[c]>255?255:acc[c];out[c]=(float)((mat[c]*(a+(a>>7)))>>8);}}
 static int load_vertex(nflstreet_gx_machine *m,const uint8_t **at,const uint8_t *end,vertex *v){
  float pos[3]={0,0,0},nrm[3]={0,0,1},vtx[4]={255,255,255,255},tex[8][2];uint32_t row=m->current;memset(tex,0,sizeof tex);
@@ -219,10 +225,12 @@ static void pixel(nflstreet_gx_machine *m,const bound *maps,unsigned x,unsigned 
  int o[4];for(unsigned c=0;c<4;++c)o[c]=clampi(regs[0][c],0,255);
  int a0=compare(o[3],(int)m->alpha[1],m->alpha[0]),a1=compare(o[3],(int)m->alpha[4],m->alpha[3]),pass;
  switch(m->alpha[2]){case 0:pass=a0&&a1;break;case 1:pass=a0||a1;break;case 2:pass=a0!=a1;break;default:pass=a0==a1;}
+ /* Depth before texturing (z compare location 0) also updates for pixels
+    the alpha compare then discards. */
+ uint32_t zmode=m->zmode,depth=(uint32_t)clampi((int)z,0,0xffffff);
+ if(m->zearly){if((zmode&1)&&!compare((int)depth,(int)t->depth[at],zmode>>1&7))return;if((zmode&1)&&(zmode&16))t->depth[at]=depth;}
  if(!pass)return;
- uint32_t zmode=m->frame.zmode,depth=(uint32_t)clampi((int)z,0,0xffffff);
- if((zmode&1)&&!compare((int)depth,(int)t->depth[at],zmode>>1&7))return;
- if((zmode&1)&&(zmode&16))t->depth[at]=depth;
+ if(!m->zearly){if((zmode&1)&&!compare((int)depth,(int)t->depth[at],zmode>>1&7))return;if((zmode&1)&&(zmode&16))t->depth[at]=depth;}
  if(!(m->frame.cmode0&8))return;
  uint32_t dst=t->bgra[at];int dc[4]={(int)(dst>>16&255),(int)(dst>>8&255),(int)(dst&255),255},res[4];
  if(m->blend[0]==1){for(unsigned c=0;c<3;++c){
@@ -328,11 +336,19 @@ int nflstreet_gx_run(nflstreet_gx_machine *m,const nflstreet_gx_call *calls,unsi
   case NFLSTREET_GX_LOAD_LIGHT:{unsigned l=0;while(l<8&&a[0]!=1u<<l)++l;if(l==8)return 0;
    for(unsigned k=0;k<16;++k){uint8_t *p=m->lights[l]+4*k;p[0]=(uint8_t)(c->data[k]>>24);p[1]=(uint8_t)(c->data[k]>>16);p[2]=(uint8_t)(c->data[k]>>8);p[3]=(uint8_t)c->data[k];}
    break;}
-  case NFLSTREET_GX_SET_CHAN_AMB_COLOR:case NFLSTREET_GX_SET_CHAN_MAT_COLOR:{if(a[0]!=4)return 0;
-   uint8_t *p=c->op==NFLSTREET_GX_SET_CHAN_AMB_COLOR?m->amb:m->mat;for(unsigned k=0;k<4;++k)p[k]=(uint8_t)(c->data[0]>>(24-8*k));break;}
+  /* Channel ids: 0 COLOR0, 2 ALPHA0, 4 COLOR0A0; channel 1 is not used by TEV here. */
+  case NFLSTREET_GX_SET_CHAN_AMB_COLOR:case NFLSTREET_GX_SET_CHAN_MAT_COLOR:{if(a[0]!=0&&a[0]!=2&&a[0]!=4)break;
+   uint8_t *p=c->op==NFLSTREET_GX_SET_CHAN_AMB_COLOR?m->amb:m->mat;
+   for(unsigned k=a[0]==2?3u:0u;k<(a[0]==0?3u:4u);++k)p[k]=(uint8_t)(c->data[0]>>(24-8*k));break;}
   case NFLSTREET_GX_SET_NUM_CHANS:break;
-  case NFLSTREET_GX_SET_CHAN_CTRL:if(a[0]!=4)return 0;m->enable=a[1];m->amb_src=a[2];m->mat_src=a[3];m->light_mask=a[4];m->diffuse=a[5];m->attenuation=a[6];
-   if(a[6]!=2)return 0;break;
+  case NFLSTREET_GX_SET_CHAN_CTRL:{if(a[0]!=0&&a[0]!=2&&a[0]!=4)break;if(a[6]!=2&&a[1]&&a[4])return 0;
+   for(unsigned k=a[0]==2?1u:0u;k<(a[0]==0?1u:2u);++k){m->ctrl[k].enable=a[1];m->ctrl[k].amb_src=a[2];m->ctrl[k].mat_src=a[3];m->ctrl[k].light_mask=a[4];m->ctrl[k].diffuse=a[5];}
+   break;}
+  case NFLSTREET_GX_LOAD_POS_MTX:if(a[0]>52)return 0;for(unsigned k=0;k<12;++k)m->xf[4*a[0]+k]=as_float(c->data[k]);break;
+  case NFLSTREET_GX_LOAD_NRM_MTX:if(a[0]>29)return 0;for(unsigned k=0;k<9;++k)m->nrm[3*a[0]+k]=as_float(c->data[k]);break;
+  case NFLSTREET_GX_SET_Z_MODE:m->zmode=(a[0]&1)|(a[1]&7)<<1|(a[2]&1)<<4;break;
+  case NFLSTREET_GX_SET_Z_COMP_LOC:m->zearly=!a[0];break;
+  case NFLSTREET_GX_SET_FOG:if(a[0])return 0;break;
   case NFLSTREET_GX_INIT_TEX_OBJ_TLUT:{unsigned k=0;while(k<m->name_count&&m->names[k].texture!=a[0])++k;
    if(k==m->name_count){if(k>=NAMES_MAX)return 0;++m->name_count;}m->names[k].texture=a[0];m->names[k].name=a[1];break;}
   case NFLSTREET_GX_LOAD_TEX_OBJ:if(a[1]>7)return 0;m->maps[a[1]]=a[0];break;
@@ -358,7 +374,7 @@ nflstreet_gx_machine *nflstreet_gx_open(nflstreet_draw_span span,void *memory,co
  m->span=span;m->memory=memory;m->frame=*frame;m->target=target;
  for(unsigned i=0;i<8;++i){m->tg_src[i]=frame->texgen_src[i];m->tg_mtx[i]=frame->texgen_mtx[i];}
  for(unsigned r=0;r<4;++r)for(unsigned k=0;k<4;++k)m->regs[r][k]=frame->registers[r][k];
- m->alpha[0]=m->alpha[3]=7;m->stages=1;m->texgens=1;
+ m->alpha[0]=m->alpha[3]=7;m->stages=1;m->texgens=1;m->zmode=frame->zmode;
  memcpy(m->viewport,frame->viewport,sizeof m->viewport);
  return m;}
 void nflstreet_gx_close(nflstreet_gx_machine *m){if(!m)return;

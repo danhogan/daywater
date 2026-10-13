@@ -6,6 +6,7 @@
    image and a stable digest; it is an inspection render, not a pixel claim. */
 #include "gx_render.h"
 #include "texture.h"
+#include "scenery_draw.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,6 +21,7 @@ static uint32_t rd32(const uint8_t *p){return(uint32_t)p[0]<<24|(uint32_t)p[1]<<
 static uint8_t *ram_at(uint8_t *ram,uint32_t a,uint32_t n){return a>=RAM_BASE&&(uint64_t)a-RAM_BASE+n<=RAM_BYTES?ram+(a-RAM_BASE):NULL;}
 static uint32_t ram32(uint8_t *ram,uint32_t a){const uint8_t *p=ram_at(ram,a,4);return p?rd32(p):0;}
 static float ramf(uint8_t *ram,uint32_t a){uint32_t v=ram32(ram,a);float f;memcpy(&f,&v,4);return f;}
+#include "venue_fixture.h"
 static uint32_t fnv(uint32_t h,const void *p,size_t n){const uint8_t *b=p;for(size_t i=0;i<n;++i)h=(h^b[i])*16777619u;return h;}
 static uint8_t *span(void *m,uint32_t token,uint32_t size){return ram_at(m,token,size);}
 typedef struct {nflstreet_gx_call *calls;unsigned count;} trace;
@@ -99,10 +101,34 @@ static int cross_decode(uint8_t *ram,unsigned *textures,size_t *pixels){
     nflstreet_texture_close(&ref);free(rgba);return 0;}}
   *pixels+=(size_t)w*h;++*textures;nflstreet_texture_close(&ref);free(rgba);}
  return 1;}
+/* Executes one call list, reporting the first rejected call. */
+static int execute(nflstreet_gx_machine *m,const trace *t,nflstreet_gx_stats *stats,const char *what,unsigned index){
+ for(unsigned k=0;k<t->count;++k)if(!nflstreet_gx_run(m,t->calls+k,1,stats)){const nflstreet_gx_call *c=t->calls+k;
+  fprintf(stderr,"executor rejected %s %u call %u op %d args %08x %08x %08x %08x %08x %08x %08x\n",what,index,k,(int)c->op,
+   c->arg[0],c->arg[1],c->arg[2],c->arg[3],c->arg[4],c->arg[5],c->arg[6]);return 0;}
+ return 1;}
+static nflstreet_player_draw_context draw_context(uint8_t *ram,trace *t){
+ nflstreet_player_draw_context x;memset(&x,0,sizeof x);
+ x.span=span;x.memory=ram;x.emit=record;x.sink=t;x.face=face;x.shared_model=0x803102b4u;x.player_records=0x802aaa60u;
+ x.light_sets=0x8034fe9cu;x.default_texture=ram32(ram,R13-0x640cu);x.null_shader=ram32(ram,R13-0x5684u);
+ x.setups[0]=0x801c9d0cu;x.setups[1]=0x801c9dacu;x.setups[2]=0x801c9dfcu;x.setups[3]=0x801c9d5cu;x.dim[0]=ramf(ram,R13-0x6850u);x.dim[1]=ramf(ram,R13-0x684cu);
+ return x;}
+/* The 14 captured players in actor-list order. */
+static int draw_players(uint8_t *ram,nflstreet_gx_machine *m,trace *t,nflstreet_render_state *s,nflstreet_gx_stats *stats,encoder *enc,
+ const nflstreet_gx_frame *frame,unsigned *calls){
+ nflstreet_player_draw_context x=draw_context(ram,t);
+ for(unsigned i=0;i<PLAYERS;++i){uint32_t actor=ram32(ram,ram32(ram,R13-0x7bbcu)+4*i);t->count=0;
+  if(!nflstreet_player_draw(&x,actor,s)){fprintf(stderr,"draw %u rejected\n",i);return 0;}
+  if(!execute(m,t,stats,"actor",i))return 0;
+  if(enc)for(unsigned k=0;k<t->count;++k)encode(enc,t->calls+k,frame->zmode,frame->cmode0);
+  *calls+=t->count;}
+ return 1;}
+static void clear_target(uint32_t *bgra,uint32_t *depth){for(unsigned i=0;i<WIDTH*HEIGHT;++i){bgra[i]=0xff404040u;depth[i]=0xffffffu;}}
+static void reset_state(uint8_t *ram,nflstreet_render_state *s){memset(s,0,sizeof *s);for(unsigned i=0;i<6;++i)s->viewport[i]=ramf(ram,0x8039e584u+4*i);}
 int main(int argc,char **argv){
- if(argc!=3&&argc!=4)return 2;
- FILE *f=fopen(argv[1],"rb");if(!f)return 3;uint8_t *ram=malloc(RAM_BYTES);
- if(!ram||fread(ram,1,RAM_BYTES,f)!=RAM_BYTES){fclose(f);return 3;}fclose(f);
+ if(argc!=4&&argc!=5)return 2;
+ FILE *f=fopen(argv[1],"rb");if(!f)return 3;uint8_t *ram=malloc(RAM_BYTES),*pristine=malloc(RAM_BYTES);
+ if(!ram||!pristine||fread(pristine,1,RAM_BYTES,f)!=RAM_BYTES){fclose(f);return 3;}fclose(f);memcpy(ram,pristine,RAM_BYTES);
  uint32_t gx=ram32(ram,R13-0x4c90u);nflstreet_gx_frame frame;memset(&frame,0,sizeof frame);
  frame.projection_type=ram32(ram,gx+0x420);for(unsigned i=0;i<6;++i){frame.projection[i]=ramf(ram,gx+0x424+4*i);frame.viewport[i]=ramf(ram,gx+0x43c+4*i);}
  /* The shadow holds whatever the scene set last (context 15 ends with depth
@@ -112,33 +138,39 @@ int main(int argc,char **argv){
  for(unsigned i=0;i<8;++i){frame.texgen_src[i]=4;frame.texgen_mtx[i]=60;}
  uint32_t *bgra=malloc(WIDTH*HEIGHT*4),*depth=malloc(WIDTH*HEIGHT*4);trace t={malloc(CALLS_MAX*sizeof(nflstreet_gx_call)),0};
  if(!bgra||!depth||!t.calls)return 3;
- for(unsigned i=0;i<WIDTH*HEIGHT;++i){bgra[i]=0xff404040u;depth[i]=0xffffffu;}
- nflstreet_gx_target target={WIDTH,HEIGHT,bgra,depth};
+ clear_target(bgra,depth);nflstreet_gx_target target={WIDTH,HEIGHT,bgra,depth};
  nflstreet_gx_machine *m=nflstreet_gx_open(span,ram,&frame,&target);if(!m)return 4;
- nflstreet_render_state s;memset(&s,0,sizeof s);for(unsigned i=0;i<4;++i)s.viewport[i]=ramf(ram,0x8039e584u+4*i);
- nflstreet_player_draw_context x;memset(&x,0,sizeof x);
- x.span=span;x.memory=ram;x.emit=record;x.sink=&t;x.face=face;x.shared_model=0x803102b4u;x.player_records=0x802aaa60u;
- x.light_sets=0x8034fe9cu;x.default_texture=ram32(ram,R13-0x640cu);x.null_shader=ram32(ram,R13-0x5684u);
- x.setups[0]=0x801c9d0cu;x.setups[1]=0x801c9dacu;x.setups[2]=0x801c9dfcu;x.dim[0]=ramf(ram,R13-0x6850u);x.dim[1]=ramf(ram,R13-0x684cu);
+ nflstreet_render_state s;reset_state(ram,&s);
  nflstreet_gx_stats stats;memset(&stats,0,sizeof stats);unsigned calls=0;encoder enc;memset(&enc,0,sizeof enc);
- for(unsigned i=0;i<PLAYERS;++i){uint32_t actor=ram32(ram,ram32(ram,R13-0x7bbcu)+4*i);t.count=0;
-  if(!nflstreet_player_draw(&x,actor,&s)){fprintf(stderr,"draw %u rejected\n",i);return 5;}
-  for(unsigned k=0;k<t.count;++k)if(!nflstreet_gx_run(m,t.calls+k,1,&stats)){const nflstreet_gx_call *c=t.calls+k;
-   fprintf(stderr,"executor rejected actor %u call %u op %d args %08x %08x %08x %08x %08x %08x %08x\n",i,k,(int)c->op,
-    c->arg[0],c->arg[1],c->arg[2],c->arg[3],c->arg[4],c->arg[5],c->arg[6]);return 6;}
-  for(unsigned k=0;k<t.count;++k)encode(&enc,t.calls+k,frame.zmode,frame.cmode0);
-  calls+=t.count;}
+ if(!draw_players(ram,m,&t,&s,&stats,&enc,&frame,&calls))return 5;
  nflstreet_gx_close(m);
  size_t covered=0;for(unsigned i=0;i<WIDTH*HEIGHT;++i)covered+=depth[i]!=0xffffffu;
  nflstreet_texture image={WIDTH,HEIGHT,bgra};if(!nflstreet_texture_bmp(&image,argv[2]))return 7;
  printf("Player render: %u actors, %u GX calls, %u display lists, %u primitives, %u triangles (%u culled, %u clipped), "
   "%u decoded textures, %zu shaded pixels, %zu covered; digest %08x.\n",PLAYERS,calls,stats.display_lists,stats.primitives,
   stats.triangles,stats.culled,stats.clipped,stats.textures,stats.pixels,covered,fnv(2166136261u,bgra,WIDTH*HEIGHT*4));
+ /* Scene: the original frame order (field passes 8015B670, main field
+    80165DC4, then the players) from a fresh copy of the saved RAM into one
+    target with shared depth. Decals, ball, sky and crowd are not drawn. */
+ memcpy(ram,pristine,RAM_BYTES);clear_target(bgra,depth);reset_state(ram,&s);
+ if(!venue_present(ram))return 11;
+ m=nflstreet_gx_open(span,ram,&frame,&target);if(!m)return 4;
+ nflstreet_gx_stats scene;memset(&scene,0,sizeof scene);unsigned venue_calls=0,player_calls=0;
+ nflstreet_player_draw_context x=draw_context(ram,&t);nflstreet_scenery_context v=venue_context(ram,&x);
+ t.count=0;if(!nflstreet_field_passes_draw(&v,VENUE_FIELD_PASSES,&s)||!execute(m,&t,&scene,"field passes",0))return 12;venue_calls+=t.count;
+ t.count=0;if(!nflstreet_field_draw(&v,VENUE_MAIN_FIELD,&s)||!execute(m,&t,&scene,"main field",0))return 12;venue_calls+=t.count;
+ if(!draw_players(ram,m,&t,&s,&scene,NULL,&frame,&player_calls))return 5;
+ nflstreet_gx_close(m);
+ image.bgra=bgra;if(!nflstreet_texture_bmp(&image,argv[3]))return 7;
+ printf("Scene render: EARS field passes and main field (%u GX calls) then 14 actors (%u GX calls); %u display lists, %u triangles "
+  "(%u culled, %u clipped), %u decoded textures, %zu shaded pixels; digest %08x.\n",venue_calls,player_calls,scene.display_lists,
+  scene.triangles,scene.culled,scene.clipped,scene.textures,scene.pixels,fnv(2166136261u,bgra,WIDTH*HEIGHT*4));
+ memcpy(ram,pristine,RAM_BYTES);
  unsigned decoded=0;size_t decoded_pixels=0;
  if(!cross_decode(ram,&decoded,&decoded_pixels)){fprintf(stderr,"GX and MMAP texture decodes differ\n");return 10;}
  printf("Texture decode: %u captured slot textures (%zu pixels) decode identically from their GX texture/TLUT objects and their MMAP files.\n",
   decoded,decoded_pixels);
- if(argc==4){draw_state captured[STATES_MAX];unsigned n=captured_states(argv[3],captured,STATES_MAX),produced=0,known=0;if(!n)return 8;
+ if(argc==5){draw_state captured[STATES_MAX];unsigned n=captured_states(argv[4],captured,STATES_MAX),produced=0,known=0;if(!n)return 8;
   for(unsigned i=0;i<n;++i)for(unsigned k=0;k<enc.count;++k)if(!memcmp(captured+i,enc.seen+k,sizeof *captured)){++produced;break;}
   for(unsigned k=0;k<enc.count;++k)for(unsigned i=0;i<n;++i)if(!memcmp(captured+i,enc.seen+k,sizeof *captured)){++known;break;}
   for(unsigned k=0;k<enc.count&&known!=enc.count;++k){const uint32_t *w=enc.seen[k].w;
@@ -146,4 +178,4 @@ int main(int argc,char **argv){
   printf("Captured GPU state: %u/%u recorded one-stage player draw states are produced by the native calls; %u/%u native one-stage states were recorded.\n",
    produced,n,known,enc.count);
   if(produced!=n||known!=enc.count)return 9;}
- free(t.calls);free(depth);free(bgra);free(ram);return 0;}
+ free(t.calls);free(depth);free(bgra);free(pristine);free(ram);return 0;}

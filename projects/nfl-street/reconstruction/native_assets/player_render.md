@@ -110,12 +110,26 @@ displayed image, which also passes through the video output.
 
 Private files:
 `W:\Daywater\research-temp\nflstreet-player-render-20261013\` contains
-`players-14/15/16.bmp`, comparison images and `verification.json`.
+`players-14/15/16.bmp`, `scene-14/15/16.bmp`, comparison images and
+`verification.json`.
+
+## Players on the field
+
+The same check also renders a scene. It draws the EARS field passes and main
+field through the verified native scenery draw (`scenery_draw.md`), then the
+14 players, into one target with shared depth, from a fresh copy of the saved
+RAM. This follows the original frame order: passes, decals, main field, ball,
+players. The decals, ball, sky, crowd, shadows and HUD are not drawn. The
+field shows the grass and its mowing stripes, the wall, trees and buildings,
+and the players stand on it with correct occlusion. Images:
+`scene-14/15/16.bmp` (context 14: 26,244 triangles, 640,107 shaded pixels).
+Compared with the game's screenshot, the missing pieces are exactly the
+unmodeled ones: sky, HUD, the yellow and blue lines, the target ring and the
+shadows.
 
 ## Remaining connections
 
-- Draw the field and scene through the same executor, or merge it with the
-  existing field renderer, so players stand on the field with shared depth.
+- Sky, decals (target ring, lines), shadows (`800D75EC`?), ball and HUD.
 - Fresh selected actors: model instances, skinning matrices (`80162760`) and
   LOD/flags (`80164000`) from native actor creation, so menu-selected players
   render without saved RAM.

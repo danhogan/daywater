@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-13. Latest work: both selected lineups have private bodies bound to fresh skeleton sources
+Updated: 2026-10-13. Latest work: native EARS field draw rendered with the captured players; before that, private bodies bound to fresh skeleton sources
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -51,7 +51,15 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/match_bodies.md` — latest:
+3. `projects/nfl-street/reconstruction/native_assets/scenery_draw.md` — latest:
+   the scenery draw `801EC8E4` (frustum culling, depth/fog/lighting presets)
+   and the EARS venue loops `80165DC4`/`8015B670` produce exact GX calls.
+   They share `draw_engine.c` with the player draw. 1,201 original runs per
+   context match; matrix-stack updates and four callees are not modeled, so
+   instances keep their stored matrices. `player_render.md` now also renders
+   field plus players with shared depth. The oracle needs HID2 paired singles
+   and returns for OS cache routines when running wider original code.
+   Then `projects/nfl-street/reconstruction/native_assets/match_bodies.md`:
    14 private body files/views bind transactionally and publish stable owner links.
    All 12 TBYP/variant cases match actual original 801C6B38 across three contexts
    repeated twice; 14-player composition and late rollback pass. Model views
@@ -167,6 +175,7 @@ the original DLL separately as an oracle.
 | Quick match roster bridge | `quick_match_roster.*` | Menu selection structs to GAME rows/new ids, lineup bits and formation mapping; corrected real picker snapshot produces both mirrored lineups; actor startup open |
 | Selected visual owner | `selected_player_visual.*` | Joins geometry and owned surfaces; rejects cross-owner token collisions before uploads; completed selected-match record is caller-supplied |
 | Owned player surface | `player_surface.*` | Joins gear/face requests, 25 owned slots, recoloring, binding, configuration and actor material instances; staged failure cleanup; geometry/actor creation still separate |
+| Scenery draw | `scenery_draw.*`, `draw_engine.*` | Original `801EC8E4` scenery instances and EARS venue loops `80165DC4`/`8015B670` as GX calls; shared render engine with the player draw; stored instance matrices; decals/ball/shadows/sky not modeled |
 | GX executor | `gx_render.*` | Software execution of `player_draw` calls: display lists, indexed matrix loads, one-channel lighting, mip textures (all GX formats used), integer TEV, alpha/depth/blend; inspection pixels only |
 | Player draw | `player_draw.*` | Original `80161E10` per-player draw as GX calls: light scaling, 12 model instances, LOD-0 eyes, `801C7B58` materials (NULL/OnePass/TwoPass TEV, `801C7AD4` texture/TLUT loads, parameters), `801C7F18` vertex formats and display lists; head compile `801626E0` supplied; no GPU execution |
 | Slot materials | `slot_materials.*` | Original `800E2BE8`/`801EBD38` texture sets (GXTexObj/GXTlutObj), `80164DD8` settings and the `801C7528`/`801EBBA8`/`801EBC78` hookup onto the 45 material instances; shader/TEV drawing not modeled |
@@ -285,8 +294,8 @@ Continue from `selected_appearance_assets`, rather than rebuilding asset loaders
    - Draw selected players: the submission (`player_draw`) and its
      execution (`gx_render`) are done for captured actors. Next, fresh
      actors must supply the instances, matrices (`80162760`) and LOD/draw
-     flags (`80164000`). Draw the field through the same executor, or
-     share depth with the field renderer.
+     flags (`80164000`). The EARS field is drawn through the same path
+     (`scenery_draw`); sky, decals, shadows (`800D75EC`?), ball and HUD remain.
    - Native menu choices now create an owned GAME roster directly via
      `quick_match_session`; original lineup-bit decisions and mirrored copying
      are checked. Feed its selected rows into fresh visual/skeleton/actor owners.

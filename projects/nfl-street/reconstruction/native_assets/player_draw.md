@@ -98,6 +98,11 @@ does not depend on the names: it compares arguments.
 
 ## Native API
 
+The shared render engine (models, materials, shaders, chunks and groups) is
+in `draw_engine.c` and also serves the scenery draw (`scenery_draw.md`).
+Known shader setups are NULL, OnePass, TwoPass and Flat (`801C9D5C`, which
+sets up like NULL).
+
 `nflstreet_player_draw(context, actor, state)` reads and writes
 original-layout objects through a bounded span callback. Tokens are namespace
 identities, and 0 is null. It emits `nflstreet_gx_call` records through a sink

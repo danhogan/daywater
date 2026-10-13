@@ -4,13 +4,15 @@
 /* Bounded software executor for the GX calls recorded by player_draw: it
    keeps GX state from the calls, runs display lists (indexed matrix loads and
    indexed/direct vertices), transforms and lights vertices (one color
-   channel, clamped diffuse, no attenuation), clips, culls and rasterizes
+   channel with separate color/alpha controls, clamped diffuse, no
+   attenuation), clips, culls and rasterizes
    triangles with integer TEV stages, alpha compare, depth test and blending.
    Semantics follow the public GX API and register definitions, checked
    against the local Dolphin VideoCommon reference (TEV lerp/rounding,
    lighting, cull winding, konst fractions). This is an inspection renderer:
    mip levels with derivative LOD (no anisotropy or diagonal LOD), no fog,
-   indirect textures, dual channels, logic ops or EFB copies. Exact original
+   indirect textures, swap tables, the second channel, logic ops, EFB copies;
+   fog calls must be type none. Exact original
    pixels are not claimed. */
 typedef struct {unsigned width,height;uint32_t *bgra;uint32_t *depth;} nflstreet_gx_target;
 /* Frame state the player draw does not set (set earlier by the scene). */

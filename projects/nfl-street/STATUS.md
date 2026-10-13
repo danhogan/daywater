@@ -6,7 +6,16 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: selected players have private bodies bound to fresh skeleton targets.**
+**Latest: players render standing on the native EARS field.** The scenery
+draw (`801EC8E4`) and the two venue loops that draw the field are now native,
+down to the GPU calls, sharing the player draw's render engine. 1,201 runs of
+the untouched original per saved context match every call, the render state
+and all other RAM, and 14 deliberate faults are caught. The software GPU draws
+the field and then the 14 captured players into one image with shared depth,
+following the original frame order. Sky, decals, shadows, ball and HUD remain.
+See [scenery and field draw](reconstruction/native_assets/scenery_draw.md).
+
+**Earlier: selected players have private bodies bound to fresh skeleton targets.**
 All 14 body files/views now join the retained selected-player owners. The original
 binder matches 12 body type/variant cases across three saved contexts repeated
 twice. The 14-player native composition passes stable-link, late rollback and

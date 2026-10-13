@@ -36,6 +36,8 @@ ORIGINAL = {
 SOURCES = (
     "player_draw.c",
     "player_draw.h",
+    "draw_engine.c",
+    "draw_engine.h",
     "player_draw_check.c",
     "player_draw_original_check.c",
     "build_windows_player_draw_check.sh",

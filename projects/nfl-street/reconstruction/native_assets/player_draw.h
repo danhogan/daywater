@@ -1,8 +1,8 @@
 #ifndef NFLSTREET_PLAYER_DRAW_H
 #define NFLSTREET_PLAYER_DRAW_H
 #include <stdint.h>
-/* GX SDK calls issued by the original player draw 80161E10 (GNNE69 rev 0),
-   in the order the original issues them. Arguments follow the public GX API
+/* GX SDK calls issued by the original player draw 80161E10 and scenery draw
+   801EC8E4 (GNNE69 rev 0), in the order the original issues them. Arguments follow the public GX API
    order. Pointer arguments are tokens; the pointed-to values a call consumes
    (colors, light objects, texture matrices, viewport floats) are copied into
    data. Floats are IEEE single bit patterns. */
@@ -35,6 +35,11 @@ typedef enum {
  NFLSTREET_GX_SET_CURRENT_MTX,    /* 80207F1C matrix id */
  NFLSTREET_GX_LOAD_TEX_MTX,       /* 80207F54 matrix id, type (1 = 2x4); data = 8 floats */
  NFLSTREET_GX_SET_VIEWPORT,       /* 8020810C; data = x, y, width, height, near, far */
+ NFLSTREET_GX_LOAD_POS_MTX,       /* 80207E7C matrix id; data = 12 floats (3x4) */
+ NFLSTREET_GX_LOAD_NRM_MTX,       /* 80207ECC matrix id; data = 9 floats (rows' first three of a 3x4) */
+ NFLSTREET_GX_SET_Z_MODE,         /* 802079C8 enable, compare, update */
+ NFLSTREET_GX_SET_Z_COMP_LOC,     /* 802079FC before texturing */
+ NFLSTREET_GX_SET_FOG,            /* 80207600 type; data = color, start, end, near, far */
  NFLSTREET_GX_OPS
 } nflstreet_gx_op;
 typedef struct {nflstreet_gx_op op;uint32_t arg[7];uint32_t data[16];} nflstreet_gx_call;
@@ -80,7 +85,7 @@ typedef struct {
  uint32_t light_sets;       /* 8034FE9C, 0x108 bytes per light set */
  uint32_t default_texture;  /* value of r13-640C */
  uint32_t null_shader;      /* value of r13-5684 (801C8B08(0)) */
- uint32_t setups[3];        /* shader setup callbacks: NULL 801C9D0C, OnePass 801C9DAC, TwoPass 801C9DFC */
+ uint32_t setups[4];        /* shader setup callbacks: NULL 801C9D0C, OnePass 801C9DAC, TwoPass 801C9DFC, Flat 801C9D5C */
  float dim[2];              /* r13-6850, r13-684C: far-depth scale without/with actor flag 3 */
 } nflstreet_player_draw_context;
 /* Original 80161E10(actor) for one player. It resets the render state

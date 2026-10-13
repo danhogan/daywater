@@ -132,7 +132,7 @@ static nflstreet_player_draw_context draw_context(uint8_t *ram,face_plan *f,trac
  x.span=span;x.memory=ram;x.emit=record;x.sink=t;x.face=face;x.face_context=f;
  x.shared_model=SHARED_MODEL;x.player_records=PLAYER_RECORDS;x.light_sets=LIGHT_SETS;
  x.default_texture=ram32(ram,R13-0x640cu);x.null_shader=ram32(ram,R13-0x5684u);
- x.setups[0]=0x801c9d0cu;x.setups[1]=0x801c9dacu;x.setups[2]=0x801c9dfcu;
+ x.setups[0]=0x801c9d0cu;x.setups[1]=0x801c9dacu;x.setups[2]=0x801c9dfcu;x.setups[3]=0x801c9d5cu;
  uint32_t d0=ram32(ram,R13-0x6850u),d1=ram32(ram,R13-0x684cu);memcpy(&x.dim[0],&d0,4);memcpy(&x.dim[1],&d1,4);
  return x;}
 static void initial_state(uint8_t *ram,nflstreet_render_state *s){

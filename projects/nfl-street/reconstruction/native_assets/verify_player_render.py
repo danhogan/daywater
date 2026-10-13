@@ -7,6 +7,7 @@ from pathlib import Path
 from verify_controller_checks import PRIVATE, baseline_hashes, digest, private, run, windows
 from verify_player_draw import SOURCES as DRAW_SOURCES
 from verify_player_startup import source_hashes
+from verify_scenery_draw import SOURCES as SCENERY_SOURCES
 
 TEXTURES = (
     "Texture decode: 337 captured slot textures (4221952 pixels) decode identically from their GX texture/TLUT "
@@ -24,12 +25,24 @@ RENDER = {
     16: "4947 GX calls, 340 display lists, 5456 primitives, 19572 triangles (9909 culled, 0 clipped), 252 decoded "
     "textures, 30139 shaded pixels, 21608 covered; digest ac372641.",
 }
+SCENE = {
+    14: "(2517 GX calls) then 14 actors (4955 GX calls); 728 display lists, 26244 triangles (9957 culled, 3014 "
+    "clipped), 326 decoded textures, 640107 shaded pixels; digest efeb6e91.",
+    15: "(2497 GX calls) then 14 actors (4955 GX calls); 728 display lists, 26244 triangles (9925 culled, 3009 "
+    "clipped), 326 decoded textures, 639354 shaded pixels; digest c2859c1f.",
+    16: "(2517 GX calls) then 14 actors (4947 GX calls); 728 display lists, 26185 triangles (9910 culled, 3009 "
+    "clipped), 324 decoded textures, 639424 shaded pixels; digest 9ae1ef16.",
+}
 SOURCES = (
     "gx_render.c",
     "gx_render.h",
     "player_render_check.c",
     "player_draw.c",
     "player_draw.h",
+    "scenery_draw.c",
+    "scenery_draw.h",
+    "draw_engine.c",
+    "draw_engine.h",
     "texture.c",
     "texture.h",
     "build_windows_player_render_check.sh",
@@ -37,13 +50,14 @@ SOURCES = (
 )
 BOUNDARY = (
     "Software GX execution of the verified native 80161E10 submission for the 14 captured players of three saved "
-    "contexts: display lists with indexed matrix loads, transform, one-channel lighting, clipping, culling, mip "
+    "contexts, alone and after the verified EARS field passes and main field (8015B670, 80165DC4) in one target: "
+    "display lists with indexed matrix loads, transform, one-channel lighting, clipping, culling, mip "
     "sampling, integer TEV, alpha compare, depth and blending. Frame state comes from the saved GX shadow "
     "(projection, viewport, color mode, konst selections) and the 801C769C frame start (depth mode, texgens). "
     "Checked: every recorded one-stage player draw state of the 2026-10-08 original frame capture equals the SDK "
     "encoding of the native calls and vice versa; all non-empty captured slot textures decode identically through "
     "their GX objects and through the independent MMAP reader; renders repeat exactly. Inspection images only: "
-    "exact original pixels, field/scene drawing and fresh selected actors are not claimed."
+    "exact original pixels, sky, decals, ball, shadows, HUD and fresh selected actors are not claimed."
 )
 
 
@@ -54,13 +68,15 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     report = out / "verification.json"
     draw_report = private(PRIVATE / "research-temp/nflstreet-player-draw-20261013/verification.json")
+    scenery_report = private(PRIVATE / "research-temp/nflstreet-scenery-draw-20261013/verification.json")
     entries = tuple("native_assets/" + name for name in SOURCES)
-    draw_entries = tuple("native_assets/" + name for name in DRAW_SOURCES)
     record: dict[str, object] = {"status": "running", "boundary": BOUNDARY}
     try:
-        reference = json.loads(draw_report.read_text())
-        if reference["status"] != "passed" or source_hashes(root, draw_entries) != reference["source_sha256"]:
-            raise RuntimeError("The player draw submission report is not passed for the current sources")
+        for path, names in ((draw_report, DRAW_SOURCES), (scenery_report, SCENERY_SOURCES)):
+            reference = json.loads(path.read_text())
+            required = tuple("native_assets/" + name for name in names)
+            if reference["status"] != "passed" or source_hashes(root, required) != reference["source_sha256"]:
+                raise RuntimeError(f"{path} is not passed for the current sources")
         before = baseline_hashes()
         sources = source_hashes(root, entries)
         contexts = {i: PRIVATE / f"research-temp/position-neutral-{i}.mem1" for i in (14, 15, 16)}
@@ -72,11 +88,15 @@ def main() -> None:
         images: dict[str, str] = {}
         for i, context in contexts.items():
             image = out / f"players-{i}.bmp"
-            expected = f"Player render: 14 actors, {RENDER[i]}\n{TEXTURES}\n{STATE}"
+            scene = out / f"scene-{i}.bmp"
+            expected = (
+                f"Player render: 14 actors, {RENDER[i]}\n"
+                f"Scene render: EARS field passes and main field {SCENE[i]}\n{TEXTURES}\n{STATE}"
+            )
             traces = []
             for repeat in range(2):
                 log = out / f"render-{i}-{repeat}.log"
-                text = run([str(exe), windows(context), windows(image), windows(profile)], log)
+                text = run([str(exe), windows(context), windows(image), windows(scene), windows(profile)], log)
                 if text.replace("\r\n", "\n").strip() != expected:
                     raise RuntimeError(f"Player render check failed in context {i}")
                 traces.append(str(digest(log)))
@@ -84,6 +104,7 @@ def main() -> None:
                 raise RuntimeError("Fresh player render traces differ")
             logs[str(i)] = traces
             images[image.name] = str(digest(image))
+            images[scene.name] = str(digest(scene))
         if before != baseline_hashes() or any(digest(Path(path)) != sha for path, sha in inputs.items()):
             raise RuntimeError("Protected originals or private inputs changed")
         if sources != source_hashes(root, entries):
@@ -94,6 +115,7 @@ def main() -> None:
             input_sha256=inputs,
             source_sha256=sources,
             draw_report_sha256=digest(draw_report),
+            scenery_report_sha256=digest(scenery_report),
             log_sha256=logs,
             image_sha256=images,
             executable_sha256=digest(exe),
