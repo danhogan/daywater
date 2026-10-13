@@ -190,8 +190,9 @@ Private report:
 
 ## Remaining connections
 
-- Drawing: the OnePass/TwoPass shader (TEV) setup and the draw path that
-  consumes these instances (`801C7AD4` and its callers).
+- Drawing: the OnePass/TwoPass shader setup and the draw path that consumes
+  these instances are reconstructed as GX calls in `player_draw.md`;
+  executing them in the native renderer remains.
 - The `8017B570` loader pool.
 - Fresh actor startup owning these states end to end.
 

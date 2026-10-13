@@ -6,7 +6,18 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: both selected lineups load fresh visual resources together.** A native
+**Latest: the player draw is reconstructed down to the GPU calls.** Native C
+now issues exactly what the original sends to the GPU to draw a player
+(`80161E10`): lighting, every model instance, each chunk's material
+(OnePass/TwoPass shader stages, textures and palettes), vertex formats and
+display lists. 854 runs of the untouched original per saved context, the 14
+captured players and 840 controlled variants, match every GX call, the render
+state and all other RAM, in three contexts repeated twice; 20 deliberate faults
+are each caught. Executing these calls in the native renderer, and producing
+fresh actors to feed it, remain. See
+[player draw submission](reconstruction/native_assets/player_draw.md).
+
+**Earlier: both selected lineups load fresh visual resources together.** A native
 owner retains all 14 players from the actual menu selection, with 350 texture
 slots and 630 material instances. Namespaces stay separate; late loading
 failures discard staged owners before notifications are published. Two fresh

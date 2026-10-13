@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-13. Latest work: both selected lineups load as 14 simultaneous native visual owners
+Updated: 2026-10-13. Latest work: the player draw (80161E10) is native down to its GX calls; before that, both selected lineups load as 14 native visual owners
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -51,7 +51,14 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/match_visuals.md` — latest:
+3. `projects/nfl-street/reconstruction/native_assets/player_draw.md` — latest:
+   the per-player draw `80161E10` reconstructed as the exact GX SDK call
+   sequence (lights, instances, materials/TEV presets, textures/TLUTs, vertex
+   formats, display lists). 854 original runs per context match every call,
+   the render state and all RAM; 20 mutations caught. The module enters
+   same-chunk functions directly, so `801626E0` is controlled through its
+   cross-chunk helpers. Executing the calls in the renderer remains open.
+   Then `projects/nfl-street/reconstruction/native_assets/match_visuals.md`:
    14 simultaneous visual owners from the actual retained menu selection:
    350 slots, 630 material instances, disjoint logical namespaces and deferred
    notifications. Two native processes match single-player owners; no original
@@ -134,6 +141,7 @@ the original DLL separately as an oracle.
 | Quick match roster bridge | `quick_match_roster.*` | Menu selection structs to GAME rows/new ids, lineup bits and formation mapping; corrected real picker snapshot produces both mirrored lineups; actor startup open |
 | Selected visual owner | `selected_player_visual.*` | Joins geometry and owned surfaces; rejects cross-owner token collisions before uploads; completed selected-match record is caller-supplied |
 | Owned player surface | `player_surface.*` | Joins gear/face requests, 25 owned slots, recoloring, binding, configuration and actor material instances; staged failure cleanup; geometry/actor creation still separate |
+| Player draw | `player_draw.*` | Original `80161E10` per-player draw as GX calls: light scaling, 12 model instances, LOD-0 eyes, `801C7B58` materials (NULL/OnePass/TwoPass TEV, `801C7AD4` texture/TLUT loads, parameters), `801C7F18` vertex formats and display lists; head compile `801626E0` supplied; no GPU execution |
 | Slot materials | `slot_materials.*` | Original `800E2BE8`/`801EBD38` texture sets (GXTexObj/GXTlutObj), `80164DD8` settings and the `801C7528`/`801EBBA8`/`801EBC78` hookup onto the 45 material instances; shader/TEV drawing not modeled |
 | GAME roster | `game_roster.*`, `db_fixture.h` (checks) | Original `801E05A4`→`801E1628`/`801E78C4` PLAY copy and `801E7154` renumbering; lineup GILP and team ids are caller inputs |
 | Player record | `player_record.*` | Original `800DE000`/`800DE6C8`: STAT TEAM fields, 1AHP, default color state, side; consumes the native GAME PLAY table |
@@ -247,10 +255,12 @@ Continue from `selected_appearance_assets`, rather than rebuilding asset loaders
 
 1. GAME roster, gear plans, slot loading, recoloring, material binding and
    the complete player record are done; do not redo them. Next:
-   - Draw selected players: the OnePass/TwoPass shader (TEV) setup and the
-     `801C7AD4` draw-time texture loads that consume the material instances.
-     Alternatively, render natively from the reconstructed instances and the
-     decoded slot textures in the independent scene.
+   - Draw selected players: the GX submission (`player_draw`) is done.
+     Execute it in the independent renderer. Map TEV presets, texture
+     objects to the owned slot destinations (decoded MMAP planes and
+     recolored palettes), the light channel and the display lists with the
+     skinning matrix palette. Fresh actors must supply the instances,
+     matrices (`80162760`) and LOD/draw flags (`80164000`).
    - Native menu choices now create an owned GAME roster directly via
      `quick_match_session`; original lineup-bit decisions and mirrored copying
      are checked. Feed its selected rows into fresh visual/skeleton/actor owners.
