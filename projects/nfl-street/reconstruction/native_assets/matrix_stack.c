@@ -26,6 +26,12 @@ int nflstreet_matrix_translate(nflstreet_draw *d,const nflstreet_matrix_stacks *
  for(unsigned r=0;r<3;++r){uint8_t *q=m+16*r;
   put(q+12,fword(q+12)+nflstreet_fmadds(z,fword(q+8),nflstreet_fmadds(x,fword(q),y*fword(q+4))));}
  return 1;}
+/* Columns scaled by x, y, z (a double product rounded to single equals the
+   single product of two singles). */
+int nflstreet_matrix_scale(nflstreet_draw *d,const nflstreet_matrix_stacks *k,float x,float y,float z){
+ uint32_t top;uint8_t *m;if(!nflstreet_matrix_top(d,k,&top)||!(m=at(d,top,0x30)))return 0;
+ const float s[3]={x,y,z};for(unsigned r=0;r<3;++r)for(unsigned c=0;c<3;++c)put(m+16*r+4*c,fword(m+16*r+4*c)*s[c]);
+ return 1;}
 int nflstreet_sine(nflstreet_draw *d,const nflstreet_matrix_stacks *k,uint32_t angle,int cosine,float *out){
  const uint8_t *c=at(d,k->sine,32);if(!c)return 0;
  if(cosine)angle+=0x400000u;

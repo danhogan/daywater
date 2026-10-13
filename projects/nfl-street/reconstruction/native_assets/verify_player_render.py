@@ -27,15 +27,15 @@ RENDER = {
     "textures, 30139 shaded pixels, 21608 covered; digest ac372641.",
 }
 SCENE = {
-    14: "(3658 GX calls) then 14 actors (4955 GX calls) and name tags (472 GX calls); 731 display lists, "
-    "26618 triangles (9957 culled, 3077 clipped), 332 decoded textures, 958710 shaded pixels; digest "
-    "3c9b8e2a.",
-    15: "(3626 GX calls) then 14 actors (4955 GX calls) and name tags (470 GX calls); 731 display lists, "
-    "26618 triangles (9925 culled, 3072 clipped), 332 decoded textures, 962896 shaded pixels; digest "
-    "a91b845c.",
-    16: "(3658 GX calls) then 14 actors (4947 GX calls) and name tags (472 GX calls); 731 display lists, "
-    "26559 triangles (9910 culled, 3072 clipped), 330 decoded textures, 958065 shaded pixels; digest "
-    "61aef95b.",
+    14: "(3658 GX calls) then 14 actors (4955 GX calls) and the HUD (8562 GX calls); 731 display lists, 26986"
+    " triangles (9969 culled, 3077 clipped), 342 decoded textures, 1279306 shaded pixels; digest "
+    "e0255842.",
+    15: "(3626 GX calls) then 14 actors (4955 GX calls) and the HUD (8558 GX calls); 731 display lists, 26986"
+    " triangles (9937 culled, 3072 clipped), 342 decoded textures, 1283492 shaded pixels; digest "
+    "f597043f.",
+    16: "(3658 GX calls) then 14 actors (4947 GX calls) and the HUD (8562 GX calls); 731 display lists, 26927"
+    " triangles (9922 culled, 3072 clipped), 340 decoded textures, 1278661 shaded pixels; digest "
+    "370b6855.",
 }
 SOURCES = (
     "gx_render.c",
@@ -50,6 +50,11 @@ SOURCES = (
     "hud_draw.h",
     "matrix_stack.c",
     "matrix_stack.h",
+    "uis_draw.c",
+    "uis_draw.h",
+    "gx_texobj.c",
+    "gx_texobj.h",
+    "hud_shared.h",
     "venue_fixture.h",
     "hud_fixture.h",
     "draw_engine.c",
@@ -68,8 +73,9 @@ BOUNDARY = (
     "Checked: every recorded one-stage player draw state of the 2026-10-08 original frame capture equals the SDK "
     "encoding of the native calls and vice versa; all non-empty captured slot textures decode identically through "
     "their GX objects and through the independent MMAP reader; renders repeat exactly. Inspection images only: "
-    "exact original pixels, ground marks, ball, effect quads, further models, the scoreboard and meters, and fresh "
-    "selected actors are not claimed. The name tags draw under the HUD camera's verified screen view."
+    "exact original pixels, ground marks, ball, effect quads, further models and fresh selected actors are not "
+    "claimed. The name tags and in-match screens draw under the HUD camera's verified screen view, executed as "
+    "each call is issued (the screens re-initialize shared texture objects per image)."
 )
 
 

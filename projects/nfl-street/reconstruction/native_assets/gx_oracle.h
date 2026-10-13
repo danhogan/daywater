@@ -3,8 +3,8 @@
 /* Check-only: runs original routines in the preserved ModernGekko module and
    records their GX SDK calls at the SDK entry points (returning without
    executing them; they would write the GPU FIFO), comparing each with the
-   native call at the same position. GXInitLightColor/GXGetLightColor
-   (80205140/8020514C) only touch memory and execute. The including check
+   native call at the same position. Memory-only SDK functions execute
+   (sdk_executes). The including check
    defines RAM_BASE, RAM_BYTES, R13, STACK_LO, STACK_HI, ram_at, rd32, wr32,
    fbits and the trace type {calls, count}. */
 #include <windows.h>
@@ -27,7 +27,14 @@ static const sdk_entry sdk[]={
  {0x80207c38u,NFLSTREET_GX_CALL_DISPLAY_LIST,2},{0x80207f1cu,NFLSTREET_GX_SET_CURRENT_MTX,1},{0x80207f54u,NFLSTREET_GX_LOAD_TEX_MTX,0},
  {0x8020810cu,NFLSTREET_GX_SET_VIEWPORT,0},{0x80207e7cu,NFLSTREET_GX_LOAD_POS_MTX,0},{0x80207eccu,NFLSTREET_GX_LOAD_NRM_MTX,0},
  {0x802079c8u,NFLSTREET_GX_SET_Z_MODE,3},{0x802079fcu,NFLSTREET_GX_SET_Z_COMP_LOC,1},{0x80207600u,NFLSTREET_GX_SET_FOG,1},
- {0x80203fc0u,NFLSTREET_GX_BEGIN,3},{0x80206e90u,NFLSTREET_GX_SET_TEV_OP,2}};
+ {0x80203fc0u,NFLSTREET_GX_BEGIN,3},{0x80206e90u,NFLSTREET_GX_SET_TEV_OP,2},{0x80206d30u,NFLSTREET_GX_SET_NUM_IND_STAGES,1},
+ {0x80206d58u,NFLSTREET_GX_SET_TEV_DIRECT,1}};
+/* Memory-only SDK functions that execute: GXInitLightColor/GXGetLightColor
+   and the texture-object encoders GXInitTexObj, GXInitTexObjCI,
+   GXInitTexObjLOD and GXInitTlutObj. */
+static int sdk_executes(uint32_t at){
+ static const uint32_t executed[][2]={{0x80205140u,0x80205158u},{0x80205754u,0x80205ba4u},{0x80205df4u,0x80205e3cu}};
+ for(unsigned i=0;i<sizeof executed/sizeof *executed;++i)if(at>=executed[i][0]&&at<executed[i][1])return 1;return 0;}
 static int capture(const CPUState *c,const sdk_entry *e,nflstreet_gx_call *g){
  memset(g,0,sizeof *g);g->op=e->op;for(unsigned i=0;i<e->args;++i)g->arg[i]=c->gpr[3+i];
  const uint8_t *p;
@@ -87,7 +94,7 @@ static int gx_oracle_run(uint32_t pc,const uint32_t args[6],const trace *t,gx_se
   uint32_t at=c.pc;
   /* OS cache maintenance (DCFlushRange and neighbours) has no effect on RAM here. */
   if(at>=0x801f0b00u&&at<0x801f1000u){c.pc=c.lr;continue;}
-  if(at>=0x80200000u&&at<0x80210000u&&at!=0x80205140u&&at!=0x8020514cu){
+  if(at>=0x80200000u&&at<0x80210000u&&!sdk_executes(at)){
    const sdk_entry *e=NULL;for(unsigned i=0;i<sizeof sdk/sizeof *sdk;++i)if(sdk[i].pc==at)e=sdk+i;
    nflstreet_gx_call g;
    if(!e||!capture(&c,e,&g)){fprintf(stderr,"unexpected SDK entry %08x (lr %08x)\n",at,c.lr);return 0;}

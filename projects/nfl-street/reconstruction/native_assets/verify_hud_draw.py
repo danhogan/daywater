@@ -9,24 +9,37 @@ from verify_player_startup import source_hashes
 
 HUD = {
     14: "name tags as saved (472 GX calls, 12 glyph quads, 432 pipe writes); 200 edited name-tag frames (126 "
-    "drawing, 393586 GX calls, 10212 glyph quads, 367632 pipe writes); 400 direct texts (349 drawing, 537705 GX "
-    "calls, 14494 glyph quads, 521784 pipe writes); 400 screen camera views; digest 36d965d9.",
+    "drawing, 393586 GX calls, 10212 glyph quads, 367632 pipe writes); 400 direct texts (349 drawing, "
+    "537705 GX calls, 14494 glyph quads, 521784 pipe writes); 400 screen camera views; uis screens as "
+    "saved (8090 GX calls, 184 quads, 6432 pipe writes) and 200 edited (170 drawing, 807498 GX calls, "
+    "18892 quads, 666088 pipe writes); digest 3ac80fe4.",
     15: "name tags as saved (470 GX calls, 12 glyph quads, 432 pipe writes); 200 edited name-tag frames (126 "
-    "drawing, 392784 GX calls, 10212 glyph quads, 367632 pipe writes); 400 direct texts (349 drawing, 537705 GX "
-    "calls, 14494 glyph quads, 521784 pipe writes); 400 screen camera views; digest 95244216.",
+    "drawing, 392784 GX calls, 10212 glyph quads, 367632 pipe writes); 400 direct texts (349 drawing, "
+    "537705 GX calls, 14494 glyph quads, 521784 pipe writes); 400 screen camera views; uis screens as "
+    "saved (8088 GX calls, 184 quads, 6432 pipe writes) and 200 edited (170 drawing, 807228 GX calls, "
+    "18892 quads, 666088 pipe writes); digest 1bfc7bfc.",
     16: "name tags as saved (472 GX calls, 12 glyph quads, 432 pipe writes); 200 edited name-tag frames (126 "
-    "drawing, 393586 GX calls, 10212 glyph quads, 367632 pipe writes); 400 direct texts (349 drawing, 537705 GX "
-    "calls, 14494 glyph quads, 521784 pipe writes); 400 screen camera views; digest c297ee5b.",
+    "drawing, 393586 GX calls, 10212 glyph quads, 367632 pipe writes); 400 direct texts (349 drawing, "
+    "537705 GX calls, 14494 glyph quads, 521784 pipe writes); 400 screen camera views; uis screens as "
+    "saved (8090 GX calls, 184 quads, 6432 pipe writes) and 200 edited (170 drawing, 807498 GX calls, "
+    "18892 quads, 666088 pipe writes); digest 1f1100ff.",
 }
 NATIVE = {context: "HUD draw: " + text for context, text in HUD.items()}
 ORIGINAL = {
-    context: "Original HUD draw: 1001 runs of 800DADC0, 80186B1C and 8017D16C match every GX call and pipe write "
+    context: "Original HUD draw: 1202 runs of 800DADC0, 80186B1C, 8017D16C and 8012AB5C match every GX call and "
+    "pipe write "
     f"({calls}), the render state and all RAM outside the oracle stack."
-    for context, calls in ((14, 931763), (15, 930959), (16, 931763))
+    for context, calls in ((14, 1747351), (15, 1746275), (16, 1747351))
 }
 SOURCES = (
     "hud_draw.c",
     "hud_draw.h",
+    "hud_shared.h",
+    "uis_draw.c",
+    "uis_draw.h",
+    "gx_texobj.c",
+    "gx_texobj.h",
+    "player_draw.h",
     "matrix_stack.c",
     "matrix_stack.h",
     "scenery_draw.c",
@@ -53,7 +66,11 @@ BOUNDARY = (
     "polynomial, 80189BB0 translation). Every original routine executes unhooked except GX SDK entry points; "
     "calls, pipe writes, render-state globals and all RAM outside the oracle stack are compared. Name tags are "
     "the 14 objects the original frame passes to 800DADC0; the HUD camera is the frame's second camera node. "
-    "The scoreboard, meters and other uis screens are not modeled."
+    "The in-match uis screens 8012AB5C (801D0BC4 without update ticks: 801CEFDC node walk, 801D8268 transforms, "
+    "801D7E74 color stack, 801D6690/801D6A54 images with the GX texture-object encoders 80205754/802059C8/"
+    "80205A10/80205DF4 executing in the oracle, 801D97D4 text) match with the resource lock 801AF944/801AF9CC "
+    "as a supplied no-op on both sides. Resource loads, acquisitions, nine-slice, display-list and indirect "
+    "images, dirty fonts and layouts are rejected natively."
 )
 
 
@@ -122,9 +139,10 @@ def main() -> None:
             edited_name_tag_frames_per_context=200,
             direct_texts_per_context=400,
             camera_views_per_context=400,
-            original_runs_per_process=1001,
-            mutants_caught=18,
-            original_gx_calls={"14": 931763, "15": 930959, "16": 931763},
+            original_runs_per_process=1202,
+            screen_frames_per_context=201,
+            mutants_caught=37,
+            original_gx_calls={"14": 1747351, "15": 1746275, "16": 1747351},
         )
     except Exception as exc:
         record.update(status="failed", error=str(exc))

@@ -359,6 +359,9 @@ int nflstreet_gx_run(nflstreet_gx_machine *m,const nflstreet_gx_call *calls,unsi
   case NFLSTREET_GX_SET_Z_MODE:m->zmode=(a[0]&1)|(a[1]&7)<<1|(a[2]&1)<<4;break;
   case NFLSTREET_GX_SET_Z_COMP_LOC:m->zearly=!a[0];break;
   case NFLSTREET_GX_SET_FOG:if(a[0])return 0;break;
+  /* No indirect texturing: zero indirect stages, direct TEV stages. */
+  case NFLSTREET_GX_SET_NUM_IND_STAGES:if(a[0])return 0;break;
+  case NFLSTREET_GX_SET_TEV_DIRECT:break;
   /* GXBegin then the vertex bytes the game writes to the pipe. */
   case NFLSTREET_GX_BEGIN:{if(m->imm_need||a[1]||(a[0]&0xf8)!=a[0])return 0;size_t v=vertex_bytes(m),need=3+v*(a[2]&0xffff);if(!v)return 0;
    if(need>m->imm_capacity){uint8_t *b=realloc(m->imm,need);if(!b)return 0;m->imm=b;m->imm_capacity=need;}

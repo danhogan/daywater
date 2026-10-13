@@ -1,5 +1,6 @@
 #include "hud_draw.h"
 #include "scenery_shared.h"
+#include "hud_shared.h"
 #include <math.h>
 #define rd32 nflstreet_rd32
 #define rd16 nflstreet_rd16
@@ -8,8 +9,9 @@ static uint8_t *at(nflstreet_draw *d,uint32_t token,uint32_t size){return nflstr
 static int word(nflstreet_draw *d,uint32_t token,uint32_t *v){return nflstreet_draw_word(d,token,v);}
 static int byte(nflstreet_draw *d,uint32_t token,uint8_t *v){const uint8_t *p=at(d,token,1);if(!p)return 0;*v=*p;return 1;}
 /* 801AF57C without an error callback: the code is stored. */
-static int set_error(nflstreet_draw *d,const nflstreet_hud_context *h,uint32_t code){
+int nflstreet_hud_error(nflstreet_draw *d,const nflstreet_hud_context *h,uint32_t code){
  uint8_t *e=at(d,h->error_code,4);if(h->error_hook||!e)return 0;nflstreet_wr32(e,code);return 1;}
+#define set_error nflstreet_hud_error
 
 #define K (&h->stacks)
 static int stack_translate(nflstreet_draw *d,const nflstreet_hud_context *h,uint32_t vector){
@@ -72,10 +74,12 @@ static int quads(nflstreet_draw *d,uint32_t font,uint32_t boxes,uint32_t count,u
    for(unsigned j=0;j<4;++j)if(!GX(d,NFLSTREET_GX_WRITE,1,rgba[j]))return 0;
    if(!GX(d,NFLSTREET_GX_WRITE,4,nflstreet_float_bits(q[2]))||!GX(d,NFLSTREET_GX_WRITE,4,nflstreet_float_bits(q[3])))return 0;}}
  return 1;}
-static int text(nflstreet_draw *d,const nflstreet_hud_context *h,uint32_t font,uint32_t string,uint32_t flags,float limit,uint32_t position){
+int nflstreet_text_draw_at(nflstreet_draw *d,const nflstreet_hud_context *h,uint32_t font,uint32_t string,uint32_t flags,float limit,
+ const float position[3]){
  uint32_t count,header,font_flags,texture,state;
  if(!layout(d,h,font,string,flags,limit,&count))return 0;if(!count)return 1;
- if(!nflstreet_matrix_select(d,K)||!nflstreet_matrix_push(d,K)||!stack_translate(d,h,position)||!nflstreet_matrix_load_top(d,K))return 0;
+ if(!nflstreet_matrix_select(d,K)||!nflstreet_matrix_push(d,K)||!nflstreet_matrix_translate(d,K,position[0],position[1],position[2])||
+    !nflstreet_matrix_load_top(d,K))return 0;
  if(!word(d,font+4,&header)||!word(d,header+0xc,&font_flags)||!word(d,font+0x18,&texture)||!word(d,h->text_state,&state))return 0;
  const uint32_t shadow=h->text_state+0x14,main=h->text_state+4;
  if(font_flags&4){uint8_t *s=at(d,h->text_state,4);if(!s)return 0;nflstreet_wr32(s,state|0x40u);
@@ -85,6 +89,10 @@ static int text(nflstreet_draw *d,const nflstreet_hud_context *h,uint32_t font,u
   if(state&0x10){if(!nflstreet_matrix_push(d,K)||!stack_translate(d,h,h->text_state+0x24)||!nflstreet_matrix_load_top(d,K)||
      !quads(d,font,h->text_boxes,count,shadow)||!nflstreet_matrix_pop(d,K)||!nflstreet_matrix_load_top(d,K))return 0;}}
  return quads(d,font,h->text_boxes,count,main)&&nflstreet_matrix_pop(d,K)&&set_error(d,h,0);}
+static int text(nflstreet_draw *d,const nflstreet_hud_context *h,uint32_t font,uint32_t string,uint32_t flags,float limit,uint32_t position){
+ const uint8_t *v=at(d,position,12);if(!v)return 0;
+ const float p[3]={nflstreet_as_float(rd32(v)),nflstreet_as_float(rd32(v+4)),nflstreet_as_float(rd32(v+8))};
+ return nflstreet_text_draw_at(d,h,font,string,flags,limit,p);}
 static int valid(const nflstreet_hud_context *h,const nflstreet_render_state *s){
  return h&&h->scene&&h->scene->draw&&h->scene->draw->span&&h->scene->draw->emit&&s;}
 int nflstreet_text_draw(const nflstreet_hud_context *h,uint32_t font,uint32_t string,uint32_t flags,float limit,uint32_t position,
@@ -93,13 +101,13 @@ int nflstreet_text_draw(const nflstreet_hud_context *h,uint32_t font,uint32_t st
 
 /* 80186264: default text state (white text; shadow black at half alpha,
    offset (3, 3, 1)). */
-static int text_defaults(nflstreet_draw *d,const nflstreet_hud_context *h){
+int nflstreet_text_defaults(nflstreet_draw *d,const nflstreet_hud_context *h){
  uint8_t *t=at(d,h->text_state,0x30);if(!t)return 0;
  static const float v[11]={1,1,1,1,0,0,0,0.5f,3,3,1};nflstreet_wr32(t,0);
  for(unsigned i=0;i<11;++i)nflstreet_wr32(t+4+4*i,nflstreet_float_bits(v[i]));return 1;}
 /* 80186CD8: direct position, color and texture coordinate; vertex color
    with texture alpha; source-alpha blending without depth; alpha > 0. */
-static int text_setup(nflstreet_draw *d){
+int nflstreet_text_setup(nflstreet_draw *d){
  return nflstreet_draw_gx(d,NFLSTREET_GX_CLEAR_VTX_DESC,0,NULL,NULL,0)&&GX(d,NFLSTREET_GX_SET_VTX_DESC,9,1)&&GX(d,NFLSTREET_GX_SET_VTX_DESC,0xb,1)&&
   GX(d,NFLSTREET_GX_SET_VTX_DESC,0xd,1)&&GX(d,NFLSTREET_GX_SET_NUM_CHANS,1)&&GX(d,NFLSTREET_GX_SET_CHAN_CTRL,4,0,0,1,1,2,1)&&
   GX(d,NFLSTREET_GX_SET_NUM_TEV_STAGES,1)&&GX(d,NFLSTREET_GX_SET_TEV_ORDER,0,0,0,4)&&GX(d,NFLSTREET_GX_SET_TEV_OP,0,0)&&
@@ -108,7 +116,7 @@ static int text_setup(nflstreet_draw *d){
   GX(d,NFLSTREET_GX_SET_VTX_ATTR_FMT,0,0xb,1,5,0)&&GX(d,NFLSTREET_GX_SET_VTX_ATTR_FMT,0,0xd,1,4,0)&&GX(d,NFLSTREET_GX_SET_BLEND_MODE,1,4,5,5)&&
   GX(d,NFLSTREET_GX_SET_Z_COMP_LOC,0)&&GX(d,NFLSTREET_GX_SET_Z_MODE,0,7,0)&&GX(d,NFLSTREET_GX_SET_ALPHA_COMPARE,4,0,0,4,0);}
 /* 80187CB4/80187CC4: switch the profile bucket. */
-static int profile(nflstreet_draw *d,const nflstreet_hud_context *h,uint32_t bucket){
+int nflstreet_hud_profile(nflstreet_draw *d,const nflstreet_hud_context *h,uint32_t bucket){
  uint32_t next=h->profile_base+0x7cu*bucket,current,stamp;if(!word(d,h->profile_current,&current)||!word(d,h->profile_next,&stamp))return 0;
  if(current==next)return 1;
  if(current){uint8_t *p=at(d,current+0x40,4),*n=at(d,h->profile_next,4);if(!p||!n)return 0;nflstreet_wr32(p,stamp);nflstreet_wr32(n,stamp+0x10);}
@@ -131,11 +139,11 @@ int nflstreet_name_tag_draw(const nflstreet_hud_context *h,uint32_t tag,nflstree
  if(!nflstreet_play_mode(&d,c,&mode))return 0;if(mode==4)return 1;
  if(!nflstreet_play_mode(&d,c,&mode))return 0;if(mode==7)return 1;
  if(!nflstreet_play_counting(&d,c,&counting))return 0;if(counting)return 1;
- uint32_t fog;if(!profile(&d,h,0xd)||!nflstreet_scenery_fog_switch(&d,c,0,&fog)||!text_defaults(&d,h)||!byte(&d,h->tag_black,&black))return 0;
+ uint32_t fog;if(!nflstreet_hud_profile(&d,h,0xd)||!nflstreet_scenery_fog_switch(&d,c,0,&fog)||!nflstreet_text_defaults(&d,h)||!byte(&d,h->tag_black,&black))return 0;
  uint8_t *state=at(&d,h->text_state,0x14);if(!state)return 0;
  if(black)for(unsigned k=0;k<4;++k)nflstreet_wr32(state+4+4*k,nflstreet_float_bits(k==3?1.0f:0.0f));
  nflstreet_wr32(state,rd32(state)&~0x20u);
- if(!text_setup(&d))return 0;
+ if(!nflstreet_text_setup(&d))return 0;
  /* The projection slot 1 is copied, given the tag depth and restored:
     no net change. */
  if(!nflstreet_matrix_select(&d,K)||!nflstreet_matrix_push(&d,K)||!nflstreet_matrix_translate(&d,K,h->tag_offset,0.0f,0.0f)||

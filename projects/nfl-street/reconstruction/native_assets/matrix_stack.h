@@ -19,6 +19,7 @@ int nflstreet_matrix_push(nflstreet_draw *,const nflstreet_matrix_stacks *);    
 int nflstreet_matrix_pop(nflstreet_draw *,const nflstreet_matrix_stacks *);             /* 8018949C */
 int nflstreet_matrix_reset(nflstreet_draw *,const nflstreet_matrix_stacks *);           /* 801893EC: depth 0, identity */
 int nflstreet_matrix_translate(nflstreet_draw *,const nflstreet_matrix_stacks *,float x,float y,float z); /* 80189BB0 */
+int nflstreet_matrix_scale(nflstreet_draw *,const nflstreet_matrix_stacks *,float x,float y,float z); /* 80189CEC */
 int nflstreet_matrix_rotate(nflstreet_draw *,const nflstreet_matrix_stacks *,unsigned axis,uint32_t angle); /* 80189854/944/A34 */
 int nflstreet_matrix_load_top(nflstreet_draw *,const nflstreet_matrix_stacks *);        /* 80189ED8 + GXLoadPosMtxImm(0) */
 /* 80188A70 / 80188AEC: sine and cosine of a 24-bit angle (0x800000 = pi). */

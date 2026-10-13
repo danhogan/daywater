@@ -25,7 +25,18 @@ assignments and LOD are explicit fixture inputs; fresh actor instances, natural
 head roots/pose selection and matrix token publication remain open. See
 [owned attachment palettes](reconstruction/native_assets/match_attachment_palettes.md).
 
-**Latest rendering: player name tags, the in-match text renderer and the HUD camera are native.**
+**Latest rendering: the in-match HUD is native, so the scene now matches the game's frame.**
+The scoreboard, GameBreaker bars, "1ST DOWN", team logos and turbo meters
+come from the in-match uis screens (`8012AB5C` → `801D0BC4`). These are now
+native: the node walk, transforms, color stack, image quads with the
+game's GX texture-object encoders, and text through the native text
+renderer. They match the original in 201 screen frames per saved context
+(1,202 HUD runs per context, every GX call, pipe write and RAM byte), with
+37 deliberate faults caught. The rendered frame now matches the game's
+screenshot apart from ground marks, the ball and some effect quads. See
+[HUD](reconstruction/native_assets/hud_draw.md).
+
+**Earlier rendering: player name tags, the in-match text renderer and the HUD camera are native.**
 The text layout and glyph quads (`80186B1C`), the name tags (`800DADC0`) and
 the screen camera view (`8017D16C`, the first piece of the matrix library:
 rotations, sine polynomial, translation) match the original: 1,001 runs per

@@ -118,8 +118,8 @@ Private files:
 The same check also renders a scene. It draws the sky, the EARS field passes,
 the actor shadows, the field lines, the player-select rings and the main
 field through the verified native scenery draw (`scenery_draw.md`), then the
-14 players, then the name tags under the natively rebuilt HUD camera
-(`hud_draw.md`), into one target with shared depth, from a fresh copy of the
+14 players, then the HUD (name tags and in-match screens) under the
+natively rebuilt HUD camera (`hud_draw.md`), into one target with shared depth, from a fresh copy of the
 saved RAM. The sky and the shadows use the
 matrix-stack top. The saved stack already holds the next frame's camera, so
 the check writes the drawn frame's view there: the stored main-field matrix

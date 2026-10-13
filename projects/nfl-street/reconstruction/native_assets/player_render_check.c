@@ -102,6 +102,14 @@ static int cross_decode(uint8_t *ram,unsigned *textures,size_t *pixels){
     nflstreet_texture_close(&ref);free(rgba);return 0;}}
   *pixels+=(size_t)w*h;++*textures;nflstreet_texture_close(&ref);free(rgba);}
  return 1;}
+/* Streamed execution: each call runs as it is issued, while the RAM
+   objects it names (texture and TLUT objects the HUD re-initializes per
+   image) still hold their values, as GX copies them when they load. */
+typedef struct {nflstreet_gx_machine *machine;nflstreet_gx_stats *stats;unsigned count;} stream;
+static int stream_call(void *sink,const nflstreet_gx_call *c){stream *x=sink;
+ if(!nflstreet_gx_run(x->machine,c,1,x->stats)){fprintf(stderr,"executor rejected streamed call %u op %d args %08x %08x %08x %08x\n",x->count,
+  (int)c->op,c->arg[0],c->arg[1],c->arg[2],c->arg[3]);return 0;}
+ ++x->count;return 1;}
 /* Executes one call list, reporting the first rejected call. */
 static int execute(nflstreet_gx_machine *m,const trace *t,nflstreet_gx_stats *stats,const char *what,unsigned index){
  for(unsigned k=0;k<t->count;++k)if(!nflstreet_gx_run(m,t->calls+k,1,stats)){const nflstreet_gx_call *c=t->calls+k;
@@ -178,12 +186,17 @@ int main(int argc,char **argv){
  /* HUD: the HUD camera's screen view (8017D16C; the saved stack holds the
     last camera's), then the name tags (800DADC0) over the scene. */
  if(!hud_present(ram))return 11;
- nflstreet_hud_context hud=hud_context(ram,&v);unsigned hud_calls=0;
- t.count=0;if(!nflstreet_camera_view(&hud,HUD_CAMERA,&s)||t.count)return 12;
- for(unsigned i=0;i<HUD_NAME_TAG_COUNT;++i){t.count=0;if(!nflstreet_name_tag_draw(&hud,hud_name_tag(i),&s)||!execute(m,&t,&scene,"name tag",i))return 12;hud_calls+=t.count;}
+ stream streamed={m,&scene,0};nflstreet_player_draw_context hx=x;hx.emit=stream_call;hx.sink=&streamed;
+ nflstreet_scenery_context hv=v;hv.draw=&hx;nflstreet_hud_context hud=hud_context(ram,&hv);
+ if(!nflstreet_camera_view(&hud,HUD_CAMERA,&s)||streamed.count)return 12;
+ for(unsigned i=0;i<HUD_NAME_TAG_COUNT;++i)if(!nflstreet_name_tag_draw(&hud,hud_name_tag(i),&s))return 12;
+ /* Then the in-match uis screens (8012AB5C): scoreboard, meters and text. */
+ nflstreet_uis_context screens=uis_context(ram,&hud);
+ if(!nflstreet_hud_screens_draw(&screens,ram32(ram,R13-0x6cd8u),&s))return 12;
+ const unsigned hud_calls=streamed.count;
  nflstreet_gx_close(m);
  image.bgra=bgra;if(!nflstreet_texture_bmp(&image,argv[3]))return 7;
- printf("Scene render: sky, EARS field passes, shadows, lines, rings and main field (%u GX calls) then 14 actors (%u GX calls) and name tags (%u GX calls); %u display lists, %u triangles "
+ printf("Scene render: sky, EARS field passes, shadows, lines, rings and main field (%u GX calls) then 14 actors (%u GX calls) and the HUD (%u GX calls); %u display lists, %u triangles "
   "(%u culled, %u clipped), %u decoded textures, %zu shaded pixels; digest %08x.\n",venue_calls,player_calls,hud_calls,scene.display_lists,
   scene.triangles,scene.culled,scene.clipped,scene.textures,scene.pixels,fnv(2166136261u,bgra,WIDTH*HEIGHT*4));
  memcpy(ram,pristine,RAM_BYTES);

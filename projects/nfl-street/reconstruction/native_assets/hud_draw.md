@@ -1,8 +1,10 @@
-# HUD text, name tags and the screen camera
+# HUD: text, name tags, screen camera and in-match screens
 
 `hud_draw.c` reconstructs the in-match text renderer and the player name
-tags. `matrix_stack.c` reconstructs the part of the matrix library they and
-the HUD camera need. Like the scenery draw (`scenery_draw.md`), the code
+tags. `uis_draw.c` reconstructs the in-match uis screens: the scoreboard,
+GameBreaker bars, "1ST DOWN" and the turbo meters. `matrix_stack.c`
+reconstructs the part of the matrix library they and the HUD camera need,
+and `gx_texobj.c` reconstructs the game SDK's texture-object encoders. Like the scenery draw (`scenery_draw.md`), the code
 produces the exact GX calls and GX pipe data of the original, along with its
 RAM side effects.
 
@@ -104,6 +106,86 @@ player's ring.
     (`DolRecomp/src/backend/llvm/paired_fma.cpp`), which is what the native
     code uses.
 
+## In-match screens
+
+- **`8012AB5C(camera, ticks)`.** It sets:
+  - text and draw modes 0;
+  - profile bucket 13;
+  - pending loads (`8030834C`, none here);
+  - depth test off (`80187980`), then the text defaults;
+  - the refresh check (`80004668` → `801D5F60`, inactive here);
+  - fog off.
+
+  When the camera is `r13-6CD8`, it draws screens `r13-6C84`, `-6C94`,
+  `-6C88` and `-6C8C`, enabled by `r13-6C98` bits 8, 1, 2 and 4.
+  `r13-4F80` is cleared after the second. Then fog and depth are restored.
+- **`801D0BC4(screen, 0)`.** The tint is reset (`8034CDB8`: scale 1, add
+  0). Each root (`+3C`, 0x14 apart) is walked by `801CEFDC` with the draw
+  message `0xFFFFFFFE`. The ticks update `801CF610`, which the frame runs
+  once, is not modeled: the native draw shows the saved state.
+- **`801CEFDC`.**
+  - The root's pre-entries are messaged first.
+  - A visible node (`*node != 0`) multiplies and adds the tint.
+  - The screen's transform callback (`801D8398` → `801D8268`) does
+    select, push, translate, then the pivot. Rotations (degrees ×
+    `80263B80`, truncated) are applied only when one is nonzero. Then come
+    scale and minus the pivot.
+  - The color stack is pushed (`801D7E74`: multiplied entries, alpha
+    clamped to [0, 1], eight bytes clamped from × 255).
+  - Each enabled group's entries are walked: subnodes (class `0xFFFF`), or
+    objects whose draw flag is set, through the class table `+4C`.
+  - Then the tint is restored and the transform and colors popped.
+- **Classes.** On the draw message:
+  - images (`801D60DC`) draw through `801D6690`;
+  - text objects (`801D9244`) draw through `801D97D4`;
+  - the game classes `8012CB94` and `8012C5D8` do nothing.
+- **Images (`801D6690`, `801D6A54`).**
+  - **Resource lookups** (manager `r13-63DC`, archives 0x24 apart, entries
+    8 apart):
+    - A pending image change with the same ids is cleared after an
+      archive state query (`801A8464`).
+    - The record is `801D5C34`. An in-use entry notifies only archives with
+      flag 4, which does nothing.
+  - **GX state:** the GX reset, then `801D7AD8`:
+    - s16 positions with 4 fraction bits, RGBA8 colors, s16 texture
+      coordinates with 8 fraction bits;
+    - source-alpha blending, no depth, alpha > 0.
+  - **Colors:** the color-stack bytes become the material color and the
+    color of light 7 (`801D7A58`). Lighting uses the vertex color as
+    ambient.
+  - **Cull and matrix:** cull back for flag 4, and the stack top as
+    matrix 0.
+  - **Textured images:**
+    - the texture matrix 30 from the record's `+30/+34`;
+    - `GXInitTexObj`, or `GXInitTexObjCI` with TLUT 15 (wrap where a
+      coordinate passes 0x100);
+    - `GXInitTexObjLOD`;
+    - `GXInitTlutObj` (16 or 256 entries).
+  - **Vertices:** four of them (`801D73E0`/`801D6C00`), with position
+    `+34`, color `+14` (palette-mapped through the cached `801D7C1C`
+    entry), and texture coordinates `+24`.
+- **Text (`801D97D4`).**
+  - **Font:** from the archive `+3`/`+2` record.
+  - **Text state flags:** set from the object's high nibble.
+  - **Colors:** main and shadow colors are `(byte + add) × 1/255 ×
+    scale` of the current color-stack entry, with the shadow offset
+    `+C..+E` for flags 0x50. The text setup runs once per mode
+    (`r13-63C4`).
+  - **Position:** `+6/+8/+A`, shifted by `+14` (halved when centered) for
+    flag 0x100.
+  - **Lines:** `+10` to `+F`, each temporarily terminated in its buffer and
+    drawn through `80186B1C`. With flag 0x200 they are clipped at
+    `+16` + y.
+- **SDK encoders.** `GXInitTexObj` without mipmaps, with tile classes and
+  shifts from the format table at `80298A7C`. `GXInitTexObjLOD` clamps the
+  bias to [−4, 3.99] (× 32) and the LODs to [0, 10] (× 16).
+  `GXInitTlutObj` packs the format, address and entry count.
+
+The screens re-initialize the shared texture object `8039E740` and TLUT
+object `8039E780` for every image, as GX copies them when they load. The
+scene render therefore executes HUD calls as they are issued, not after
+each screen.
+
 ## Verification
 
 ```bash
@@ -114,8 +196,8 @@ PYTHONPATH=projects/nfl-street/reconstruction/menus \
 Every original routine executes unhooked in the module. Only GX SDK entry
 points are recorded (`gx_oracle.h`), and immediate vertex data is captured
 at the GX pipe. Per saved context (14, 15 and 16, each in two fresh
-processes) there are 1,001 original runs, with 931,763 calls and pipe writes
-in context 14:
+processes) there are 1,202 original runs, with 1,747,351 calls and pipe
+writes in context 14:
 
 - **The 14 name tags as saved:** 472 calls, 12 glyph quads ("Thomas", two
   palette passes).
@@ -139,8 +221,29 @@ in context 14:
 - **400 screen camera views:** the two saved screen cameras, then random
   and boundary angles (0, ±90°, 180°, 0x7FFFFF, 0xFFFFFF), positions, and
   the stack choice and depth.
+- **201 `8012AB5C` screen frames:** the saved screens (8,090 calls, 36
+  image quads and 148 glyph quads), then 200 edited frames. The edits
+  cover:
+  - node visibility (hidden nodes shown too), transforms, rotations, scales
+    and tints;
+  - group enables and entry draw flags;
+  - image flags, colors, positions, texture coordinates, pending ids and
+    the cached palette;
+  - text flags, positions, offsets, colors, shadows and start lines;
+  - multi-line copies of text objects with wrap clipping at line-height
+    multiples;
+  - the screen flags and camera, the text mode, pending loads, the
+    resource flag and state bits;
+  - the base color-stack entry, the LOD constant, the stack choice, fog and
+    the error code.
 
-Eighteen deliberate faults were each rejected:
+  The original runs unhooked except for the resource lock `801AF944`/
+  `801AF9CC` (an OS mutex around archive state queries), which is a
+  supplied no-op on both sides. The memory-only SDK encoders execute in the
+  oracle (`gx_oracle.h`).
+
+Thirty-seven deliberate faults were each rejected. Eighteen are in the text,
+name tags and matrix library:
 
 | Area | Faults |
 | --- | --- |
@@ -149,7 +252,25 @@ Eighteen deliberate faults were each rejected:
 | Name tag | profile stamp, the mode-4 gate, black-text alpha, font gate |
 | Matrix library | sine without fused adds, rotation sign, cosine phase, translation without fused adds, rotation order |
 
-Three of these needed stronger cases before they were caught:
+Nineteen are in the screens:
+
+| Area | Faults |
+| --- | --- |
+| Color stack | alpha clamp, byte clamp, multiplied add |
+| Transforms and matrices | angle rounding, pivot, scale axis |
+| Images | wrap threshold, TLUT entries, palette gate, cull mode, pending clear |
+| Text | color order, center shift, clip boundary |
+| Screen walk and entry | entry draw flag, the `r13-4F80` clear |
+| Texture-object encoders | LOD bias clamp, tile class, bias-clamp bit |
+
+Four first-try screen faults were equivalent:
+- `<=` for `<` at the clamps, which store the same value either way, and the
+  NaN-only clip, since positions are integers. All three were replaced by
+  stronger forms.
+- The tint add was dropped, since the tint is restored before anything
+  reads it.
+
+Three of the first eighteen needed stronger cases before they were caught:
 - the wrap boundary needed whole-number limits a pen position can equal;
 - the error code needed a nonzero prior value;
 - center rounding needed negative line widths.
@@ -159,17 +280,24 @@ Private report:
 
 ## Use
 
-`player_render_check.c` draws the name tags last. Before them it rebuilds
-the HUD camera's screen view (`806A1DB0`) natively. The tag then lands on
-the selected player's ring, as in the game's screenshot.
+`player_render_check.c` draws the HUD last. It first rebuilds the HUD
+camera's screen view (`806A1DB0`) natively, then draws the name tags and
+the in-match screens (`8012AB5C`). The rendered frame then shows the
+Bears and Lions logos, scores, GameBreaker bars, "1ST DOWN", both turbo
+meters and the "Thomas" tag, as in the game's screenshot.
 
 ## Not modeled
 
-- **The uis screens** drawn after the name tags in the HUD camera:
-  scoreboard, GameBreaker meters, "1ST DOWN", turbo bars. They go through
-  `8012AB5C` → `8012C528` → `801D7DAC`/`801D7DCC`, text through
-  `801D9D84` → `80186B1C`, and quads through `801D6690` → `801D6A54`.
+- **The screens' update tick** (`801CF610`, once per frame) and the uis
+  script VM. The native draw shows the saved state.
+- **Rejected image and text paths:**
+  - resource loads and acquisitions (`801A6B78`, `801D54A4`, palette cache
+    misses);
+  - image exchanges (`801D84D8`);
+  - `801DD5E8` refreshes;
+  - nine-slice strips (flag 8);
+  - display-list (flag 0x8000) and indirect (`+10 == 6`) images;
+  - dirty fonts (`801861C4`) and layouts (`801D8E54`);
+  - root callbacks and other classes.
 - **Other camera types** (the field camera is type 2), and the camera
   node's projection and viewport setup (`801DFAB0`).
-- **The rest of the matrix library:** scale, concatenation and the
-  projection products.

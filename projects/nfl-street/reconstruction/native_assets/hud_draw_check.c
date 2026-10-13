@@ -13,6 +13,7 @@
 #define TAG_CASES 200u
 #define TEXT_CASES 400u
 #define CAMERA_CASES 400u
+#define SCREEN_CASES 201u
 #include "check_fixture.h"
 #include "hud_fixture.h"
 #define SCRATCH 0x80f04000u
@@ -20,7 +21,10 @@ static const uint32_t fonts[3]={0x8091bce0u,0x80e14ee0u,0x80e196e0u};
 /* kind 0: the 14 name tags as saved; 1: edited name tags; 2: one direct
    text draw with edited inputs; 3: one screen camera view (8017D16C), the
    two saved screen cameras first, then edited angles, positions and stack
-   selection. */
+   selection; 4: the in-match uis screens through 8012AB5C with no ticks,
+   as saved, then with edited nodes (visibility, transforms, tints),
+   images (flags, colors, positions, texture coordinates, pending ids),
+   text objects (flags, positions, colors, shadows, lines) and switches. */
 typedef struct {unsigned kind;uint32_t font,text,flags,position,camera;float limit;} hud_case;
 static uint32_t random_text(uint8_t *ram,uint32_t at){
  static const char letters[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,'-!?:";
@@ -71,14 +75,81 @@ static void edit_camera(uint8_t *ram,unsigned index,hud_case *c){
   if(rnd()%2)wr32(v+0x14+4*k,rnd()%4==0?special[rnd()%6]:rnd()%3==0?rnd()<<8^rnd():rnd()&0xffffffu);}
  if(rnd()%3==0)ram_at(ram,R13-0x4ee8u,1)[0]=(uint8_t)(rnd()%4);
  uint32_t stack=ram32(ram,R13-0x65f0u)+12u*ram_at(ram,R13-0x4ee8u,1)[0];if(rnd()%3==0)wr32(ram_at(ram,stack+4,4),rnd()%4);}
+/* The two in-match uis screens 8012AB5C draws (r13-6C84 and r13-6C94,
+   enabled by r13-6C98 flags 8 and 1). */
+static uint32_t hud_screen(uint8_t *ram,unsigned i){return ram32(ram,i?R13-0x6c94u:R13-0x6c84u);}
+/* uis screen trees: nodes and their image (class 0) and text (class 8)
+   objects. */
+typedef struct {uint32_t nodes[96],images[160],texts[96],text_offsets[96],text_data[96],groups[160];
+ unsigned node_count,image_count,text_count,group_count;} uis_tree;
+static void collect(uint8_t *ram,uint32_t root,uint32_t index,uis_tree *t,unsigned depth){
+ uint32_t data=ram32(ram,root+0x10);if(!data||ram32(ram,root+0xc)||depth>16)return;
+ uint32_t slot=ram32(ram,data+4)+0x14u*index,n=ram32(ram,slot);if(t->node_count<96)t->nodes[t->node_count++]=n;
+ for(uint32_t g=0;g<ram32(ram,slot+4);++g){uint32_t gp=ram32(ram,ram32(ram,slot+8)+4*g);if(t->group_count<160)t->groups[t->group_count++]=ram32(ram,gp);
+  for(uint32_t k=0;k<ram32(ram,gp+4);++k){uint32_t e=ram32(ram,gp+8)+8*k,cls=rd32(ram_at(ram,e,4))>>16,ptr=ram32(ram,e+4);
+   if(cls==0xffffu){collect(ram,root,ptr,t,depth+1);continue;}
+   if(rnd()%10==0)ram_at(ram,e+2,2)[1]=0; /* entry draw flag */
+   if(!ptr)continue;uint32_t obj=data+ram32(ram,ptr);
+   if(cls==0&&t->image_count<160)t->images[t->image_count++]=obj;
+   if(cls==8&&t->text_count<96){t->text_offsets[t->text_count]=ptr;t->text_data[t->text_count]=data;t->texts[t->text_count++]=obj;}}}}
+static void edit_screens(uint8_t *ram){
+ uis_tree t;memset(&t,0,sizeof t);
+ for(unsigned i=0;i<2;++i){uint32_t sc=hud_screen(ram,i);for(uint32_t r=0;r<ram32(ram,sc+0x38);++r)collect(ram,ram32(ram,sc+0x3c)+0x14u*r,0,&t,0);}
+ /* Hidden nodes may be shown: their textured flag-0x10 images get no
+    palette (the acquisition path is not modeled). */
+ for(unsigned i=0;i<t.image_count;++i){uint8_t *o=ram_at(ram,t.images[i],0x4c);if((rd32(o)>>16&0x12u)==0x12u)memset(o+8,0xff,4);
+  else if(rnd()%6==0){o[8]=0;o[9]=0;o[0xa]=0;o[0xb]=6;}} /* the cached palette (6, 0) */
+ for(unsigned i=0;i<t.node_count;++i){uint8_t *n=ram_at(ram,t.nodes[i],0x5c);
+  if(rd32(n)?rnd()%8==0:rnd()%3==0)wr32(n,rd32(n)?0:1);
+  if(rnd()%4==0)for(unsigned k=0;k<3;++k)wr32(n+8+4*k,fbits(rd32(n+8+4*k)?rndf(-100.0f,600.0f):rndf(-20.0f,20.0f)));
+  if(rnd()%6==0)for(unsigned k=0;k<3;++k)wr32(n+0x14+4*k,fbits(rndf(-50.0f,50.0f)));
+  if(rnd()%5==0)for(unsigned k=0;k<3;++k)wr32(n+0x20+4*k,fbits(rnd()%3?0.0f:rndf(-360.0f,360.0f)));
+  if(rnd()%5==0)for(unsigned k=0;k<3;++k)wr32(n+0x2c+4*k,fbits(rndf(-2.0f,2.0f)));
+  if(rnd()%4==0)for(unsigned k=0;k<8;++k)wr32(n+0x3c+4*k,fbits(rndf(-0.5f,1.5f)));}
+ for(unsigned i=0;i<t.image_count;++i){uint8_t *o=ram_at(ram,t.images[i],0x4c);uint32_t f=rd32(o)>>16;
+  if(rnd()%6==0)f^=1u<<(rnd()%2?0:2);if(rnd()%8==0&&!(f&0x10))f^=2u;o[0]=(uint8_t)(f>>8);o[1]=(uint8_t)f;
+  if(rnd()%4==0)for(unsigned k=0;k<4;++k)wr32(o+0x14+4*k,rnd()<<8^rnd());
+  if(rnd()%4==0)for(unsigned k=0;k<12;++k){uint16_t v=(uint16_t)(rnd()%8000-2000);o[0x34+2*k]=(uint8_t)(v>>8);o[0x35+2*k]=(uint8_t)v;}
+  if(rnd()%4==0)for(unsigned k=0;k<8;++k){uint16_t v=(uint16_t)(rnd()%0x300);o[0x24+2*k]=(uint8_t)(v>>8);o[0x25+2*k]=(uint8_t)v;}
+  if(rnd()%5==0&&(int16_t)rd32(o+4)!=-1){if(rnd()%2){memcpy(o+0xc,o+4,2);memcpy(o+0xe,o+6,2);}else{memset(o+0xc,0xff,4);}}}
+ for(unsigned i=0;i<t.text_count;++i){uint8_t *o=ram_at(ram,t.texts[i],0x28);uint32_t f=rd32(o)>>16;
+  if(rnd()%3==0){static const uint16_t bits_[8]={1,2,0x10,0x20,0x40,0x80,0x100,0x200};f^=bits_[rnd()%8];}
+  if((f&3)==3)f&=~2u;o[0]=(uint8_t)(f>>8);o[1]=(uint8_t)f;
+  if(rnd()%4==0)for(unsigned k=0;k<3;++k){uint16_t v=(uint16_t)(rnd()%600-150);o[6+2*k]=(uint8_t)(v>>8);o[7+2*k]=(uint8_t)v;}
+  if(rnd()%4==0)for(unsigned k=0;k<2;++k){uint16_t v=(uint16_t)(rnd()%200-60);o[0x14+2*k]=(uint8_t)(v>>8);o[0x15+2*k]=(uint8_t)v;}
+  if(rnd()%4==0)for(unsigned k=0;k<2;++k)wr32(o+0x18+4*k,rnd()<<8^rnd());
+  if(rnd()%4==0)for(unsigned k=0;k<3;++k)o[0xc+k]=(uint8_t)(rnd()%13-6);
+  if(rnd()%5==0)o[0x10]=(uint8_t)(rnd()%(o[0xf]+1u));}
+ for(unsigned i=0;i<t.group_count;++i)if(rnd()%4==0)wr32(ram_at(ram,t.groups[i],4),ram32(ram,t.groups[i])?0:1);
+ /* A multi-line copy of a text object in scratch RAM (lines over its own
+    string, wrap clipping at whole multiples of the line height), linked
+    in place of the original. */
+ if(t.text_count&&rnd()%2==0){unsigned i=rnd()%t.text_count;const uint8_t *o=ram_at(ram,t.texts[i],0x28);
+  uint32_t end=rd32(ram_at(ram,t.texts[i]+0x24,4))&0xffffu,copy=SCRATCH+0x1000u,spans=SCRATCH+0x1100u,lines=2+rnd()%3;
+  uint32_t rec=ram32(ram,ram32(ram,ram32(ram,ram32(ram,R13-0x63e0u+4)+0xc)+0x24u*(uint32_t)(int8_t)o[3]+0x20)+8u*(uint32_t)(int8_t)o[2]+4);
+  if(end&&rec&&!ram32(ram,rec+4)){uint32_t lh=ram_at(ram,ram32(ram,ram32(ram,rec)+4)+0x13,1)[0];uint8_t *c=ram_at(ram,copy,0x28);memcpy(c,o,0x28);
+   c[0xf]=(uint8_t)lines;c[0x10]=(uint8_t)(rnd()%2);wr32(c+0x24,spans);c[0]|=(uint8_t)(rnd()%2?2:0);c[1]=(uint8_t)(c[1]&~3u);
+   uint16_t limit=(uint16_t)(lh*(1+rnd()%lines)+(rnd()%3==0?rnd()%5:0));c[0x16]=(uint8_t)(limit>>8);c[0x17]=(uint8_t)limit;
+   for(unsigned k=0;k<lines;++k){uint32_t a=rnd()%(end+1),b=a+rnd()%(end-a+1);wr32(ram_at(ram,spans+4*k,4),a<<16|b);}
+   wr32(ram_at(ram,t.text_offsets[i],4),copy-t.text_data[i]);}}
+ if(rnd()%10==0)wr32(ram_at(ram,R13-0x6c98u,4),rnd()%16);if(rnd()%2)wr32(ram_at(ram,R13-0x4f80u,4),rnd()|1u);
+ if(rnd()%4==0)wr32(ram_at(ram,0x80263b98u,4),fbits(rndf(-6.0f,12.0f)));if(rnd()%12==0)wr32(ram_at(ram,R13-0x6cd8u,4),0);
+ if(rnd()%6==0)ram_at(ram,R13-0x63bcu,1)[0]=(uint8_t)(rnd()%2);if(rnd()%6==0)ram_at(ram,R13-0x6cf0u,1)[0]=(uint8_t)(rnd()%2);
+ if(rnd()%10==0)ram_at(ram,R13-0x6538u,1)[0]=0;
+ if(rnd()%4==0){uint32_t obj=ram32(ram,ram32(ram,ram32(ram,R13-0x63e0u+4)+0xc)+0x24+0x14);uint8_t *b=ram_at(ram,ram32(ram,obj+0x78)+13,1);b[0]^=0x10;}
+ if(rnd()%4==0)for(unsigned k=0;k<8;++k)wr32(ram_at(ram,0x8034cdd8u+4*k,4),fbits(rndf(-0.5f,1.5f)));
+ if(rnd()%3==0)ram_at(ram,R13-0x4ee8u,1)[0]=(uint8_t)(rnd()%2?0:3);
+ if(rnd()%3==0)ram_at(ram,R13-0x6208u,1)[0]=(uint8_t)(rnd()%2);if(rnd()%2)wr32(ram_at(ram,R13-0x64bcu,4),rnd());}
 static void prepare(uint8_t *ram,unsigned index,hud_case *c){
  memset(c,0,sizeof *c);if(!index)return;
  if(index<=TAG_CASES){c->kind=1;edit_tags(ram);return;}
+ if(index>TAG_CASES+TEXT_CASES+CAMERA_CASES){c->kind=4;if(index>TAG_CASES+TEXT_CASES+CAMERA_CASES+1)edit_screens(ram);return;}
  if(index>TAG_CASES+TEXT_CASES){c->kind=3;edit_camera(ram,index-1-TAG_CASES-TEXT_CASES,c);return;}
  c->kind=2;edit_text(ram,c);}
 static int run_native(uint8_t *ram,const hud_case *c,trace *t,nflstreet_render_state *s){
  nflstreet_player_draw_context x;nflstreet_scenery_context sc=scenery_context(ram,&x,t);nflstreet_hud_context h=hud_context(ram,&sc);
  t->count=0;saved_state(ram,s);
+ if(c->kind==4){nflstreet_uis_context u=uis_context(ram,&h);return nflstreet_hud_screens_draw(&u,ram32(ram,R13-0x6cd8u),s);}
  if(c->kind==3)return nflstreet_camera_view(&h,c->camera,s);
  if(c->kind==2)return nflstreet_text_draw(&h,c->font,c->text,c->flags,c->limit,c->position,s);
  for(unsigned i=0;i<HUD_NAME_TAG_COUNT;++i)if(!nflstreet_name_tag_draw(&h,hud_name_tag(i),s))return 0;
@@ -102,8 +173,8 @@ int main(int argc,char **argv){
  if(!pristine||!ram||!before||!t.calls)return 3;
  if(!venue_present(pristine)||!hud_present(pristine))return 4;
  for(unsigned i=0;i<3;++i)if(!hud_font_present(pristine,fonts[i]))return 4;
- totals live={0},tags={0},texts={0},cameras={0};uint32_t h=2166136261u;
- for(unsigned index=0;index<1+TAG_CASES+TEXT_CASES+CAMERA_CASES;++index){
+ totals live={0},tags={0},texts={0},cameras={0},screen_live={0},screens={0};uint32_t h=2166136261u;
+ for(unsigned index=0;index<1+TAG_CASES+TEXT_CASES+CAMERA_CASES+SCREEN_CASES;++index){
   memcpy(ram,pristine,RAM_BYTES);hud_case c;prepare(ram,index,&c);memcpy(before,ram,RAM_BYTES);
   nflstreet_render_state s;if(!run_native(ram,&c,&t,&s)){fprintf(stderr,"native HUD rejected case %u (kind %u) after %u calls\n",index,c.kind,t.count);return 5;}
 #ifdef NFLSTREET_HUD_ORACLE
@@ -111,13 +182,16 @@ int main(int argc,char **argv){
    fprintf(stderr,"original HUD mismatch case %u (kind %u font %08x flags %u limit %g text length %u ready %u)\n",index,c.kind,c.font,c.flags,
     (double)c.limit,text?(unsigned)strlen((const char *)text):0u,ram_at(before,R13-0x6650u,1)[0]);return 7;}
 #endif
-  count(&t,c.kind==0?&live:c.kind==1?&tags:c.kind==2?&texts:&cameras);h=fnv(h,t.calls,t.count*sizeof *t.calls);h=fnv(h,&s,sizeof s);}
+  count(&t,c.kind==0?&live:c.kind==1?&tags:c.kind==2?&texts:c.kind==3?&cameras:
+   index==1+TAG_CASES+TEXT_CASES+CAMERA_CASES?&screen_live:&screens);h=fnv(h,t.calls,t.count*sizeof *t.calls);h=fnv(h,&s,sizeof s);}
  printf("HUD draw: name tags as saved (%u GX calls, %u glyph quads, %u pipe writes); %u edited name-tag frames (%u drawing, %u GX calls, "
-  "%u glyph quads, %u pipe writes); %u direct texts (%u drawing, %u GX calls, %u glyph quads, %u pipe writes); %u screen camera views; digest %08x.\n",
+  "%u glyph quads, %u pipe writes); %u direct texts (%u drawing, %u GX calls, %u glyph quads, %u pipe writes); %u screen camera views; uis screens as saved (%u GX calls, %u quads, %u pipe writes) and %u edited (%u drawing, %u GX calls, "
+  "%u quads, %u pipe writes); digest %08x.\n",
   live.calls,live.primitives,live.writes,tags.cases,tags.drawn,tags.calls,tags.primitives,tags.writes,
-  texts.cases,texts.drawn,texts.calls,texts.primitives,texts.writes,cameras.cases,h);
+  texts.cases,texts.drawn,texts.calls,texts.primitives,texts.writes,cameras.cases,screen_live.calls,screen_live.primitives,
+  screen_live.writes,screens.cases,screens.drawn,screens.calls,screens.primitives,screens.writes,h);
 #ifdef NFLSTREET_HUD_ORACLE
- printf("Original HUD draw: %u runs of 800DADC0, 80186B1C and 8017D16C match every GX call and pipe write (%u), the render state and all RAM outside the oracle stack.\n",
+ printf("Original HUD draw: %u runs of 800DADC0, 80186B1C, 8017D16C and 8012AB5C match every GX call and pipe write (%u), the render state and all RAM outside the oracle stack.\n",
   oracle_runs,oracle_calls);
 #endif
  free(t.calls);free(before);free(ram);free(pristine);return 0;}

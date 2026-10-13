@@ -5,6 +5,7 @@
    frame passes to 800DADC0; their font must be an FNTG font. The including
    check defines R13, ram_at and ram32 (venue_fixture.h). */
 #include "hud_draw.h"
+#include "uis_draw.h"
 #define HUD_NAME_TAGS 0x8091c568u
 #define HUD_NAME_TAG_COUNT 14u
 /* The frame's three camera nodes (801DEF50): the field, the HUD with the
@@ -27,4 +28,23 @@ static nflstreet_hud_context hud_context(uint8_t *ram,const nflstreet_scenery_co
  h.camera_types=ram32(ram,R13-0x5780u);h.screen_camera=0x8017db70u;
  h.tluts[0]=0x80331460u;h.tluts[1]=0x80331480u;h.tag_offset=ramf(ram,0x80252b68u);
  return h;}
+static nflstreet_uis_context uis_context(uint8_t *ram,const nflstreet_hud_context *hud){
+ nflstreet_uis_context u;memset(&u,0,sizeof u);u.hud=hud;
+ u.manager=ram32(ram,R13-0x63e0u+4);u.tint=0x8034cdb8u;u.tint_start[0]=ramf(ram,0x8026396cu);u.tint_start[1]=ramf(ram,0x80263970u);
+ u.color_depth=R13-0x5648u;u.color_current=R13-0x63c8u;
+ u.color_limits[0]=ramf(ram,0x80263b70u);u.color_limits[1]=ramf(ram,0x80263b74u);u.color_limits[2]=ramf(ram,0x80263b78u);
+ u.degrees=ramf(ram,0x80263b80u);u.zero=ramf(ram,0x80263b7cu);
+ u.text_mode=R13-0x63c4u;u.draw_mode=R13-0x63c0u;u.text_mode_on=R13-0x63bcu;u.channel_cache=R13-0x565cu;
+ u.color_cache[0]=R13-0x5664u;u.color_cache[1]=R13-0x5660u;u.light=0x8039e700u;u.texture=0x8039e740u;u.tlut=0x8039e780u;
+ u.texture_matrix=0x80293decu;u.palette_cache[0]=R13-0x564cu;u.palette_cache[1]=R13-0x5650u;u.palette_cache[2]=R13-0x5658u;
+ u.palette_cache[3]=R13-0x5654u;u.mark=R13-0x566cu;u.resources_up=R13-0x6538u;u.notify=ram32(ram,R13-0x63d8u);u.refresh=R13-0x63a8u;
+ u.color_unit=ramf(ram,0x80263ba8u);u.text_limit=ramf(ram,0x80263bb8u);u.lod=ramf(ram,0x80263b98u);
+ u.texobj.lod_scale=ramf(ram,R13-0x4bf0u);u.texobj.bias_min=ramf(ram,R13-0x4be0u);u.texobj.bias_cap=ramf(ram,R13-0x4bdcu);
+ u.texobj.bias_max=ramf(ram,R13-0x4bd8u);u.texobj.bias_scale=ramf(ram,R13-0x4bd4u);u.texobj.lod_min=ramf(ram,R13-0x4bd0u);
+ u.texobj.lod_max=ramf(ram,R13-0x4bccu);memcpy(u.texobj.filters,ram_at(ram,R13-0x6090u,6),6);
+ u.image_class=0x801d60dcu;u.text_class=0x801d9244u;u.quiet_classes[0]=0x8012cb94u;u.quiet_classes[1]=0x8012c5d8u;u.transform=0x801d8398u;
+ u.camera=R13-0x6cd8u;u.screens[0]=R13-0x6c84u;u.screens[1]=R13-0x6c94u;u.screens[2]=R13-0x6c88u;u.screens[3]=R13-0x6c8cu;
+ u.screen_flags=R13-0x6c98u;u.pending_on=R13-0x6cf0u;u.pending=0x8030834cu;u.refresh_hook=0x80381c40u;u.refresh_target=0x800044a4u;
+ u.after_second=R13-0x4f80u;
+ return u;}
 #endif
