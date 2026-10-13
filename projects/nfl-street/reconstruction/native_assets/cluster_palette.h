@@ -6,7 +6,7 @@
 
 /* Build the processed TMdl weighted-cluster palette using the original game's
    paired polynomial and matrix operation order. Optional pose angles are in
-   compact bone order. Outputs are committed only after the complete palette
+   model skeleton-row order. Outputs are committed only after the complete palette
    has been validated. */
 int nflstreet_cluster_palette(const nflstreet_model_view_source *,
     const uint8_t view[NFLSTREET_MODEL_VIEW_BYTES], const int16_t *pose,

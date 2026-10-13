@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-13. Latest work: native EARS field draw rendered with the captured players; before that, private bodies bound to fresh skeleton sources
+Updated: 2026-10-13. Latest work: exact body palettes generated from all 14 owned selected bodies; captured scene rendering is progressing separately
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -51,7 +51,8 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/scenery_draw.md` — latest:
+3. `projects/nfl-street/reconstruction/native_assets/match_body_palettes.md` — latest selected-player connection: 14 private body views generate 4,564 matrices across stored/perturbed poses in two fresh Windows processes, with three late rollback guards. `cluster_palette.md` documents the underlying original gate: 88,320 complete matrices bit-exact per process, three contexts repeated twice. Roots/angles are explicit fixture inputs. Full actor caller, head/attachment transforms and instance token publication remain open.
+   Then `projects/nfl-street/reconstruction/native_assets/scenery_draw.md` — latest:
    the scenery draw `801EC8E4` (frustum culling, depth/fog/lighting presets)
    and the EARS venue loops `80165DC4`/`8015B670` produce exact GX calls.
    They share `draw_engine.c` with the player draw. 1,201 original runs per
@@ -65,7 +66,8 @@ Do not spend the next turn on another small speed experiment.
    repeated twice; 14-player composition and late rollback pass. Model views
    start zero; an exploratory uninitialized-view comparison was corrected.
    Variant 0 and target 0 remain explicit fixture choices. Body bone/cluster
-   binding is done; dynamic skinning matrices, model instances and actors remain.
+   binding is done; the later palette gate supplies body matrices with explicit
+   roots/poses. Natural frame inputs, model instances and actors remain.
    Keep the body owner at a stable address; close visuals before body/skeleton
    owners. Other renderer work is active in the checkout; preserve its edits.
    Then `projects/nfl-street/reconstruction/native_assets/player_render.md` — latest:
