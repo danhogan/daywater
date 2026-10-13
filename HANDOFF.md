@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-13. Latest work: exact body palettes generated from all 14 owned selected bodies; captured scene rendering is progressing separately
+Updated: 2026-10-13. Latest work: owned body, face and hair palettes for all 14 selected players; captured scene rendering is progressing separately
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -51,7 +51,8 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/match_body_palettes.md` — latest selected-player connection: 14 private body views generate 4,564 matrices across stored/perturbed poses in two fresh Windows processes, with three late rollback guards. `cluster_palette.md` documents the underlying original gate: 88,320 complete matrices bit-exact per process, three contexts repeated twice. Roots/angles are explicit fixture inputs. Full actor caller, head/attachment transforms and instance token publication remain open.
+3. `projects/nfl-street/reconstruction/native_assets/match_attachment_palettes.md` — 70 owned face/hair models now yield 442 matrices in two fresh Windows processes. Scaling blocks inside original80162760 match480 controlled runs/27,648 matrices per process across three contexts repeated twice; see `attachment_palette_scale.md`. Inputs are explicit stored angles, synthetic roots, LOD and scale-slot assignments. Actor slot mapping, natural head roots, alias policy and instance token publication remain open.
+   Then `projects/nfl-street/reconstruction/native_assets/match_body_palettes.md` — latest selected-player connection: 14 private body views generate 4,564 matrices across stored/perturbed poses in two fresh Windows processes, with three late rollback guards. `cluster_palette.md` documents the underlying original gate: 88,320 complete matrices bit-exact per process, three contexts repeated twice. Roots/angles are explicit fixture inputs. Full actor caller, head/attachment transforms and instance token publication remain open.
    Then `projects/nfl-street/reconstruction/native_assets/scenery_draw.md` — latest:
    the scenery draw `801EC8E4` (frustum culling, depth/fog/lighting presets)
    and the EARS venue loops `80165DC4`/`8015B670` produce exact GX calls.

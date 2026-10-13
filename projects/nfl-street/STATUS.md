@@ -6,7 +6,17 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: the native scene matches the game's frame apart from the HUD and small extras.**
+**Latest selected-player connection: owned face and hair matrices.** All 14
+selected players now generate palettes from their 70 private bound face/hair
+models (442 matrices in the retained selection). Original attachment scaling
+blocks match 480 controlled runs and 27,648 complete matrices per process,
+across three saved contexts repeated twice. Two native processes confirm
+composition, unchanged geometry and late-failure rollback. Roots, scale-slot
+assignments and LOD are explicit fixture inputs; fresh actor instances, natural
+head roots/pose selection and matrix token publication remain open. See
+[owned attachment palettes](reconstruction/native_assets/match_attachment_palettes.md).
+
+**Latest rendering: the native scene matches the game's frame apart from the HUD and small extras.**
 The yellow and blue field lines (`800DA074`) and the red player-select ring
 (`800E3F7C`) are now native and verified against the original: 1,904 runs per
 saved context across all scene routines. The rendered scene has the sky,
