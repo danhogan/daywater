@@ -3,8 +3,8 @@
   "goal": "Reconstruct the game in native code, with its own Windows runtime and locally supplied game assets. No Dolphin, ModernGekko, or ISO needed while playing.",
   "updated": "2026-10-13",
   "scope": "GameCube GNNE69, revision 0",
-  "current": "The menu retains both selected lineups and field choice. All 14 selected players own geometry, textures, materials and fresh skeleton bindings. Native body, face and hair matrices now generate with explicit pose/root inputs; body arithmetic and attachment scaling have original execution checks. Captured actors and scenery render natively. Fresh selected actors are not yet visible or playable.",
-  "next": "Construct selected actor/model instances, verify attachment slot assignments and natural head roots/poses, publish matrix destinations, then connect the owned players to the native renderer and running menu match recipient.",
+  "current": "The menu retains both selected lineups and field choice. All 14 players own assets and fresh skeleton bindings. Their native matrices now feed 84 owned original-layout model instances and palette buffers. Initializer and arithmetic have original execution checks. Captured actors and scenery render natively; fresh selected actors are not yet visible or playable.",
+  "next": "Populate actual material tables and source-selected group lists, verify actor-slot mapping and natural poses/roots, then connect the owned draw objects to fresh actor state and the running menu match recipient.",
   "why": "Selected-player appearance and the exact drawing calls are reproduced natively, and those calls now produce images that match the game. What remains for a visible fresh match is native actor state to feed the draw.",
   "boundary": "Daywater is the research workbench: it inspects the original game, captures behavior, and checks claims. NFL Street reconstruction and its eventual Windows runtime stay in the separate game project. The web interface organizes research; it is not the native game itself. Private game data, generated code, builds, and diagnostics stay on W:.",
   "capabilities": [

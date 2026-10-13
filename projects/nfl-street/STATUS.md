@@ -6,7 +6,16 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest selected-player connection: owned face and hair matrices.** All 14
+**Latest selected-player connection: owned draw instances and matrix destinations.**
+The retained selection now builds84 original-layout model instances, copied
+views/palette descriptors and2,724 big-endian matrix records. Initialization
+matches the original across32 fill/token cases per context; aggregate ownership,
+count validation and rollback pass in two Windows processes. Material tables
+remain supplied tokens and group selectors remain pending. This connects the
+owned model/matrix layers; it does not yet draw fresh selected actors. See
+[selected model instances](reconstruction/native_assets/match_model_instances.md).
+
+**Earlier selected-player connection: owned face and hair matrices.** All 14
 selected players now generate palettes from their 70 private bound face/hair
 models (442 matrices in the retained selection). Original attachment scaling
 blocks match 480 controlled runs and 27,648 complete matrices per process,
