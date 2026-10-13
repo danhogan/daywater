@@ -1,6 +1,6 @@
 # Daywater / NFL Street handoff
 
-Updated: 2026-10-13. Latest work: Quick Game selection-to-GAME roster bridge (`quick_match_roster.*`)
+Updated: 2026-10-13. Latest work: native picker corrected to loaded STAT rosters (14/14 membership)
 on `nflstreet-foundation`; see `git log` for the current checkpoint. Read `AGENTS.md` first; this document summarizes current
 work and does not replace its instructions.
 
@@ -51,13 +51,14 @@ Do not spend the next turn on another small speed experiment.
 1. `projects/nfl-street/STATUS.md` — newest milestone at the top; older paragraphs
    describe historical limits, which later work may have closed.
 2. `frontend/roadmaps/nfl-street.json` — user-visible roadmap and current gaps.
-3. `projects/nfl-street/reconstruction/native_assets/quick_match_roster.md` — latest:
-   native menu selection structs now map to GAME selected/formation rows and ids.
-   258 selections, 8,192 original setter cases per process. Actual retained
-   picker snapshot still fails: mirrored teams and 12/14 STAT membership. Correct
-   `menus/team_screen_probe.c` roster source (currently fallback db_teams), verify
-   mirrored-team copy/id behavior, then connect the real handoff. Preserve old
-   captures before regeneration; the new gate fingerprints that retained JSON.
+3. `projects/nfl-street/reconstruction/menus/stat_picker_rosters.md` — latest:
+   the native picker now uses loaded STAT membership; new Win32 capture has
+   14/14 correct ids. Original fallback projection and native team/field checks
+   pass. New output directory preserves older captures. Mirror teams 1/1 still
+   reject at the bridge; verify original mirrored copying/id reassignment next.
+   Then `native_assets/quick_match_roster.md`: selection structs map to GAME
+   selected/formation rows and ids; 258 selections and 8,192 original setter
+   cases per process. Legacy 12/14 capture is preserved as a negative regression.
    Then `selected_player_visual.md`:
    508 STAT players ×3 body variants = 1,524 complete-record visual assemblies per
    process. The native GAME roster retains its borrowed STAT source; source_rows
@@ -146,12 +147,13 @@ matches 831 distinct files/views and 2,493 exact temporary allocation/storage/
 release sequences per original process. Connected actor creation matches 3,072
 controlled initialization cases, not gameplay frames.
 
-Latest connection: `nflstreet_quick_match_roster_build` consumes native menu
-selection structs, updates original GILP bits through copy overrides, and maps
-selected/formation order to GAME rows and ids. No actors are created. The retained
-real menu snapshot selects teams 1/1 and has only 12/14 correct STAT memberships.
-Fix native preview roster sourcing and verify mirrored copying rather than
-silently translating inconsistent ids. Read `quick_match_roster.md`.
+Latest connection: the native picker bootstrap uses loaded STAT rows instead of
+fallback db_teams membership when a loaded team exists. All 14 ids in the new
+Win32 selection match STAT; source field confirmation/back/notification checks
+and original fallback projections pass. Older captures are preserved. Mirrored
+teams remain rejected: verify original GAME copy/id behavior before enabling
+that route. Read `menus/stat_picker_rosters.md` and `quick_match_roster.md`.
+No fresh actors or match have been created by this milestone.
 
 Previous connection: `nflstreet_selected_player_visual_from_match` consumes native
 GAME rows, resolves their exact source STAT identity, builds complete records
@@ -328,7 +330,7 @@ PYTHONPATH=projects/nfl-street/reconstruction/menus \
   python3 projects/nfl-street/reconstruction/native_assets/verify_face_texture.py
 ```
 
-Latest gate: `verify_quick_match_roster.py`. Visual gate: `verify_selected_player_visual.py`. Surface gate: `verify_player_surface.py` (requires current slot-stage evidence). Stage gate: `verify_slot_textures.py` (about 2 minutes). Gear plan gate: `verify_gear_texture.py`. Face application gate: `verify_texture_apply.py`.
+Latest gate: `menus/verify_team_field_picker.py --output-dir /mnt/w/Daywater/research-temp/nflstreet-stat-picker-20261013 --live-window`. Bridge gate: `verify_quick_match_roster.py`. Visual gate: `verify_selected_player_visual.py`. Surface gate: `verify_player_surface.py` (requires current slot-stage evidence). Stage gate: `verify_slot_textures.py` (about 2 minutes). Gear plan gate: `verify_gear_texture.py`. Face application gate: `verify_texture_apply.py`.
 Other targeted gates in that directory:
 `verify_skeleton_startup.py`, `verify_hair_binding.py`,
 `verify_headwear_state.py`, `verify_hair_resources.py`,

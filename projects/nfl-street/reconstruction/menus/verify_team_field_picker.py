@@ -7,16 +7,20 @@ import re
 import subprocess
 from pathlib import Path
 from verify_controller_checks import PRIVATE, baseline_hashes, digest, private, run, windows
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parent.parent / "native_assets"))
+from verify_player_startup import source_hashes
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output-dir', type=Path, help='Private output directory; preserves earlier captures when set.')
     parser.add_argument('--no-build', action='store_true')
     parser.add_argument('--live-window', action='store_true',
                         help='Exercise the actual Win32 event/timer/paint loop with deterministic source inputs.')
     args = parser.parse_args()
     root = Path(__file__).resolve().parent
-    out = private(PRIVATE / 'research-temp/nflstreet-team-field-picker-join-20261011')
+    out = private(args.output_dir or PRIVATE / 'research-temp/nflstreet-team-field-picker-join-20261011')
     out.mkdir(parents=True, exist_ok=True)
     record = {'status': 'running', 'boundary':
               'Actual native team completion routed to coordinator5 and source field8 recipient. '
@@ -26,13 +30,38 @@ def main():
     report = out / 'verification.json'
     try:
         before = baseline_hashes()
+        build_source=(root/'build_windows_team_field_picker_join.sh').read_text()
+        compiled=re.search(r'sources=\(([^)]+)\)',build_source).group(1).split()
+        entries=tuple('menus/'+name+'.c' for name in compiled)+tuple('menus/'+name for name in (
+          'team_field_picker_join_probe.c','field_screen_probe.c','field_screen_preview.c',
+          'build_windows_team_field_picker_join.sh','verify_team_field_picker.py',
+          'team_preview_check.c','build_windows_team_preview_checks.sh'))+('native_assets/texture.c','native_assets/verify_player_startup.py',)
+        include_dirs=(Path(os.environ.get('DAYWATER_MODERNGEKKO_HEADERS',str(PRIVATE/'tools/ModernGekko-Template/lib/ModernGekko/include'))),root,root.parent/'native_assets')
+        sources=source_hashes(root.parent,entries,include_dirs)
         inputs = {
             'team_source': PRIVATE / 'research-temp/nflstreet-original-menus-20261009/nested/uis_all/00000/00007.bin',
             'field_source': PRIVATE / 'research-temp/nflstreet-original-menus-20261009/nested/uis_all/00000/00008.bin',
             'coordinator': PRIVATE / 'research-temp/nflstreet-original-menus-20261009/nested/uis_all/00000/00005.bin',
             'template': PRIVATE / 'private/nflstreet/GNNE69-r0/unpacked/template/00002.bin',
         }
+        unpacked=PRIVATE/'private/nflstreet/GNNE69-r0/unpacked'
+        for i in range(1,33):inputs[f'team_catalog_{i}']=unpacked/f'db_teams/{i:05}.bin'
+        for i in range(4):inputs[f'font_{i}']=unpacked/f'uis_font/{i:05}.bin'
         input_hashes = {name: digest(private(path)) for name, path in inputs.items()}
+        run(['bash',str(root/'build_windows_team_preview_checks.sh'),str(out)],out/'fallback-build.log')
+        fallback=out/'team-preview-check.exe';fallback_logs={}
+        db=unpacked/'db_teams'
+        text=run([str(fallback),windows(db)],out/'fallback-native.log')
+        if '32 private team blocks, 402 PLAY/DIGP roster IDs' not in text:
+            raise RuntimeError('Fallback roster parsing regressed')
+        for context in (14,15,16):
+            log=out/f'fallback-original-{context}.log'
+            text=run([str(fallback),windows(PRIVATE/'research-temp/nflstreet-native-windows-local/gGNNE69_recomp.dll'),
+                      windows(PRIVATE/f'research-temp/position-neutral-{context}.mem1'),windows(db)],log)
+            if 'Original8011D628 roster projection exact: 64' not in text:
+                raise RuntimeError('Original fallback projection regressed')
+            fallback_logs[str(context)]=digest(log)
+        record['fallback_original_logs_sha256']=fallback_logs
         if not args.no_build:
             run(['bash', str(root / 'build_windows_team_field_picker_join.sh'), str(out)], out / 'build.log')
         exe = out / 'team-field-picker-join.exe'
@@ -110,12 +139,23 @@ def main():
             for selected, formation in zip(saved['selected_players'], saved['formation_players']):
                 if len(set(selected)) != 7 or set(formation[:7]) != set(selected) or set(formation[7:]) != set(selected):
                     raise RuntimeError('Win32 loop formation membership differs')
+            bridge_out=private(out/'roster-bridge')
+            run([sys.executable,str(root.parent/'native_assets/verify_quick_match_roster.py'),
+                 '--selection',str(selection),'--expected-membership','14','--output-dir',str(bridge_out)],
+                out/'roster-bridge.log')
+            bridge=json.loads((bridge_out/'verification.json').read_text())
+            if bridge['status']!='passed' or bridge['captured_membership_matches']!=14:
+                raise RuntimeError('Corrected picker lost STAT membership')
+            record['roster_bridge_report_sha256']=digest(bridge_out/'verification.json')
+            record['stat_membership_matches']=14
             record['win32_window'] = {'status': 'passed', 'source_inputs': [5, 4, 5, 7],
                                       'slot': 1, 'raw_key': 1, 'selection_sha256': digest(selection),
                                       'log_sha256': digest(log), 'manual_input_tested': False}
         if before != baseline_hashes() or input_hashes != {name: digest(path) for name, path in inputs.items()}:
             raise RuntimeError('Protected originals or source inputs changed')
-        record.update(status='passed', cases=cases, baseline=before, input_sha256=input_hashes,
+        if sources != source_hashes(root.parent,entries,include_dirs):
+            raise RuntimeError('Picker sources changed during verification')
+        record.update(source_sha256=sources,status='passed', cases=cases, baseline=before, input_sha256=input_hashes,
                       executable_sha256=digest(exe))
     except Exception as exc:
         record.update(status='failed', error=str(exc))

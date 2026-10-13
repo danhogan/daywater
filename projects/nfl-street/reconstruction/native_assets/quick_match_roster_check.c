@@ -6,9 +6,9 @@ static int initialize_flag_oracle(const char *,const char *);
 #endif
 int main(int argc,char **argv){
 #ifdef NFLSTREET_QUICK_ROSTER_ORACLE
- if(argc!=6||!initialize_flag_oracle(argv[3],argv[4]))return 2;
+ if(argc!=7||!initialize_flag_oracle(argv[3],argv[4]))return 2;
 #else
- if(argc!=4)return 2;
+ if(argc!=5)return 2;
 #endif
  size_t sizes[2];uint8_t *data[2]={load_data(argv[1],sizes),load_data(argv[2],sizes+1)};
  nflstreet_team_table play,teams,game_schema;if(!data[0]||!data[1]||!nflstreet_team_table_open_tag(data[0],sizes[0],0x59414c50u,&play)||
@@ -61,9 +61,9 @@ int main(int argc,char **argv){
  if(memcmp(data[0],unchanged,sizes[0]))return 8;free(unchanged);
 
 #ifdef NFLSTREET_QUICK_ROSTER_ORACLE
- const char *capture=argv[5];
+ const char *capture=argv[5],*expected_text=argv[6];
 #else
- const char *capture=argv[3];
+ const char *capture=argv[3],*expected_text=argv[4];
 #endif
  size_t capture_size;uint8_t *capture_bytes=load_data(capture,&capture_size);
  if(!capture_bytes||capture_size!=192||memcmp(capture_bytes,"QMS1",4)||rd32(capture_bytes+4)!=1)return 8;
@@ -80,7 +80,8 @@ int main(int argc,char **argv){
  for(unsigned side=0;side<2;++side)for(unsigned p=0;p<7;++p){unsigned found=0;
   for(unsigned row=0;row<play.used;++row){uint32_t team,id;if(!number_of(&play,row,0x44494754u,&team)||!number_of(&play,row,0x44494750u,&id))return 8;
    found|=team==captured.team_ids[side]&&id==captured.selected_players[side][p];}matched+=found;}
- if(matched!=12)return 8;
+ char *end;unsigned long expected_match=strtoul(expected_text,&end,10);
+ if(!*expected_text||*end||expected_match>14||matched!=expected_match)return 8;
  free(capture_bytes);++rejections;
  free(data[0]);free(data[1]);printf("Quick-match rosters: %u menu selections, %u selected GAME rows, %u formation mappings; %u rejection checks; %u lineup-bit cases. STAT unchanged; no actors created.\n",cases,players,positions,rejections,flags_checked);printf("Retained native menu snapshot: %u/14 ids match STAT team membership; mirrored route rejects without creating a roster.\n",matched);return 0;
 }

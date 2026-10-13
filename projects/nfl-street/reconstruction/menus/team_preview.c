@@ -73,9 +73,14 @@ int nflstreet_team_preview_roster_from_db(const uint8_t*b,size_t n,uint32_t team
  uint32_t record_bytes=be32(team+4);uint16_t team_used=be16(team+18),play_used=be16(play+18);
  uint32_t team_fields=team[24],play_fields=play[24];
  size_t team_rows=36+(size_t)team_fields*16,play_rows=36+(size_t)play_fields*16;
- if(!team_used||team_used>1||record_bytes>team_size||
-    !range(team_size,team_rows,record_bytes))return 0;
- uint32_t found_id=0;if(!read_bits(team+team_rows,record_bytes,team_key_bit,team_key_width,&found_id)||found_id!=team_id)return 0;
+ if(!team_used||record_bytes>team_size||
+    !range(team_size,team_rows,(size_t)team_used*record_bytes))return 0;
+ unsigned matches=0;
+ for(unsigned row=0;row<team_used;++row){uint32_t found_id;
+  if(!read_bits(team+team_rows+(size_t)row*record_bytes,record_bytes,team_key_bit,team_key_width,&found_id))return 0;
+  if(found_id==team_id)++matches;
+ }
+ if(matches!=1)return 0;
  uint32_t play_bytes=be32(play+4);if(!play_bytes||play_bytes>4096||play_used>be16(play+16)||
     !range(play_size,play_rows,(size_t)play_used*play_bytes))return 0;
  uint32_t result[NFLSTREET_TEAM_PREVIEW_MAX_PLAYERS];unsigned count=0;

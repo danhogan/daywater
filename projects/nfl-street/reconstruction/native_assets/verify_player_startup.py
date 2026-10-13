@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'menus'))
 from verify_controller_checks import PRIVATE, BASELINES, baseline_hashes, digest, private, run, windows
 
 
-def source_hashes(root, entrypoints=None):
+def source_hashes(root, entrypoints=None, include_dirs=()):
     """Include local transitive headers and shared checker fixtures in provenance."""
     pending = [root / name for name in (entrypoints or (
         'player_startup.c', 'player_startup_original_check.c', 'player_constructor.c',
@@ -30,7 +30,8 @@ def source_hashes(root, entrypoints=None):
         for name in re.findall(r'^\s*#include\s+"([^"]+)"', path.read_text(), re.M):
             local = (path.parent / name).resolve()
             if not local.is_file():
-                local = (headers / name).resolve()
+                local = next(((Path(base) / name).resolve() for base in (*include_dirs, headers)
+                              if (Path(base) / name).is_file()), (headers / name).resolve())
             if not (local.is_relative_to(root) or local.is_relative_to(headers)):
                 raise RuntimeError('Unexpected include outside declared source roots')
             pending.append(local)

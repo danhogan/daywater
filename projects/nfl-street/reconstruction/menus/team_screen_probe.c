@@ -15,7 +15,18 @@ int main(int argc,char**argv){
  if(!nflstreet_ui_relocate(b,n,0x81100000,&relocated))return 4;
  for(unsigned i=0;i<4;++i){char p[4096];size_t z;snprintf(p,sizeof p,"%s/uis_font/%05u.bin",argv[2],i);uint8_t*f=load(p,&z);if(!f||!nflstreet_font_open(f,z,&s->objects.fonts[i]))return 5;if(i==3)s->classes.shared.font=s->objects.fonts[i];else s->classes.fonts[i]=s->objects.fonts[i];}
  for(unsigned i=1;i<=32;++i){char p[4096];size_t z;snprintf(p,sizeof p,"%s/db_teams/%05u.bin",argv[2],i);uint8_t*r=load(p,&z);nflstreet_team_table t;if(!r||!nflstreet_team_table_open(r,z,&t)||!nflstreet_team_catalog_append(&s->game.catalog,&t))return 5;unsigned k=s->supplied_roster_count++;uint32_t team,count,assetcount;
- if(!nflstreet_team_preview_team_id_from_db(r,z,&team)||!nflstreet_team_preview_roster_from_db(r,z,team,s->supplied_rosters[k].players,&count)||!nflstreet_team_preview_assets_from_db(r,z,team,s->supplied_rosters[k].assets,&assetcount)||count!=assetcount)return 5;
+ if(!nflstreet_team_preview_team_id_from_db(r,z,&team))return 5;
+ /* Loaded STAT membership is authoritative. The fallback block supplies
+    catalog metadata, but cannot replace a team already present in STAT. Keep
+    one owned copy per roster so existing teardown ownership stays unchanged. */
+ if(s->bootstrap){nflstreet_team_table stat;unsigned id=UINT32_MAX,loaded=0;
+  if(!nflstreet_team_table_open_tag(host.template_db,host.template_size,0x59414c50u,&stat))return 5;
+  for(unsigned f=0;f<stat.field_count;++f){nflstreet_team_field field;if(!nflstreet_team_table_field(&stat,f,&field))return 5;if(field.tag==0x44494754u)id=f;}
+  if(id==UINT32_MAX)return 5;
+  for(unsigned row=0;row<stat.used;++row){uint32_t value;if(!nflstreet_team_table_number(&stat,row,id,&value))return 5;loaded|=value==team;}
+  if(loaded){uint8_t *source=malloc(host.template_size);if(!source)return 5;memcpy(source,host.template_db,host.template_size);free(r);r=source;z=host.template_size;}
+ }
+ if(!nflstreet_team_preview_roster_from_db(r,z,team,s->supplied_rosters[k].players,&count)||!nflstreet_team_preview_assets_from_db(r,z,team,s->supplied_rosters[k].assets,&assetcount)||count!=assetcount){fprintf(stderr,"Roster source failed team%u database bytes%zu\n",team,z);return 5;}
  s->supplied_rosters[k].id=team;s->supplied_rosters[k].count=count;if(s->bootstrap){s->roster_databases[k]=r;s->roster_database_sizes[k]=z;}else free(r);}
  if(s->bootstrap){unsigned cases=0;
   for(unsigned mode=0;mode<5;++mode){host.weighting_mode=mode;

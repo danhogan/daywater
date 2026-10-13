@@ -58,7 +58,7 @@ Private report:
 The private QMS1 file in that directory is generated from a retained native menu
 selection JSON, not a new public asset or game save.
 
-## Actual native picker gap
+## Historical native picker gap
 
 The retained `field-picker-window-selection.json` selects teams 1/1. Only six
 of each side's seven selected ids belong to STAT team 1 (12/14 total). The bridge
@@ -78,3 +78,13 @@ report currently fingerprints the retained selection.
 Remaining: verify mirrored-team copying/id assignment against the original,
 connect the corrected real menu handoff, and create/attach/render fresh actors.
 No playable menu-to-match flow is claimed.
+
+
+## Picker correction — 2026-10-13
+
+The loaded-STAT roster fix in `../menus/stat_picker_rosters.md` supersedes the
+membership mismatch for newly generated menu selections: the Win32 capture
+now has 14/14 matching ids. The older 12/14 capture remains a negative regression
+and is not overwritten. Mirrored-team copying remains unverified/rejected.
+To check another private capture, the bridge verifier accepts `--selection`,
+`--expected-membership` (12 for legacy, 14 for corrected) and `--output-dir`.

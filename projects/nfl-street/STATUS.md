@@ -6,7 +6,15 @@ goal, not the state of the current Windows build.
 
 **Current focus: original Quick Game menu-to-match flow, at the user’s request.**
 
-**Latest: menu selections map to native GAME rows.** A new bridge validates
+**Latest: the native picker uses the correct STAT roster.** Its new Win32
+selection contains 14/14 players belonging to the selected teams, fixing the
+old 12/14 mismatch. Team/field navigation, confirmation, back and notification
+checks pass; original fallback roster projections still match. Old captures
+are preserved. Mirrored-team copying remains unverified and rejects at the
+bridge; fresh actors and playable startup remain unfinished. See
+[picker roster correction](reconstruction/menus/stat_picker_rosters.md).
+
+**Earlier: menu selections map to native GAME rows.** A new bridge validates
 seven players per side, sets the original lineup bits and preserves both
 formation orders through GAME id reassignment. It passes 258 selection cases
 and 8,192 original scalar setter comparisons per process. The retained real
