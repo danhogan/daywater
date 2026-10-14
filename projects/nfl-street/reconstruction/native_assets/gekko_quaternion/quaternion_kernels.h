@@ -15,6 +15,13 @@ void nflstreet_80188bb0_pair(uint16_t angle, const float coefficients[6],
 float nflstreet_8018889c_sine(int32_t angle24, int cosine,
     const float coefficients[8]);
 
+/* MSL's 80216B94 sine wrapper for finite arguments in [-pi/2, pi/2].  This
+   is the complete range exercised by 801A383C: the reduction and both
+   polynomial helpers retain the DOL's single-precision rounding points. */
+float nflstreet_80216b94_sine(float x);
+float nflstreet_80215844_acos(float x);
+float nflstreet_802165c8_sqrt(float x);
+
 /* 801A36EC.  Angles are the original signed 24-bit fixed-point values, in
    X/Y/Z argument order; the result is X/Y/Z/W. */
 void nflstreet_801a36ec_quaternion(int32_t x, int32_t y, int32_t z,
