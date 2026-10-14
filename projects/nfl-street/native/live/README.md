@@ -40,12 +40,20 @@ forwards each one to Aurora's GX as it is issued:
 - **What advances each frame:** whatever the native draws advance from
   frame to frame (field-line alpha pulse, mark alpha ramp, matrix stacks,
   screen state) carries over between frames.
-- **Camera control:** the controller (or `NFL_LIVE_ORBIT=1`, a slow demo
-  turn) moves the field camera.
-- **Not yet live:** the sky, lines, marks and ball follow the camera, but
-  the field, rings and players still draw with the matrices stored in the
-  saved frame. The venue loops' per-frame model-view computation and the
-  players' skinning palettes are the next pieces to make native.
+- **Camera control:** the controller (or `NFL_LIVE_ORBIT`) moves the field
+  camera, and the whole scene follows it:
+  - **Sky, lines, marks, ball and shadows** use the matrix stack.
+  - **Field, field passes and rings** recompute their model-view matrices
+    from the camera each frame, as the original does (verified against the
+    original in the scenery gate).
+  - **Players** still carry the saved frame's skinning palettes. The bridge
+    re-expresses them, and the player lights, for the current camera
+    (new view × inverse of the drawn view). That stand-in is geometrically
+    exact but not a reconstruction of the game's skinning, which another
+    thread is connecting (`cluster_palette.c` and its callers).
+- **Not live yet:** game logic. Player poses, positions, the ball and the
+  HUD values are the saved frame's. The name tag keeps its saved screen
+  position.
 
 ## Build and run
 
@@ -67,7 +75,7 @@ nflstreet_live.exe <saved RAM image> [log file] [parts: 1 venue, 2 players, 4 HU
 ```
 
 Options:
-- `NFL_LIVE_ORBIT=1` turns the camera slowly.
+- `NFL_LIVE_ORBIT=1` (or a 24-bit angle per frame) turns the camera.
 - `NFL_LIVE_DEBUG=1` logs Aurora at debug level.
 - `NFL_LIVE_TRACE=<file>` logs every bridged call.
 

@@ -1,5 +1,6 @@
 #include "scenery_draw.h"
 #include "scenery_shared.h"
+#include "matrix_stack.h"
 #include <math.h>
 #define rd32 nflstreet_rd32
 #define GX NFLSTREET_GX
@@ -92,12 +93,20 @@ static int scenery(nflstreet_draw *d,const nflstreet_scenery_context *c,uint32_t
 int nflstreet_scenery_draw(const nflstreet_scenery_context *c,uint32_t instance,uint32_t lights,nflstreet_render_state *s){
  if(!c||!c->draw||!c->draw->span||!c->draw->emit||!s)return 0;
  nflstreet_draw d={c->draw,s};return scenery(&d,c,instance,lights);}
+/* Select the viewport's stack, push, translate to the object (+04). */
+static int object_matrix(nflstreet_draw *d,const nflstreet_scenery_context *c,uint32_t object){
+ const uint8_t *p=at(d,object+4,12);if(!p)return 0;
+ return nflstreet_matrix_select(d,c->stacks)&&nflstreet_matrix_push(d,c->stacks)&&
+  nflstreet_matrix_translate(d,c->stacks,fword(p),fword(p+4),fword(p+8));}
+static int store(nflstreet_draw *d,const nflstreet_scenery_context *c,uint32_t instance){
+ return !c->stacks||nflstreet_matrix_store(d,c->stacks,instance+8);}
 int nflstreet_field_draw(const nflstreet_scenery_context *c,uint32_t object,nflstreet_render_state *s){
  if(!c||!c->draw||!c->draw->span||!c->draw->emit||!s||!object)return 0;
  nflstreet_draw d={c->draw,s};static const uint16_t first[5]={0x258,0xe0,0x19c,0x24,0x314};
- for(unsigned i=0;i<5;++i)if(!scenery(&d,c,object+first[i],1))return 0;
- for(unsigned i=0;i<10;++i)if(!scenery(&d,c,object+0x3d0u+0xbcu*i,1))return 0;
- return 1;}
+ if(c->stacks&&!object_matrix(&d,c,object))return 0;
+ for(unsigned i=0;i<5;++i)if(!store(&d,c,object+first[i])||!scenery(&d,c,object+first[i],1))return 0;
+ for(unsigned i=0;i<10;++i)if(!store(&d,c,object+0x3d0u+0xbcu*i)||!scenery(&d,c,object+0x3d0u+0xbcu*i,1))return 0;
+ return !c->stacks||(nflstreet_matrix_select(&d,c->stacks)&&nflstreet_matrix_pop(&d,c->stacks));}
 /* 801ECD98: ambient bytes = truncated value * 255 (single), flags | 0x20000. */
 static int ambient(nflstreet_draw *d,uint32_t instance,const float v[4]){
  uint8_t *in=at(d,instance,0x50);if(!in)return 0;nflstreet_wr32(in,rd32(in)|0x20000u);
@@ -107,19 +116,24 @@ static int pass(nflstreet_draw *d,const nflstreet_scenery_context *c,uint32_t ob
  uint32_t instance=object+0x2cu+0xbcu*layer,model;const uint8_t *rec=at(d,c->pass_table+0x1cu*layer,0x1c);
  if(!nflstreet_draw_word(d,object+0x3d8u+4u*layer,&model)||!rec)return 0;
  if(!model||!rec[0x19])return 1;
+ if(c->stacks){ /* layer 2 is pushed and translated by its offset (8028A090) */
+  const uint8_t *o=layer==2?at(d,c->pass_offset,12):NULL;if(layer==2&&!o)return 0;
+  if(o&&(!nflstreet_matrix_push(d,c->stacks)||!nflstreet_matrix_translate(d,c->stacks,fword(o),fword(o+4),fword(o+8))))return 0;
+  if(!nflstreet_matrix_store(d,c->stacks,instance+8))return 0;}
  const float v[4]={c->pass_color,c->pass_color,c->pass_color,alpha*fword(rec+0x14)};
  if(!ambient(d,instance,v))return 0;
  float depth=fword(rec+0xc);
  if(!(depth<=c->pass_depth)){uint8_t *in=at(d,instance,0x4c);if(!in)return 0;
   nflstreet_wr32(in,rd32(in)|0x80000u);nflstreet_wr32(in+0x48,nflstreet_float_bits(depth));}
- return scenery(d,c,instance,1);}
+ return scenery(d,c,instance,1)&&(!c->stacks||layer!=2||nflstreet_matrix_pop(d,c->stacks));}
 int nflstreet_field_passes_draw(const nflstreet_scenery_context *c,uint32_t object,nflstreet_render_state *s){
  if(!c||!c->draw||!c->draw->span||!c->draw->emit||!s||!object)return 0;
  nflstreet_draw d={c->draw,s};const uint8_t *offset=at(&d,c->pass_offset,0x10);if(!offset)return 0;
  const nflstreet_pass_hooks *h=c->pass_hooks;
- return pass(&d,c,object,0,c->pass_alpha)&&pass(&d,c,object,1,c->pass_alpha)&&pass(&d,c,object,2,fword(offset+0xc))&&
+ return (!c->stacks||object_matrix(&d,c,object))&&
+  pass(&d,c,object,0,c->pass_alpha)&&pass(&d,c,object,1,c->pass_alpha)&&pass(&d,c,object,2,fword(offset+0xc))&&
   pass(&d,c,object,3,c->pass3_alpha)&&(!h||!h->marks||h->marks(h->user,object,s))&&pass(&d,c,object,4,c->pass_alpha)&&
-  (!h||!h->shadows||h->shadows(h->user,s));}
+  (!c->stacks||nflstreet_matrix_pop(&d,c->stacks))&&(!h||!h->shadows||h->shadows(h->user,s));}
 
 /* 8018941C push then 80189ED8: the stack slot above the top becomes a copy
    of it (RAM effect), and m receives it. 8018949C pops later. */
@@ -186,10 +200,19 @@ int nflstreet_ring_draw(const nflstreet_scenery_context *c,uint32_t object,nflst
  if(type==5||type==7){const uint8_t *flag=at(&d,c->ring_flags+(type==5?0u:1u),1);if(!flag)return 0;
   if(*flag!=1)drawn=0;
   else{const uint8_t *k=at(&d,c->ring_colors+16u*rd32(o+0x30),16);if(!k)return 0;
+   if(c->stacks){ /* translate to the ring, turn about z by +14, scale by +1C (times +18 for type 7) */
+    const float scale=type==5?fword(o+0x1c):fword(o+0x1c)*fword(o+0x18);
+    if(!nflstreet_matrix_select(&d,c->stacks)||!nflstreet_matrix_push(&d,c->stacks)||
+       !nflstreet_matrix_translate(&d,c->stacks,fword(o+4),fword(o+8),fword(o+0xc))||!nflstreet_matrix_rotate(&d,c->stacks,2,rd32(o+0x14))||
+       !nflstreet_matrix_scale(&d,c->stacks,scale,scale,c->ring_scale_z))return 0;}
    const float v[4]={fword(k)*c->ring_scale,fword(k+4)*c->ring_scale,fword(k+8)*c->ring_scale,fword(k+12)};
-   if(!ambient(&d,object+0x3c,v))return 0;}}
- if(!drawn)return 1;
- return GX(&d,NFLSTREET_GX_SET_Z_MODE,1,3,0)&&nflstreet_draw_texture(&d,0,0,0)&&scenery(&d,c,object+0x3c,1);}
+   if(!ambient(&d,object+0x3c,v))return 0;}
+  if(!drawn&&c->stacks&&(!nflstreet_matrix_select(&d,c->stacks)||!nflstreet_matrix_push(&d,c->stacks)))return 0;}
+ else if(c->stacks&&(!nflstreet_matrix_select(&d,c->stacks)||!nflstreet_matrix_push(&d,c->stacks)))return 0;
+ if(!drawn)return !c->stacks||(nflstreet_matrix_select(&d,c->stacks)&&nflstreet_matrix_pop(&d,c->stacks));
+ if(!GX(&d,NFLSTREET_GX_SET_Z_MODE,1,3,0)||!nflstreet_draw_texture(&d,0,0,0))return 0;
+ if(c->stacks&&(!nflstreet_matrix_store(&d,c->stacks,object+0x3c+8)||!nflstreet_matrix_select(&d,c->stacks)||!nflstreet_matrix_pop(&d,c->stacks)))return 0;
+ return scenery(&d,c,object+0x3c,1);}
 
 /* 8018941C + 80189BB0: the slot above the top becomes the top translated by v
    (t_r += (x*m_r0 + y*m_r1 + z*m_r2) with fused multiply-adds). Returns it. */

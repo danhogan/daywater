@@ -19,6 +19,9 @@ struct nflstreet_gx_aurora {
  int in_begin;uint32_t begin_left,begin_args[3];
  struct {uint8_t size;uint32_t value;} *writes;uint32_t write_count,write_cap;
  uint8_t *bytes;uint32_t byte_count,byte_cap;
+ /* View delta and this frame's transformed palette copies. */
+ int delta_on;float delta[12];
+ struct {uint32_t base,size;uint8_t *copy;} palettes[1024];unsigned palette_count;
 };
 static uint32_t be32(const uint8_t *p){return(uint32_t)p[0]<<24|(uint32_t)p[1]<<16|(uint32_t)p[2]<<8|p[3];}
 static uint16_t be16(const uint8_t *p){return(uint16_t)(p[0]<<8|p[1]);}
@@ -29,7 +32,25 @@ static GXColor color(uint32_t v){GXColor c={(u8)(v>>24),(u8)(v>>16),(u8)(v>>8),(
 
 nflstreet_gx_aurora *nflstreet_gx_aurora_open(uint8_t *ram,uint32_t ram_bytes){
  nflstreet_gx_aurora *b=calloc(1,sizeof *b);if(!b)return NULL;b->ram=ram;b->ram_bytes=ram_bytes;return b;}
-void nflstreet_gx_aurora_close(nflstreet_gx_aurora *b){if(b){free(b->writes);free(b->bytes);}free(b);}
+void nflstreet_gx_aurora_new_frame(nflstreet_gx_aurora *b){
+ for(unsigned i=0;i<b->palette_count;++i)free(b->palettes[i].copy);b->palette_count=0;
+ for(unsigned a=21;a<=22;++a)b->arrays[a].dirty=1;}
+void nflstreet_gx_aurora_close(nflstreet_gx_aurora *b){if(b){nflstreet_gx_aurora_new_frame(b);free(b->writes);free(b->bytes);}free(b);}
+void nflstreet_gx_aurora_set_view_delta(nflstreet_gx_aurora *b,const float *delta){
+ b->delta_on=delta!=NULL;if(delta)memcpy(b->delta,delta,sizeof b->delta);
+ for(unsigned a=21;a<=22;++a)b->arrays[a].dirty=1;}
+/* r = D x m (3x4 affine); normals use only the rotation part. */
+static void delta_mul(const float d[12],const float m[12],float r[12]){
+ for(unsigned i=0;i<3;++i)for(unsigned j=0;j<4;++j)r[4*i+j]=d[4*i]*m[j]+d[4*i+1]*m[4+j]+d[4*i+2]*m[8+j]+(j==3?d[4*i+3]:0.0f);}
+static uint32_t float_word(float f){uint32_t v;memcpy(&v,&f,4);return v;}
+/* A transformed copy of a palette (3x4 big-endian matrices) for this frame. */
+static void *palette_copy(nflstreet_gx_aurora *b,uint32_t base,uint32_t size){
+ size=(size+0x2fu)/0x30u*0x30u;
+ for(unsigned i=0;i<b->palette_count;++i)if(b->palettes[i].base==base&&b->palettes[i].size>=size)return b->palettes[i].copy;
+ const uint8_t *src=host(b,base,size);if(!src||b->palette_count>=1024)return NULL;uint8_t *copy=malloc(size);if(!copy)return NULL;
+ for(uint32_t o=0;o<size;o+=0x30){float m[12],r[12];for(unsigned k=0;k<12;++k)m[k]=word_float(be32(src+o+4*k));delta_mul(b->delta,m,r);
+  for(unsigned k=0;k<12;++k){uint32_t w=float_word(r[k]);copy[o+4*k]=(uint8_t)(w>>24);copy[o+4*k+1]=(uint8_t)(w>>16);copy[o+4*k+2]=(uint8_t)(w>>8);copy[o+4*k+3]=(uint8_t)w;}}
+ b->palettes[b->palette_count].base=base;b->palettes[b->palette_count].size=size;b->palettes[b->palette_count++].copy=copy;return copy;}
 unsigned nflstreet_gx_aurora_calls(const nflstreet_gx_aurora *b){return b?b->calls:0;}
 static int set_arrays(nflstreet_gx_aurora *b,const uint32_t max_index[26],const int used[26]);
 /* Submits the buffered primitive: arrays sized from its indices, then
@@ -119,8 +140,8 @@ static int call_list(nflstreet_gx_aurora *b,uint32_t list,uint32_t bytes){
  /* Matrix arrays: max_index holds the bytes needed. */
  for(unsigned a=21;a<=24;++a){if(!max_index[a])continue;const uint32_t base=b->arrays[a].base,stride=b->arrays[a].stride;
   array_size *e=size_entry(b,(uint8_t)a,base);if(!e)return 0;if(max_index[a]>e->size)e->size=max_index[a];
-  if(b->arrays[a].dirty||e->size>b->arrays[a].set_size){void *data=host(b,base,e->size);if(!data)return 0;
-   GXSetArray((GXAttr)a,data,e->size,(u8)stride,false);b->arrays[a].set_size=e->size;b->arrays[a].dirty=0;}}
+  if(b->arrays[a].dirty||e->size>b->arrays[a].set_size){void *data=b->delta_on?palette_copy(b,base,e->size):host(b,base,e->size);if(!data)return 0;
+   GXSetArray((GXAttr)a,data,b->delta_on?(e->size+0x2fu)/0x30u*0x30u:e->size,(u8)stride,false);b->arrays[a].set_size=e->size;b->arrays[a].dirty=0;}}
  GXCallDisplayList(p,bytes);return 1;}
 /* SDK GXTexObj words: mode0 (wrap 0-3, mag 4, min 5-7, no edge LOD 8, bias
    9-16, anisotropy 19-20, bias clamp 21),
@@ -172,7 +193,10 @@ int nflstreet_gx_aurora_emit(void *sink,const nflstreet_gx_call *c){
  case NFLSTREET_GX_SET_TEX_COORD_GEN:GXSetTexCoordGen2((GXTexCoordID)a[0],(GXTexGenType)a[1],(GXTexGenSrc)a[2],a[3],(GXBool)a[4],a[5]);break;
  case NFLSTREET_GX_SET_NUM_TEX_GENS:GXSetNumTexGens((u8)a[0]);break;
  case NFLSTREET_GX_SET_CULL_MODE:GXSetCullMode((GXCullMode)a[0]);break;
- case NFLSTREET_GX_LOAD_LIGHT:load_light(a[0],c->data);break;
+ case NFLSTREET_GX_LOAD_LIGHT:{uint32_t w[16];memcpy(w,c->data,sizeof w);
+  if(b->delta_on){const float *d=b->delta,p[3]={word_float(w[10]),word_float(w[11]),word_float(w[12])},n[3]={word_float(w[13]),word_float(w[14]),word_float(w[15])};
+   for(unsigned i=0;i<3;++i){w[10+i]=float_word(d[4*i]*p[0]+d[4*i+1]*p[1]+d[4*i+2]*p[2]+d[4*i+3]);w[13+i]=float_word(d[4*i]*n[0]+d[4*i+1]*n[1]+d[4*i+2]*n[2]);}}
+  load_light(a[0],w);break;}
  case NFLSTREET_GX_SET_CHAN_AMB_COLOR:GXSetChanAmbColor((GXChannelID)a[0],color(c->data[0]));break;
  case NFLSTREET_GX_SET_CHAN_MAT_COLOR:GXSetChanMatColor((GXChannelID)a[0],color(c->data[0]));break;
  case NFLSTREET_GX_SET_NUM_CHANS:GXSetNumChans((u8)a[0]);break;
@@ -195,8 +219,10 @@ int nflstreet_gx_aurora_emit(void *sink,const nflstreet_gx_call *c){
  case NFLSTREET_GX_LOAD_TEX_MTX:{float m[3][4];memset(m,0,sizeof m);for(unsigned i=0;i<(a[1]==1?8u:12u);++i)m[i/4][i%4]=word_float(c->data[i]);
   GXLoadTexMtxImm(m,a[0],(GXTexMtxType)a[1]);break;}
  case NFLSTREET_GX_SET_VIEWPORT:GXSetViewport(word_float(c->data[0]),word_float(c->data[1]),word_float(c->data[2]),word_float(c->data[3]),word_float(c->data[4]),word_float(c->data[5]));break;
- case NFLSTREET_GX_LOAD_POS_MTX:{float m[3][4];for(unsigned i=0;i<12;++i)m[i/4][i%4]=word_float(c->data[i]);GXLoadPosMtxImm(m,a[0]);break;}
- case NFLSTREET_GX_LOAD_NRM_MTX:{float m[3][4];memset(m,0,sizeof m);for(unsigned i=0;i<9;++i)m[i/3][i%3]=word_float(c->data[i]);GXLoadNrmMtxImm(m,a[0]);break;}
+ case NFLSTREET_GX_LOAD_POS_MTX:{float m[12],r[12];for(unsigned i=0;i<12;++i)m[i]=word_float(c->data[i]);
+  if(b->delta_on){delta_mul(b->delta,m,r);memcpy(m,r,sizeof m);}GXLoadPosMtxImm(m,a[0]);break;}
+ case NFLSTREET_GX_LOAD_NRM_MTX:{float m[12],r[12];memset(m,0,sizeof m);for(unsigned i=0;i<9;++i)m[4*(i/3)+i%3]=word_float(c->data[i]);
+  if(b->delta_on){delta_mul(b->delta,m,r);for(unsigned i=0;i<3;++i)r[4*i+3]=0.0f;memcpy(m,r,sizeof m);}GXLoadNrmMtxImm(m,a[0]);break;}
  case NFLSTREET_GX_SET_Z_MODE:GXSetZMode((GXBool)a[0],(GXCompare)a[1],(GXBool)a[2]);break;
  case NFLSTREET_GX_SET_Z_COMP_LOC:GXSetZCompLoc((GXBool)a[0]);break;
  case NFLSTREET_GX_SET_FOG:GXSetFog((GXFogType)a[0],word_float(c->data[1]),word_float(c->data[2]),word_float(c->data[3]),word_float(c->data[4]),color(c->data[0]));break;

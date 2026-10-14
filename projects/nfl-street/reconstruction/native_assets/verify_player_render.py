@@ -28,14 +28,14 @@ RENDER = {
 }
 SCENE = {
     14: "(5822 GX calls) then 14 actors (4955 GX calls) and the HUD (8562 GX calls); 732 display lists, 27752"
-    " triangles (9969 culled, 3102 clipped), 345 decoded textures, 1285559 shaded pixels; digest "
-    "29149f45.",
+    " triangles (9967 culled, 3101 clipped), 345 decoded textures, 1286249 shaded pixels; digest "
+    "5e3eec4b.",
     15: "(5817 GX calls) then 14 actors (4955 GX calls) and the HUD (8558 GX calls); 732 display lists, 27754"
-    " triangles (9937 culled, 3096 clipped), 345 decoded textures, 1289996 shaded pixels; digest "
-    "0a89750c.",
+    " triangles (9937 culled, 3096 clipped), 345 decoded textures, 1288636 shaded pixels; digest "
+    "9a9963c8.",
     16: "(5872 GX calls) then 14 actors (4947 GX calls) and the HUD (8562 GX calls); 732 display lists, 27697"
-    " triangles (9922 culled, 3096 clipped), 343 decoded textures, 1285600 shaded pixels; digest "
-    "1e801f31.",
+    " triangles (9924 culled, 3097 clipped), 343 decoded textures, 1284569 shaded pixels; digest "
+    "70d1479c.",
 }
 SOURCES = (
     "gx_render.c",

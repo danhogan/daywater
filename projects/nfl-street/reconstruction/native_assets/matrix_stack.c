@@ -70,6 +70,9 @@ int nflstreet_matrix_rotate(nflstreet_draw *d,const nflstreet_matrix_stacks *k,u
  for(unsigned r=0;r<3;++r){uint8_t *q=m+16*r;const float mi=fword(q+4*i),mj=fword(q+4*j);
   put(q+4*i,nflstreet_fmadds(mi,c,mj*a));put(q+4*j,nflstreet_fmadds(mi,b,mj*c));}
  return 1;}
+int nflstreet_matrix_store(nflstreet_draw *d,const nflstreet_matrix_stacks *k,uint32_t to){
+ uint32_t top;uint8_t *t;const uint8_t *f;if(!nflstreet_matrix_top(d,k,&top)||!(f=at(d,top,0x40))||!(t=at(d,to,0x40)))return 0;
+ memmove(t,f,0x40);return 1;}
 int nflstreet_matrix_load_top(nflstreet_draw *d,const nflstreet_matrix_stacks *k){
  uint32_t top,m[12];const uint8_t *t;if(!nflstreet_matrix_top(d,k,&top)||!(t=at(d,top,0x30)))return 0;
  for(unsigned i=0;i<12;++i)m[i]=rd32(t+4*i);return nflstreet_draw_gx(d,NFLSTREET_GX_LOAD_POS_MTX,1,(uint32_t[]){0},m,12);}

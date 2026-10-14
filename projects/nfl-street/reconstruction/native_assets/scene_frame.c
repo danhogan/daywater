@@ -4,6 +4,7 @@
 #define rd32 nflstreet_rd32
 static int draw_marks(void *user,uint32_t passes,nflstreet_render_state *s){
  nflstreet_scene *sc=user;nflstreet_draw d={&sc->draw,s};const nflstreet_matrix_stacks *k=&sc->marks.stacks;
+ if(sc->venue.stacks)return nflstreet_marks_draw(&sc->marks,s); /* the pass loop has already translated the stack */
  const uint8_t *p=nflstreet_draw_at(&d,passes+4,12);if(!p)return 0;
  return nflstreet_matrix_select(&d,k)&&nflstreet_matrix_push(&d,k)&&
   nflstreet_matrix_translate(&d,k,nflstreet_as_float(rd32(p)),nflstreet_as_float(rd32(p+4)),nflstreet_as_float(rd32(p+8)))&&

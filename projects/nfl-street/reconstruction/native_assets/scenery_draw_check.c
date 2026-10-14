@@ -12,6 +12,8 @@
 #define RING_CASES 201u
 #define LINE_CASES 201u
 #define MARK_CASES 201u
+#define MATRIX_CASES 201u
+#define RING_MATRIX_CASES 201u
 #include "check_fixture.h"
 #define MAIN_FIELD VENUE_MAIN_FIELD
 #define FIELD_PASSES VENUE_FIELD_PASSES
@@ -20,7 +22,10 @@
    (801655D8) and actor shadows (801643F4), first as saved, then edited;
    4: the three player-select rings (800E3F7C), as saved, then edited;
    5: the four field lines (800DA074), as saved, then edited;
-   6: the ground marks (800D75EC), as saved, then edited. */
+   6: the ground marks (800D75EC), as saved, then edited; 7: both venue
+   loops recomputing their instance matrices from the viewport's stack, as
+   saved, then with edited stack tops, object positions and layer offset;
+   8: the rings recomputing their matrices, as saved, then edited. */
 typedef struct {unsigned kind;uint32_t instance,lights;} scenery_case;
 static const uint32_t flag_bits[13]={1,2,8,0x200,0x4000,0x8000,0x10000,0x20000,0x40000,0x80000,0x100000,0x200000,0x400000};
 static uint32_t venue_instance(unsigned i){
@@ -73,6 +78,28 @@ static void prepare(uint8_t *ram,unsigned index,scenery_case *c){
   for(unsigned i=0;i<20;++i)if(rnd()%5==0)edit_instance(ram,venue_instance(i));
   if(rnd()%4==0)ram_at(ram,R13-0x6208u,1)[0]=(uint8_t)(rnd()%2);
   return;}
+ if(index>=1+CONTROLLED+SCENE_CASES+RING_CASES+LINE_CASES+MARK_CASES+MATRIX_CASES){c->kind=8;
+  if(index==1+CONTROLLED+SCENE_CASES+RING_CASES+LINE_CASES+MARK_CASES+MATRIX_CASES)return;
+  for(unsigned i=0;i<3;++i){uint8_t *o=ram_at(ram,venue_rings[i],0xfc);static const uint32_t types[4]={5,7,7,3};
+   if(rnd()%3==0)wr32(o+0x28,types[rnd()%4]);if(rnd()%6==0)wr32(o+0x20,rd32(o+0x20)^2);
+   if(rnd()%2)for(unsigned k=0;k<3;++k)wr32(o+4+4*k,fbits(rndf(-40.0f,40.0f)));if(rnd()%2)wr32(o+0x14,rnd()<<8^rnd());
+   if(rnd()%2)wr32(o+0x18,fbits(rndf(0.2f,2.0f)));if(rnd()%2)wr32(o+0x1c,fbits(rndf(0.2f,3.0f)));}
+  for(unsigned k=0;k<2;++k)if(rnd()%4==0)ram_at(ram,R13-0x71dcu+k,1)[0]=(uint8_t)(rnd()%3);
+  if(rnd()%3==0)ram_at(ram,R13-0x4ee8u,1)[0]=(uint8_t)(rnd()%2?0:3);
+  uint32_t stack=ram32(ram,R13-0x65f0u)+12u*ram_at(ram,R13-0x4ee8u,1)[0],top=ram32(ram,stack+8)+0x40u*ram32(ram,stack+4);
+  for(unsigned i=0;i<12;++i)if(rnd()%2)wr32(ram_at(ram,top+4*i,4),fbits(i%4==3?rndf(-60.0f,60.0f):rndf(-1.5f,1.5f)));
+  return;}
+ if(index>=1+CONTROLLED+SCENE_CASES+RING_CASES+LINE_CASES+MARK_CASES){c->kind=7;
+  if(index==1+CONTROLLED+SCENE_CASES+RING_CASES+LINE_CASES+MARK_CASES)return;
+  if(rnd()%3==0)ram_at(ram,R13-0x4ee8u,1)[0]=(uint8_t)(rnd()%2?0:3);
+  uint32_t stack=ram32(ram,R13-0x65f0u)+12u*ram_at(ram,R13-0x4ee8u,1)[0],top=ram32(ram,stack+8)+0x40u*ram32(ram,stack+4);
+  for(unsigned i=0;i<12;++i)if(rnd()%2)wr32(ram_at(ram,top+4*i,4),fbits(i%4==3?rndf(-60.0f,60.0f):rndf(-1.5f,1.5f)));
+  if(rnd()%3==0)wr32(ram_at(ram,stack+4,4),rnd()%3);
+  if(rnd()%3==0)for(unsigned k=0;k<3;++k)wr32(ram_at(ram,MAIN_FIELD+4+4*k,4),fbits(rndf(-20.0f,20.0f)));
+  if(rnd()%3==0)for(unsigned k=0;k<3;++k)wr32(ram_at(ram,FIELD_PASSES+4+4*k,4),fbits(rndf(-20.0f,20.0f)));
+  if(rnd()%3==0)for(unsigned k=0;k<3;++k)wr32(ram_at(ram,0x8028a090u+4*k,4),fbits(rndf(-5.0f,5.0f)));
+  for(unsigned l=0;l<5;++l)if(rnd()%5==0)ram_at(ram,0x8028a004u+0x1cu*l+0x19,1)[0]^=1;
+  return;}
  if(index>=1+CONTROLLED+SCENE_CASES+RING_CASES+LINE_CASES){c->kind=6;if(index==1+CONTROLLED+SCENE_CASES+RING_CASES+LINE_CASES)return;
   uint32_t base=ram32(ram,0x802aa7ccu);
   for(unsigned i=0;i<130;++i){uint8_t *m=ram_at(ram,base+0x74u*i,0x74);
@@ -123,6 +150,10 @@ static int run_native(uint8_t *ram,const scenery_case *c,trace *t,nflstreet_rend
  nflstreet_player_draw_context x;nflstreet_scenery_context sc=scenery_context(ram,&x,t);t->count=0;saved_state(ram,s);
  if(c->kind==2)return nflstreet_scenery_draw(&sc,c->instance,c->lights,s);
  if(c->kind==3)return nflstreet_sky_draw(&sc,s)&&nflstreet_shadows_draw(&sc,s);
+ if(c->kind==8){nflstreet_matrix_stacks k=venue_stacks(ram);sc.stacks=&k;
+  for(unsigned i=0;i<3;++i)if(!nflstreet_ring_draw(&sc,venue_rings[i],s))return 0;return 1;}
+ if(c->kind==7){nflstreet_matrix_stacks k=venue_stacks(ram);sc.stacks=&k;
+  return nflstreet_field_passes_draw(&sc,FIELD_PASSES,s)&&nflstreet_field_draw(&sc,MAIN_FIELD,s);}
  if(c->kind==6){nflstreet_marks_context mc=marks_context(ram,&sc);return nflstreet_marks_draw(&mc,s);}
  if(c->kind==5){for(unsigned i=0;i<4;++i)if(!nflstreet_line_draw(&sc,venue_lines[i],s))return 0;return 1;}
  if(c->kind==4){for(unsigned i=0;i<3;++i)if(!nflstreet_ring_draw(&sc,venue_rings[i],s))return 0;return 1;}
@@ -146,8 +177,8 @@ int main(int argc,char **argv){
  uint8_t *pristine=load_ram(argv[1]),*ram=malloc(RAM_BYTES),*before=malloc(RAM_BYTES);trace t={malloc(CALLS_MAX*sizeof(nflstreet_gx_call)),0};
  if(!pristine||!ram||!before||!t.calls)return 3;
  if(!venue_present(pristine))return 4;
- totals live={0},loops={0},single={0},scene_live={0},scene={0},ring_live={0},rings={0},line_live={0},lines={0},mark_live={0},marks={0};uint32_t h=2166136261u;unsigned culled=0;
- for(unsigned index=0;index<1+CONTROLLED+SCENE_CASES+RING_CASES+LINE_CASES+MARK_CASES;++index){
+ totals live={0},loops={0},single={0},scene_live={0},scene={0},ring_live={0},rings={0},line_live={0},lines={0},mark_live={0},marks={0},matrix_live={0},matrices={0},ring_matrix_live={0},ring_matrices={0};uint32_t h=2166136261u;unsigned culled=0;
+ for(unsigned index=0;index<1+CONTROLLED+SCENE_CASES+RING_CASES+LINE_CASES+MARK_CASES+MATRIX_CASES+RING_MATRIX_CASES;++index){
   memcpy(ram,pristine,RAM_BYTES);scenery_case c;prepare(ram,index,&c);memcpy(before,ram,RAM_BYTES);
   nflstreet_render_state s;if(!run_native(ram,&c,&t,&s)){fprintf(stderr,"native scenery rejected case %u after %u calls\n",index,t.count);
    if(t.count){const nflstreet_gx_call *g=t.calls+t.count-1;fprintf(stderr,"  last op %d args %08x %08x %08x\n",(int)g->op,g->arg[0],g->arg[1],g->arg[2]);}
@@ -158,6 +189,8 @@ int main(int argc,char **argv){
 #endif
   if(c.kind==2&&ram32(before,R13-0x6230u)&&ram32(before,c.instance+0x54)&&!t.count)++culled;
   count(&t,c.kind==0?&live:c.kind==1?&loops:c.kind==2?&single:
+   c.kind==8?(index==1+CONTROLLED+SCENE_CASES+RING_CASES+LINE_CASES+MARK_CASES+MATRIX_CASES?&ring_matrix_live:&ring_matrices):
+   c.kind==7?(index==1+CONTROLLED+SCENE_CASES+RING_CASES+LINE_CASES+MARK_CASES?&matrix_live:&matrices):
    c.kind==6?(index==1+CONTROLLED+SCENE_CASES+RING_CASES+LINE_CASES?&mark_live:&marks):c.kind==5?(index==1+CONTROLLED+SCENE_CASES+RING_CASES?&line_live:&lines):
    c.kind==4?(index==1+CONTROLLED+SCENE_CASES?&ring_live:&rings):
    index==1+CONTROLLED?&scene_live:&scene);
@@ -167,13 +200,17 @@ int main(int argc,char **argv){
   "%u drawn, %u frustum-culled, %u fog calls); sky and shadows as saved (%u GX calls, %u primitives, %u pipe writes) and %u edited "
   "(%u GX calls, %u primitives, %u pipe writes); rings as saved (%u GX calls, %u display lists) and %u edited (%u GX calls, "
   "%u display lists); lines as saved (%u GX calls, %u pipe writes) and %u edited (%u GX calls, %u primitives, %u pipe writes); "
-  "ground marks as saved (%u GX calls, %u marks) and %u edited (%u GX calls, %u marks); digest %08x.\n",live.calls,live.lists,live.instances_drawn,live.depth_ranges,live.fog_calls,
+  "ground marks as saved (%u GX calls, %u marks) and %u edited (%u GX calls, %u marks); recomputed venue matrices as saved "
+  "(%u GX calls, %u instances) and %u edited (%u GX calls, %u instances); recomputed rings as saved (%u GX calls) and %u edited "
+  "(%u GX calls, %u display lists); digest %08x.\n",live.calls,live.lists,live.instances_drawn,live.depth_ranges,live.fog_calls,
   loops.cases,loops.calls,loops.lists,loops.instances_drawn,single.cases,single.calls,single.lists,single.instances_drawn,culled,single.fog_calls,
   scene_live.calls,scene_live.primitives,scene_live.writes,scene.cases,scene.calls,scene.primitives,scene.writes,
   ring_live.calls,ring_live.lists,rings.cases,rings.calls,rings.lists,line_live.calls,line_live.writes,lines.cases,lines.calls,
-  lines.primitives,lines.writes,mark_live.calls,mark_live.primitives,marks.cases,marks.calls,marks.primitives,h);
+  lines.primitives,lines.writes,mark_live.calls,mark_live.primitives,marks.cases,marks.calls,marks.primitives,
+  matrix_live.calls,matrix_live.instances_drawn,matrices.cases,matrices.calls,matrices.instances_drawn,ring_matrix_live.calls,
+  ring_matrices.cases,ring_matrices.calls,ring_matrices.lists,h);
 #ifdef NFLSTREET_SCENERY_ORACLE
- printf("Original scenery draw: %u runs of 801EC8E4, 80165DC4, 8015B670, 801655D8, 801643F4, 800E3F7C, 800DA074 and 800D75EC match every GX call (%u calls), the render state and all RAM outside the oracle stack.\n",
+ printf("Original scenery draw: %u runs of 801EC8E4, 80165DC4, 8015B670, 801655D8, 801643F4, 800E3F7C, 800DA074 and 800D75EC (with and without the venue matrix recompute) match every GX call (%u calls), the render state and all RAM outside the oracle stack.\n",
   oracle_runs,oracle_calls);
 #endif
  free(t.calls);free(before);free(ram);free(pristine);return 0;}

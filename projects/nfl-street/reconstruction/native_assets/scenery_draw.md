@@ -142,16 +142,21 @@ state plus 300 edited cases. The edits cover:
 
 ## Not modeled
 
-- **Matrices.** Each frame the loops recompute instance model-view
-  matrices from the camera through the matrix stack (`801893C8`,
-  `8018941C`, `80189BB0`, `8018949C`, and the `80189ED8` store through
-  `801EC89C`). Native draws use the stored matrices, just as player draws
-  use the stored skinning palettes. In the saved contexts the camera has
-  already advanced past those stored matrices, so recomputing would mix
-  frames.
-- **Other callees.** `800D75EC` (between passes 3 and 4) and `801652BC`
-  (after them) are not modeled; their content is not yet traced. The
-  weather draws `8015A5CC`/`8015A7C4` (flags `802A391C/D`, clear here) are
+- **Matrices.** The loops' per-frame model-view computation is modeled as
+  an option. With the context's `stacks` set:
+  - **Main field (`80165DC4`):** select the viewport's stack, push and
+    translate to the object; each instance's `+08` receives the top
+    (`80189ED8` through `801EC89C`) before it draws; then pop.
+  - **Field passes (`8015B670`):** the same. Layer 2 pushes and translates
+    by `8028A090`, and the ground marks run inside the translation.
+  - **Rings (`800E3F7C`, types 5 and 7):** translate to `+04`, rotate about
+    z by `+14`, scale by `+1C` (× `+18` for type 7) and the z scale at
+    `802536E8`, then store into the ring instance.
+
+  Without `stacks`, the stored matrices are drawn, as in the earlier checks.
+  The scene (`scene_frame.c`) uses the recompute, so the venue follows the
+  native field camera.
+- **Other callees.** The weather draws `8015A5CC`/`8015A7C4` (flags `802A391C/D`, clear here) are
   not modeled either.
 - **Rest of the scene.**
   - effect quads (`8015F450`);

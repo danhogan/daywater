@@ -41,6 +41,7 @@ typedef struct {
  uint32_t ring_flags;        /* r13-71DC: bytes enabling ring types 5 (+0) and 7 (+1) */
  uint32_t ring_colors;       /* 8027BED4: RGBA floats per color index (16 bytes) */
  float ring_scale;           /* 802536EC: RGB scale */
+ float ring_scale_z;         /* 802536E8: the rings' z scale (matrix recompute) */
  /* Line gates and inputs (800DA074), all read when the original reads them. */
  uint32_t game_state;        /* value of r13-7078: +30 lines on, +90 field half width */
  uint32_t gate_7b88;         /* value of r13-7B88: drawing off when its +182 byte is set */
@@ -52,6 +53,11 @@ typedef struct {
  uint32_t line_ratio;        /* r13-7260: float */
  uint32_t line_box;          /* 802714D0: reference box for the distance scale */
  const nflstreet_pass_hooks *pass_hooks; /* optional draws inside the field passes */
+ /* When set, the venue loops recompute their instance model-views from the
+    viewport's stack as the original does each frame (select, push,
+    translate to the object, 80189ED8 store into +08, pop); when unset the
+    stored matrices are drawn. */
+ const struct nflstreet_matrix_stacks_s *stacks;
 } nflstreet_scenery_context;
 /* Original 801EC8E4(instance, -, lights): frustum test of the bounding box
    against the matrix-library projection when flags bit 14 (801CB3EC/

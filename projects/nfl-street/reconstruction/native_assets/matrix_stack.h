@@ -5,7 +5,7 @@
    Single-precision arithmetic as the original (fused multiply-adds where it
    uses fmadds/ps_madd). */
 #include "draw_engine.h"
-typedef struct {
+typedef struct nflstreet_matrix_stacks_s {
  uint32_t table;   /* value of r13-65F0: stacks 12 bytes apart */
  uint32_t count;   /* value of r13-65EC */
  uint32_t current; /* r13-65E8 */
@@ -28,6 +28,7 @@ int nflstreet_matrix_rotate_vector(nflstreet_draw *,const nflstreet_matrix_stack
 int nflstreet_matrix_scale(nflstreet_draw *,const nflstreet_matrix_stacks *,float x,float y,float z); /* 80189CEC */
 int nflstreet_matrix_rotate(nflstreet_draw *,const nflstreet_matrix_stacks *,unsigned axis,uint32_t angle); /* 80189854/944/A34 */
 int nflstreet_matrix_load_top(nflstreet_draw *,const nflstreet_matrix_stacks *);        /* 80189ED8 + GXLoadPosMtxImm(0) */
+int nflstreet_matrix_store(nflstreet_draw *,const nflstreet_matrix_stacks *,uint32_t to); /* 80189ED8: 16 words */
 /* 80188A70 / 80188AEC: sine and cosine of a 24-bit angle (0x800000 = pi). */
 /* 80188EAC: 1/sqrt(x), or zero_value when the root is at most epsilon. */
 float nflstreet_recip_sqrt(float x,float epsilon,float one,float zero_value);

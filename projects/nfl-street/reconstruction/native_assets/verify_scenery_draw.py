@@ -15,7 +15,9 @@ VENUE = {
     "(208401 GX calls, 3721 primitives, 192258 pipe writes); rings as saved (85 GX calls, 3 display "
     "lists) and 200 edited (11513 GX calls, 375 display lists); lines as saved (184 GX calls, 80 pipe "
     "writes) and 200 edited (18286 GX calls, 401 primitives, 8020 pipe writes); ground marks as saved "
-    "(1979 GX calls, 78 marks) and 200 edited (365434 GX calls, 14394 marks); digest 399db687.",
+    "(1979 GX calls, 78 marks) and 200 edited (365434 GX calls, 14394 marks); recomputed venue matrices "
+    "as saved (2517 GX calls, 20 instances) and 200 edited (369170 GX calls, 2600 instances); recomputed "
+    "rings as saved (6 GX calls) and 200 edited (6036 GX calls, 183 display lists); digest b3cf030e.",
     15: "EARS venue as saved (2497 GX calls, 388 display lists, 20 instances drawn, 29 depth ranges, 0 fog "
     "calls); 300 edited venue loops (1084933 GX calls, 175904 display lists, 5598 instances drawn); 900 "
     "single instances (316514 GX calls, 52864 display lists, 735 drawn, 54 frustum-culled, 142 fog "
@@ -23,7 +25,9 @@ VENUE = {
     "(208777 GX calls, 3721 primitives, 192258 pipe writes); rings as saved (79 GX calls, 3 display "
     "lists) and 200 edited (10841 GX calls, 375 display lists); lines as saved (176 GX calls, 80 pipe "
     "writes) and 200 edited (17650 GX calls, 401 primitives, 8020 pipe writes); ground marks as saved "
-    "(2006 GX calls, 79 marks) and 200 edited (356932 GX calls, 14052 marks); digest e306fa66.",
+    "(2006 GX calls, 79 marks) and 200 edited (356932 GX calls, 14052 marks); recomputed venue matrices "
+    "as saved (2497 GX calls, 20 instances) and 200 edited (419925 GX calls, 2649 instances); recomputed "
+    "rings as saved (79 GX calls) and 200 edited (6760 GX calls, 231 display lists); digest 72b628e2.",
     16: "EARS venue as saved (2517 GX calls, 388 display lists, 20 instances drawn, 29 depth ranges, 20 fog "
     "calls); 300 edited venue loops (1089613 GX calls, 175904 display lists, 5598 instances drawn); 900 "
     "single instances (316992 GX calls, 52864 display lists, 735 drawn, 54 frustum-culled, 620 fog "
@@ -31,14 +35,16 @@ VENUE = {
     "(208401 GX calls, 3721 primitives, 192258 pipe writes); rings as saved (85 GX calls, 3 display "
     "lists) and 200 edited (11553 GX calls, 376 display lists); lines as saved (184 GX calls, 80 pipe "
     "writes) and 200 edited (18286 GX calls, 401 primitives, 8020 pipe writes); ground marks as saved "
-    "(2029 GX calls, 80 marks) and 200 edited (361499 GX calls, 14243 marks); digest 27b4067f.",
+    "(2029 GX calls, 80 marks) and 200 edited (361499 GX calls, 14243 marks); recomputed venue matrices "
+    "as saved (2517 GX calls, 20 instances) and 200 edited (370333 GX calls, 2585 instances); recomputed "
+    "rings as saved (6 GX calls) and 200 edited (5805 GX calls, 173 display lists); digest 52ae46fd.",
 }
 NATIVE = {context: "Scenery draw: " + text for context, text in VENUE.items()}
 ORIGINAL = {
-    context: "Original scenery draw: 2105 runs of 801EC8E4, 80165DC4, 8015B670, 801655D8, 801643F4, 800E3F7C, "
-    "800DA074 and 800D75EC match every "
+    context: "Original scenery draw: 2507 runs of 801EC8E4, 80165DC4, 8015B670, 801655D8, 801643F4, 800E3F7C, "
+    "800DA074 and 800D75EC (with and without the venue matrix recompute) match every "
     f"GX call ({calls} calls), the render state and all RAM outside the oracle stack."
-    for context, calls in ((14, 2015869), (15, 2001272), (16, 2012024))
+    for context, calls in ((14, 2393598), (15, 2430533), (16, 2390685))
 }
 SOURCES = (
     "scenery_draw.c",
@@ -69,8 +75,9 @@ BOUNDARY = (
     "8015A5CC and 8015A7C4 returning at once: instances keep their stored model-view matrices. The sky 801655D8 and "
     "actor shadows 801643F4 and field lines 800DA074 run unhooked (immediate vertex data compared as GX pipe "
     "writes); player-select rings 800E3F7C hold their stored matrices like the venue. Ground marks 800D75EC run "
-    "unhooked on the viewport's matrix stack. Venue objects are "
-    "the ones the original scene traversal draws in the saved match."
+    "unhooked on the viewport's matrix stack. The venue loops and rings also run unhooked with their matrix work "
+    "(select, push, translate, rotate, scale, store into the instances, pop) against the native recompute. "
+    "Venue objects are the ones the original scene traversal draws in the saved match."
 )
 
 
@@ -138,12 +145,14 @@ def main() -> None:
             venue_instances=20,
             controlled_loops_per_context=300,
             controlled_instances_per_context=900,
-            original_runs_per_process=2105,
+            original_runs_per_process=2507,
+            matrix_cases_per_context=201,
+            ring_matrix_cases_per_context=201,
             mark_cases_per_context=201,
             ring_cases_per_context=201,
             line_cases_per_context=201,
             sky_shadow_cases_per_context=301,
-            original_gx_calls={"14": 2015869, "15": 2001272, "16": 2012024},
+            original_gx_calls={"14": 2393598, "15": 2430533, "16": 2390685},
         )
     except Exception as exc:
         record.update(status="failed", error=str(exc))

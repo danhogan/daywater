@@ -29,9 +29,13 @@ static nflstreet_scenery_context venue_context(uint8_t *ram,const nflstreet_play
  c.matrix_stack=ram32(ram,R13-0x65e8u);c.sky=0x80385e8cu;c.sky_colors=0x80310a78u;c.sky_tables=0x8038668cu;
  c.game_state=ram32(ram,R13-0x7078u);c.gate_7b88=ram32(ram,R13-0x7b88u);c.gate_7f40=ram32(ram,R13-0x7f40u);c.gate_7258=R13-0x7258u;
  c.gate_count=0x80308560u;c.mode_source=ram32(ram,R13-0x7cf8u);c.mode_cache=R13-0x7cf4u;c.line_ratio=R13-0x7260u;c.line_box=0x802714d0u;
- c.ring_flags=R13-0x71dcu;c.ring_colors=0x8027bed4u;c.ring_scale=ramf(ram,0x802536ecu);
+ c.ring_flags=R13-0x71dcu;c.ring_colors=0x8027bed4u;c.ring_scale=ramf(ram,0x802536ecu);c.ring_scale_z=ramf(ram,0x802536e8u);
  c.actors=ram32(ram,R13-0x7bbcu);c.actor_count=R13-0x7bb8u;c.shadow_texture=ram32(ram,R13-0x58e4u);c.shadow_tlut=ram32(ram,R13-0x58e0u);
  return c;}
+/* The matrix stacks (r13-65F0 table, r13-65E8 current, r13-4EE8 index). */
+static inline nflstreet_matrix_stacks venue_stacks(uint8_t *ram){
+ nflstreet_matrix_stacks k;memset(&k,0,sizeof k);k.table=ram32(ram,R13-0x65f0u);k.count=ram32(ram,R13-0x65ecu);k.current=R13-0x65e8u;
+ k.index=R13-0x4ee8u;k.sine=0x8039e100u;k.angle_scale[0]=ramf(ram,0x802617a0u);k.angle_scale[1]=ramf(ram,0x802617b0u);return k;}
 /* Ground marks (800D75EC) on the viewport's matrix stack. */
 static inline nflstreet_marks_context marks_context(uint8_t *ram,const nflstreet_scenery_context *scene){
  nflstreet_marks_context c;memset(&c,0,sizeof c);c.scene=scene;
