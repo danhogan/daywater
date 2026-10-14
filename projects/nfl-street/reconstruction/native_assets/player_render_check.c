@@ -23,6 +23,7 @@ static uint32_t ram32(uint8_t *ram,uint32_t a){const uint8_t *p=ram_at(ram,a,4);
 static float ramf(uint8_t *ram,uint32_t a){uint32_t v=ram32(ram,a);float f;memcpy(&f,&v,4);return f;}
 #include "venue_fixture.h"
 #include "hud_fixture.h"
+#include "scene_fixture.h"
 static uint32_t fnv(uint32_t h,const void *p,size_t n){const uint8_t *b=p;for(size_t i=0;i<n;++i)h=(h^b[i])*16777619u;return h;}
 static uint8_t *span(void *m,uint32_t token,uint32_t size){return ram_at(m,token,size);}
 typedef struct {nflstreet_gx_call *calls;unsigned count;} trace;
@@ -110,16 +111,6 @@ static int stream_call(void *sink,const nflstreet_gx_call *c){stream *x=sink;
  if(!nflstreet_gx_run(x->machine,c,1,x->stats)){fprintf(stderr,"executor rejected streamed call %u op %d args %08x %08x %08x %08x\n",x->count,
   (int)c->op,c->arg[0],c->arg[1],c->arg[2],c->arg[3]);return 0;}
  ++x->count;return 1;}
-/* Draws inside the field passes: the ground marks under the passes
-   object's translation (8015B670 pushes and translates before them), and
-   the ball shadows after the passes. */
-typedef struct {const nflstreet_marks_context *marks;const nflstreet_ball_context *shadows;} scene_hooks;
-static int draw_marks(void *user,uint32_t passes,nflstreet_render_state *s){const scene_hooks *h=user;
- nflstreet_draw d={h->marks->scene->draw,s};const nflstreet_matrix_stacks *k=&h->marks->stacks;const uint8_t *p=ram_at(h->marks->scene->draw->memory,passes+4,12);
- if(!p)return 0;float v[3];for(unsigned i=0;i<3;++i){uint32_t w=rd32(p+4*i);memcpy(v+i,&w,4);}
- return nflstreet_matrix_select(&d,k)&&nflstreet_matrix_push(&d,k)&&nflstreet_matrix_translate(&d,k,v[0],v[1],v[2])&&
-  nflstreet_marks_draw(h->marks,s)&&nflstreet_matrix_pop(&d,k);}
-static int draw_ball_shadows(void *user,nflstreet_render_state *s){const scene_hooks *h=user;return nflstreet_ball_shadows_draw(h->shadows,s);}
 /* Executes one call list, reporting the first rejected call. */
 static int execute(nflstreet_gx_machine *m,const trace *t,nflstreet_gx_stats *stats,const char *what,unsigned index){
  for(unsigned k=0;k<t->count;++k)if(!nflstreet_gx_run(m,t->calls+k,1,stats)){const nflstreet_gx_call *c=t->calls+k;
@@ -168,45 +159,17 @@ int main(int argc,char **argv){
  printf("Player render: %u actors, %u GX calls, %u display lists, %u primitives, %u triangles (%u culled, %u clipped), "
   "%u decoded textures, %zu shaded pixels, %zu covered; digest %08x.\n",PLAYERS,calls,stats.display_lists,stats.primitives,
   stats.triangles,stats.culled,stats.clipped,stats.textures,stats.pixels,covered,fnv(2166136261u,bgra,WIDTH*HEIGHT*4));
- /* Scene: the original frame order from a fresh copy of the saved RAM
-    into one target with shared depth: the field camera's view (8017D16C
-    on the camera node, then 801DFAB0's copy of it into stack slot 3), the
-    sky 801655D8, the field passes 8015B670 with the ground marks 800D75EC
-    before layer 4 and the ball shadows 801652BC after them, the actor
-    shadows 801643F4, field lines 800DA074, player-select rings 800E3F7C,
-    the main field 80165DC4, the ball 8015CB60, the players and the HUD.
-    Ten further models and the crowd are not drawn. */
+ /* Scene: the original frame order (scene_frame.c) from a fresh copy of the
+    saved RAM into one target with shared depth, each call executed as it is
+    issued. */
  memcpy(ram,pristine,RAM_BYTES);clear_target(bgra,depth);reset_state(ram,&s);
  if(!venue_present(ram)||!hud_present(ram))return 11;
  m=nflstreet_gx_open(span,ram,&frame,&target);if(!m)return 4;
- nflstreet_gx_stats scene;memset(&scene,0,sizeof scene);unsigned venue_calls=0,player_calls=0;
- nflstreet_player_draw_context x=draw_context(ram,&t);nflstreet_scenery_context v=venue_context(ram,&x);
- nflstreet_hud_context field=hud_context(ram,&v);
- t.count=0;if(!nflstreet_camera_view(&field,hud_cameras[0],&s)||t.count)return 13;
- {uint32_t stack=ram32(ram,R13-0x65e8u),top=ram32(ram,stack+8)+0x40u*ram32(ram,stack+4);
-  memcpy(ram_at(ram,0x80331ec0u+0xc0,0x40),ram_at(ram,top,0x40),0x40);v.matrix_stack=stack;}
- nflstreet_marks_context marks=marks_context(ram,&v);nflstreet_ball_context shadows=ball_context(ram,&field);
- scene_hooks hooks_user={&marks,&shadows};const nflstreet_pass_hooks hooks={draw_marks,draw_ball_shadows,&hooks_user};v.pass_hooks=&hooks;
- t.count=0;if(!nflstreet_sky_draw(&v,&s)||!execute(m,&t,&scene,"sky",0))return 12;venue_calls+=t.count;
- t.count=0;if(!nflstreet_field_passes_draw(&v,VENUE_FIELD_PASSES,&s)||!execute(m,&t,&scene,"field passes",0))return 12;venue_calls+=t.count;
- t.count=0;if(!nflstreet_shadows_draw(&v,&s)||!execute(m,&t,&scene,"shadows",0))return 12;venue_calls+=t.count;
- for(unsigned i=0;i<4;++i){t.count=0;if(!nflstreet_line_draw(&v,venue_lines[i],&s)||!execute(m,&t,&scene,"line",i))return 12;venue_calls+=t.count;}
- for(unsigned i=0;i<3;++i){t.count=0;if(!nflstreet_ring_draw(&v,venue_rings[i],&s)||!execute(m,&t,&scene,"ring",i))return 12;venue_calls+=t.count;}
- t.count=0;if(!nflstreet_field_draw(&v,VENUE_MAIN_FIELD,&s)||!execute(m,&t,&scene,"main field",0))return 12;venue_calls+=t.count;
- {nflstreet_ball_model_context ball=ball_model_context(ram,&shadows);
-  t.count=0;if(!nflstreet_ball_draw(&ball,&s)||!execute(m,&t,&scene,"ball",0))return 12;venue_calls+=t.count;}
- if(!draw_players(ram,m,&t,&s,&scene,NULL,&frame,&player_calls))return 5;
- /* HUD: the HUD camera's screen view (8017D16C; the saved stack holds the
-    last camera's), then the name tags (800DADC0) over the scene. */
- if(!hud_present(ram))return 11;
- stream streamed={m,&scene,0};nflstreet_player_draw_context hx=x;hx.emit=stream_call;hx.sink=&streamed;
- nflstreet_scenery_context hv=v;hv.draw=&hx;nflstreet_hud_context hud=hud_context(ram,&hv);
- if(!nflstreet_camera_view(&hud,HUD_CAMERA,&s)||streamed.count)return 12;
- for(unsigned i=0;i<HUD_NAME_TAG_COUNT;++i)if(!nflstreet_name_tag_draw(&hud,hud_name_tag(i),&s))return 12;
- /* Then the in-match uis screens (8012AB5C): scoreboard, meters and text. */
- nflstreet_uis_context screens=uis_context(ram,&hud);
- if(!nflstreet_hud_screens_draw(&screens,ram32(ram,R13-0x6cd8u),&s))return 12;
- const unsigned hud_calls=streamed.count;
+ nflstreet_gx_stats scene;memset(&scene,0,sizeof scene);
+ stream streamed={m,&scene,0};static nflstreet_scene sc;scene_fixture(ram,&sc,span,stream_call,&streamed);
+ if(!nflstreet_scene_venue(&sc,&s))return 12;const unsigned venue_calls=streamed.count;
+ if(!nflstreet_scene_players(&sc,&s))return 5;const unsigned player_calls=streamed.count-venue_calls;
+ if(!nflstreet_scene_hud(&sc,&s))return 12;const unsigned hud_calls=streamed.count-venue_calls-player_calls;
  nflstreet_gx_close(m);
  image.bgra=bgra;if(!nflstreet_texture_bmp(&image,argv[3]))return 7;
  printf("Scene render: field camera, sky, EARS field passes with ground marks and ball shadows, shadows, lines, rings, main field and ball (%u GX calls) then 14 actors (%u GX calls) and the HUD (%u GX calls); %u display lists, %u triangles "
