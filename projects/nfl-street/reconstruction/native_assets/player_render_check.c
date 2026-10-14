@@ -167,12 +167,12 @@ int main(int argc,char **argv){
  m=nflstreet_gx_open(span,ram,&frame,&target);if(!m)return 4;
  nflstreet_gx_stats scene;memset(&scene,0,sizeof scene);
  stream streamed={m,&scene,0};static nflstreet_scene sc;scene_fixture(ram,&sc,span,stream_call,&streamed);
- if(!nflstreet_scene_venue(&sc,&s))return 12;const unsigned venue_calls=streamed.count;
+ if(!nflstreet_scene_start(&sc,&s)||!nflstreet_scene_venue(&sc,&s))return 12;const unsigned venue_calls=streamed.count;
  if(!nflstreet_scene_players(&sc,&s))return 5;const unsigned player_calls=streamed.count-venue_calls;
  if(!nflstreet_scene_hud(&sc,&s))return 12;const unsigned hud_calls=streamed.count-venue_calls-player_calls;
  nflstreet_gx_close(m);
  image.bgra=bgra;if(!nflstreet_texture_bmp(&image,argv[3]))return 7;
- printf("Scene render: field camera, sky, EARS field passes with ground marks and ball shadows, shadows, lines, rings, main field and ball (%u GX calls) then 14 actors (%u GX calls) and the HUD (%u GX calls); %u display lists, %u triangles "
+ printf("Scene render: field camera, light update, sky, EARS field passes with ground marks and ball shadows, shadows, lines, rings, main field, crowd and ball (%u GX calls) then 14 actors (%u GX calls) and the HUD (%u GX calls); %u display lists, %u triangles "
   "(%u culled, %u clipped), %u decoded textures, %zu shaded pixels; digest %08x.\n",venue_calls,player_calls,hud_calls,scene.display_lists,
   scene.triangles,scene.culled,scene.clipped,scene.textures,scene.pixels,fnv(2166136261u,bgra,WIDTH*HEIGHT*4));
  memcpy(ram,pristine,RAM_BYTES);

@@ -25,7 +25,32 @@ assignments and LOD are explicit fixture inputs; fresh actor instances, natural
 head roots/pose selection and matrix token publication remain open. See
 [owned attachment palettes](reconstruction/native_assets/match_attachment_palettes.md).
 
-**Latest rendering: players are skinned natively and one moves under control in the live app.**
+**Latest rendering: the controlled player runs animated, and the frame gains the crowd, live lights and following markers.**
+Six pieces landed in parallel, each matching the original module on all
+RAM (and every GX call where there are any) in all three saved contexts,
+with planted faults caught:
+- **Animation:** the pose blend `8015E9C8`, root `8015EC30`, twist `80053404`,
+  the streamed-frame decode `8015E938` and the compact skeleton `8015F08C`
+  ([actor_animation.md](reconstruction/native_assets/actor_animation.md)).
+  The live player decodes `animdata/00111.bin`; which clip plays is still
+  the existing host controller's choice.
+- **Lights:** the field camera's per-frame light update `801ED3A0`
+  ([light_rig.md](reconstruction/native_assets/light_rig.md)), which
+  replaced the live app's light stand-in.
+- **Crowd and street props:** the scene node's 45 `800D2F20` entries, with
+  the spectators' CPU and GPU skinning
+  ([crowd_draw.md](reconstruction/native_assets/crowd_draw.md)). It also
+  lists the remaining frame gaps: clouds, actor strips, particles.
+- **Markers:** the select-ring update `800E4A24`, the camera slots of
+  `801DFAB0` and the name-tag projection `800DB0E4`
+  ([player_markers.md](reconstruction/native_assets/player_markers.md)).
+
+In the Aurora live app, Thomas now runs with an animated stride, the ring
+and his name tag follow him, and the frame runs at 160–210 fps. Two more
+pieces are in progress: the head/hand secondary motion (`8004BF1C`/
+`8004C268`) and the slerped body form (`801CA900`).
+
+**Earlier rendering: players are skinned natively and one moves under control in the live app.**
 Each frame the players' skinning palettes are rebuilt from their poses and
 the current camera (`80162760`: body, attachments, head, hands and held
 items, through the frame's palette pool, the locked cache and its DMA).

@@ -4,9 +4,13 @@
 import json
 from pathlib import Path
 
+from verify_actor_palettes import SOURCES as PALETTE_SOURCES
 from verify_controller_checks import PRIVATE, baseline_hashes, digest, private, run, windows
+from verify_crowd_draw import SOURCES as CROWD_SOURCES
 from verify_hud_draw import SOURCES as HUD_SOURCES
+from verify_light_rig import SOURCES as LIGHT_SOURCES
 from verify_player_draw import SOURCES as DRAW_SOURCES
+from verify_player_markers import SOURCES as MARKER_SOURCES
 from verify_player_startup import source_hashes
 from verify_scenery_draw import SOURCES as SCENERY_SOURCES
 
@@ -27,15 +31,15 @@ RENDER = {
     "textures, 30139 shaded pixels, 21608 covered; digest ac372641.",
 }
 SCENE = {
-    14: "(5822 GX calls) then 14 actors (4955 GX calls) and the HUD (8562 GX calls); 732 display lists, 27752"
-    " triangles (9954 culled, 3101 clipped), 346 decoded textures, 1286004 shaded pixels; digest "
-    "a9ea2f0d.",
-    15: "(5817 GX calls) then 14 actors (4955 GX calls) and the HUD (8558 GX calls); 732 display lists, 27754"
-    " triangles (9944 culled, 3096 clipped), 345 decoded textures, 1288588 shaded pixels; digest "
-    "14fd198a.",
-    16: "(5872 GX calls) then 14 actors (4947 GX calls) and the HUD (8562 GX calls); 732 display lists, 27697"
-    " triangles (9920 culled, 3097 clipped), 343 decoded textures, 1284616 shaded pixels; digest "
-    "984ca239.",
+    14: "(6421 GX calls) then 14 actors (4955 GX calls) and the HUD (8562 GX calls); 752 display lists, 30644"
+    " triangles (10991 culled, 3101 clipped), 357 decoded textures, 1286524 shaded pixels; digest "
+    "65ef5976.",
+    15: "(6416 GX calls) then 14 actors (4955 GX calls) and the HUD (8558 GX calls); 752 display lists, 30646"
+    " triangles (10987 culled, 3096 clipped), 356 decoded textures, 1289055 shaded pixels; digest "
+    "c8817024.",
+    16: "(6471 GX calls) then 14 actors (4947 GX calls) and the HUD (8562 GX calls); 752 display lists, 30589"
+    " triangles (10961 culled, 3097 clipped), 354 decoded textures, 1285091 shaded pixels; digest "
+    "2e5381c6.",
 }
 SOURCES = (
     "gx_render.c",
@@ -56,6 +60,16 @@ SOURCES = (
     "ball_draw.h",
     "scene_frame.c",
     "actor_palettes.c",
+    "light_rig.c",
+    "light_rig.h",
+    "light_rig_fixture.h",
+    "crowd_draw.c",
+    "crowd_draw.h",
+    "camera_slots.c",
+    "camera_slots.h",
+    "name_tag_project.c",
+    "name_tag_project.h",
+    "marker_ram.h",
     "actor_palettes.h",
     "cluster_palette.c",
     "cluster_palette.h",
@@ -103,6 +117,10 @@ def main() -> None:
     draw_report = private(PRIVATE / "research-temp/nflstreet-player-draw-20261013/verification.json")
     scenery_report = private(PRIVATE / "research-temp/nflstreet-scenery-draw-20261013/verification.json")
     hud_report = private(PRIVATE / "research-temp/nflstreet-hud-draw-20261013/verification.json")
+    palette_report = private(PRIVATE / "research-temp/nflstreet-actor-palettes-20261013/verification.json")
+    light_report = private(PRIVATE / "research-temp/nflstreet-light-rig-20261014/verification.json")
+    crowd_report = private(PRIVATE / "research-temp/nflstreet-crowd-draw-20261014/verification.json")
+    marker_report = private(PRIVATE / "research-temp/nflstreet-player-markers-20261014/verification.json")
     entries = tuple("native_assets/" + name for name in SOURCES)
     record: dict[str, object] = {"status": "running", "boundary": BOUNDARY}
     try:
@@ -110,6 +128,10 @@ def main() -> None:
             (draw_report, DRAW_SOURCES),
             (scenery_report, SCENERY_SOURCES),
             (hud_report, HUD_SOURCES),
+            (palette_report, PALETTE_SOURCES),
+            (light_report, LIGHT_SOURCES),
+            (crowd_report, CROWD_SOURCES),
+            (marker_report, MARKER_SOURCES),
         ):
             reference = json.loads(path.read_text())
             required = tuple("native_assets/" + name for name in names)
@@ -129,8 +151,8 @@ def main() -> None:
             scene = out / f"scene-{i}.bmp"
             expected = (
                 f"Player render: 14 actors, {RENDER[i]}\n"
-                "Scene render: field camera, sky, EARS field passes with ground marks and ball shadows, shadows, "
-                "lines, rings, main field and ball "
+                "Scene render: field camera, light update, sky, EARS field passes with ground marks and ball "
+                "shadows, shadows, lines, rings, main field, crowd and ball "
                 f"{SCENE[i]}\n{TEXTURES}\n{STATE}"
             )
             traces = []

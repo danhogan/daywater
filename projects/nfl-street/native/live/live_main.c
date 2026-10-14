@@ -18,6 +18,9 @@
 #include "gx_aurora.h"
 #include "actor_world.h"
 #include "live_movement.h"
+#include "live_pose.h"
+#include "actor_skeleton.h"
+#include "select_rings.h"
 #define RAM_BASE 0x80000000u
 #define RAM_BYTES (24u*1024u*1024u)
 #define R13 0x803a9a40u
@@ -71,25 +74,10 @@ static int seed_movement(uint8_t *ram,uint32_t g,nflstreet_live_movement *m){
 /* The stick as a cardinal or diagonal request (the movement runtime's input). */
 static void stick(const PADStatus *p,int *dx,int *dy){
  *dx=*dy=0;if(p->err!=PAD_ERR_NONE)return;*dx=p->stickX>40?1:p->stickX<-40?-1:0;*dy=p->stickY>40?1:p->stickY<-40?-1:0;}
+static uint8_t *read_file(const char *path,size_t *size){
+ FILE *f=path?fopen(path,"rb"):NULL;if(!f)return NULL;fseek(f,0,SEEK_END);long n=ftell(f);rewind(f);uint8_t *b=n>0?malloc((size_t)n):NULL;
+ if(!b||fread(b,1,(size_t)n,f)!=(size_t)n){free(b);fclose(f);return NULL;}fclose(f);*size=(size_t)n;return b;}
 static double seconds(void){struct timespec t;timespec_get(&t,TIME_UTC);return (double)t.tv_sec+t.tv_nsec*1e-9;}
-static float word_at(uint8_t *ram,uint32_t a){return ramf(ram,a);}
-/* The view the saved frame was drawn with: the stored main-field matrix
-   without the venue translation (80165DC4: view x T(object +4)). */
-static void drawn_field_view(uint8_t *ram,float v[12]){
- float p[3];for(unsigned i=0;i<12;++i)v[i]=word_at(ram,VENUE_MAIN_FIELD+0x24+8+4*i);for(unsigned i=0;i<3;++i)p[i]=word_at(ram,VENUE_MAIN_FIELD+4+4*i);
- for(unsigned r=0;r<3;++r)v[4*r+3]-=v[4*r]*p[0]+v[4*r+1]*p[1]+v[4*r+2]*p[2];}
-/* D = current view (the viewport stack's top) x inverse(drawn view). */
-static int view_delta(uint8_t *ram,const float drawn[12],float d[12]){
- const uint32_t stack=ram32(ram,R13-0x65e8u),top=ram32(ram,stack+8)+0x40u*ram32(ram,stack+4);float v[12],inv[12];
- for(unsigned i=0;i<12;++i)v[i]=word_at(ram,top+4*i);
- const float *m=drawn;const float det=m[0]*(m[5]*m[10]-m[6]*m[9])-m[1]*(m[4]*m[10]-m[6]*m[8])+m[2]*(m[4]*m[9]-m[5]*m[8]);
- if(!(det!=0.0f))return 0;const float k=1.0f/det;
- inv[0]=(m[5]*m[10]-m[6]*m[9])*k;inv[1]=(m[2]*m[9]-m[1]*m[10])*k;inv[2]=(m[1]*m[6]-m[2]*m[5])*k;
- inv[4]=(m[6]*m[8]-m[4]*m[10])*k;inv[5]=(m[0]*m[10]-m[2]*m[8])*k;inv[6]=(m[2]*m[4]-m[0]*m[6])*k;
- inv[8]=(m[4]*m[9]-m[5]*m[8])*k;inv[9]=(m[1]*m[8]-m[0]*m[9])*k;inv[10]=(m[0]*m[5]-m[1]*m[4])*k;
- for(unsigned r=0;r<3;++r)inv[4*r+3]=-(inv[4*r]*m[3]+inv[4*r+1]*m[7]+inv[4*r+2]*m[11]);
- for(unsigned i=0;i<3;++i)for(unsigned j=0;j<4;++j)d[4*i+j]=v[4*i]*inv[j]+v[4*i+1]*inv[4+j]+v[4*i+2]*inv[8+j]+(j==3?v[4*i+3]:0.0f);
- return 1;}
 int main(int argc,char *argv[]){
  log_file=fopen(argc>2?argv[2]:"nflstreet_live.log","w");
  const char *image=argc>1?argv[1]:"position-neutral-15.mem1";
@@ -114,37 +102,49 @@ int main(int argc,char *argv[]){
  const uint32_t player=controlled_actor(ram);nflstreet_live_movement movement;int rejected=0;const int scripted=getenv("NFL_LIVE_SCRIPT")!=NULL;
  if(player&&!seed_movement(ram,player,&movement)){note("cannot seed the controlled player's movement");return 4;}
  if(log_file){fprintf(log_file,"controlled player %08x (visual %08x)\n",player,player?ram32(ram,player+4):0);fflush(log_file);}
+ /* Animation: NFL_LIVE_ANIMDATA = animdata/00111.bin (bank 7) and
+    NFL_LIVE_SETS = an NSC1 set catalog (live_pose.h); without them the
+    player keeps its saved stance. */
+ size_t bank_n=0,sets_n=0;uint8_t *bank=read_file(getenv("NFL_LIVE_ANIMDATA"),&bank_n),*sets=read_file(getenv("NFL_LIVE_SETS"),&sets_n);
+ static nflstreet_live_pose pose;const int animated=player&&bank&&sets&&nflstreet_live_pose_open(&pose,bank,bank_n,sets,sets_n);
+ if(log_file){fprintf(log_file,"animation %s\n",animated?"on":"off");fflush(log_file);}
+ const nflstreet_rings_context rings={&scene.draw,R13};
  const double start=seconds();double clock_time=start;
- const uint32_t gx=ram32(ram,R13-0x4c90u);float drawn_view[12];drawn_field_view(ram,drawn_view);unsigned frames=0;int exiting=0,failed=0;
+ const uint32_t gx=ram32(ram,R13-0x4c90u);unsigned frames=0;int exiting=0,failed=0;
  while(!exiting){
   const AuroraEvent *e=aurora_update();
   for(;e&&e->type!=AURORA_NONE;++e)if(e->type==AURORA_EXIT)exiting=1;
   if(exiting||!aurora_begin_frame())continue;
   GXSetCopyClear((GXColor){64,64,64,255},GX_MAX_Z24);
-  /* Fixed 60 Hz updates of the controlled player's verified movement
+  /* Fixed 60 Hz updates of the select rings, the controlled player's verified movement
      (input, acceleration, turning, kinematics), written back to its
      gameplay actor (+200 input, +1A8 movement block), then the native
      placement (800D4A6C/800D4B0C) of its visual. */
   PADStatus pads[4];PADRead(pads);float moved[2]={0,0};
   if(player){int dx,dy;stick(&pads[0],&dx,&dy);if(scripted){const double t=seconds()-start;dx=t<1.5?1:t<3.0?0:t<4.5?-1:0;dy=t>=1.5&&t<3.0?1:0;}
    for(const double now=seconds();clock_time+1.0/60.0<=now;clock_time+=1.0/60.0){
+    /* The rings follow the position the previous update left (800E4A24),
+       so they trail the player by one update, as in the saved frame. */
+    if(!nflstreet_rings_update(&rings))failed=1;
     const float x0=ramf(ram,player+0x1a8),y0=ramf(ram,player+0x1ac);nflstreet_live_motion mo;
     const int r=nflstreet_live_movement_step(&movement,dx,dy,&mo);
-    if(r<0){if(!rejected&&log_file){fprintf(log_file,"frame %u: movement request %d,%d takes an unreconstructed branch; held\n",frames,dx,dy);fflush(log_file);}rejected=1;continue;}
-    rejected=0;for(unsigned i=0;i<12;++i)wr32(ram_at(ram,player+0x200+4*i,4),movement.runtime.actor[i]);
-    for(unsigned i=0;i<21;++i)wr32(ram_at(ram,player+0x1a8+4*i,4),movement.runtime.state[i]);
-    moved[0]+=ramf(ram,player+0x1a8)-x0;moved[1]+=ramf(ram,player+0x1ac)-y0;}
+    if(r<0){if(!rejected&&log_file){fprintf(log_file,"frame %u: movement request %d,%d takes an unreconstructed branch; held\n",frames,dx,dy);fflush(log_file);}rejected=1;}
+    else{rejected=0;for(unsigned i=0;i<12;++i)wr32(ram_at(ram,player+0x200+4*i,4),movement.runtime.actor[i]);
+     for(unsigned i=0;i<21;++i)wr32(ram_at(ram,player+0x1a8+4*i,4),movement.runtime.state[i]);
+     moved[0]+=ramf(ram,player+0x1a8)-x0;moved[1]+=ramf(ram,player+0x1ac)-y0;}
+    /* Then the animation update: pose (8015E9C8, 8015EC30, 80053404 from
+       the host clip choice) and the compact skeleton (800D51B4/8015F08C). */
+    if(animated&&(!nflstreet_live_pose_step(&pose,span,ram,player,0,1.0)||!nflstreet_actor_skeleton_frame(scene.palettes,ram32(ram,player+4))))failed=1;}
    nflstreet_render_state unused;memset(&unused,0,sizeof unused);nflstreet_draw d={&scene.draw,&unused};
    if(!nflstreet_matrix_select(&d,&scene.hud.stacks)||!nflstreet_actor_place(&d,&scene.hud.stacks,player,R13-0x7078u))failed=1;}
   steer(ram,orbit,&pads[0],moved[0],moved[1]);
   nflstreet_render_state s;memset(&s,0,sizeof s);for(unsigned i=0;i<6;++i)s.viewport[i]=ramf(ram,0x8039e584u+4*i);
   nflstreet_gx_aurora_new_frame(bridge);
-  int ok=!failed&&nflstreet_gx_aurora_begin_frame(bridge,gx)&&(!(parts&1)||nflstreet_scene_venue(&scene,&s));
-  /* The players' palettes are rebuilt from the current camera (80162760);
-     their lights are still the saved frame's: re-express them for the
-     current camera (top of the viewport's stack after the venue). */
-  float delta[12];if(ok&&view_delta(ram,drawn_view,delta))nflstreet_gx_aurora_set_light_delta(bridge,delta);
-  ok=ok&&(!(parts&2)||nflstreet_scene_players(&scene,&s));nflstreet_gx_aurora_set_light_delta(bridge,NULL);
+  /* The venue rebuilds the light sets from the camera (801ED3A0) and the
+     players their palettes (80162760); without the venue the players draw
+     with the stored light sets. */
+  int ok=!failed&&nflstreet_gx_aurora_begin_frame(bridge,gx)&&nflstreet_scene_start(&scene,&s)&&(!(parts&1)||nflstreet_scene_venue(&scene,&s));
+  ok=ok&&(!(parts&2)||nflstreet_scene_players(&scene,&s));
   ok=ok&&(!(parts&4)||nflstreet_scene_hud(&scene,&s));
   if(!failed&&!ok){failed=1;
    if(log_file){fprintf(log_file,"frame %u: scene draw stopped after %u GX calls\n",frames,nflstreet_gx_aurora_calls(bridge));fflush(log_file);}}
@@ -153,4 +153,4 @@ int main(int argc,char *argv[]){
   if(++frames%120==0&&log_file){const AuroraStats *st=aurora_get_stats();
    fprintf(log_file,"frame %u, %u GX calls so far; draws %u (merged %u), pipelines queued %u created %u, %.0f fps\n",frames,
     nflstreet_gx_aurora_calls(bridge),st->drawCallCount,st->mergedDrawCallCount,st->queuedPipelines,st->createdPipelines,aurora_get_fps());fflush(log_file);}}
- nflstreet_gx_aurora_close(bridge);aurora_shutdown();free(ram);return 0;}
+ nflstreet_gx_aurora_close(bridge);aurora_shutdown();free(bank);free(sets);free(ram);return 0;}

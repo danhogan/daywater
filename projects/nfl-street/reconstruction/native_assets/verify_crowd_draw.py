@@ -19,18 +19,18 @@ EXPECTED = {
     "7610 model and copy draws completed; digest 9fba097b.",
 }
 RENDERED = {
-    14: "Scene without crowd: 5822 venue GX calls, 19339 in all; 732 display lists, 27752 triangles (9954 culled, "
-    "3101 clipped), 1286004 shaded pixels; digest a9ea2f0d.\n"
-    "Scene with crowd: 6421 venue GX calls, 19938 in all; 752 display lists, 30644 triangles (10991 culled, "
-    "3101 clipped), 1286463 shaded pixels; digest 5433bec9.",
-    15: "Scene without crowd: 5817 venue GX calls, 19330 in all; 732 display lists, 27754 triangles (9944 culled, "
-    "3096 clipped), 1288588 shaded pixels; digest 14fd198a.\n"
-    "Scene with crowd: 6416 venue GX calls, 19929 in all; 752 display lists, 30646 triangles (10987 culled, "
-    "3096 clipped), 1289055 shaded pixels; digest c8817024.",
-    16: "Scene without crowd: 5872 venue GX calls, 19381 in all; 732 display lists, 27697 triangles (9920 culled, "
-    "3097 clipped), 1284616 shaded pixels; digest 984ca239.\n"
-    "Scene with crowd: 6471 venue GX calls, 19980 in all; 752 display lists, 30589 triangles (10961 culled, "
-    "3097 clipped), 1285079 shaded pixels; digest 620c190c.",
+    14: "Scene without crowd: 5822 venue GX calls, 19339 in all; 732 display lists, 27752 triangles (9954 "
+    "culled, 3101 clipped), 1286065 shaded pixels; digest 7042d746.\nScene with crowd: 6421 venue GX "
+    "calls, 19938 in all; 752 display lists, 30644 triangles (10991 culled, 3101 clipped), 1286524 shaded"
+    " pixels; digest 65ef5976.",
+    15: "Scene without crowd: 5817 venue GX calls, 19330 in all; 732 display lists, 27754 triangles (9944 "
+    "culled, 3096 clipped), 1288588 shaded pixels; digest 14fd198a.\nScene with crowd: 6416 venue GX "
+    "calls, 19929 in all; 752 display lists, 30646 triangles (10987 culled, 3096 clipped), 1289055 shaded"
+    " pixels; digest c8817024.",
+    16: "Scene without crowd: 5872 venue GX calls, 19381 in all; 732 display lists, 27697 triangles (9920 "
+    "culled, 3097 clipped), 1284628 shaded pixels; digest 3efd91b1.\nScene with crowd: 6471 venue GX "
+    "calls, 19980 in all; 752 display lists, 30589 triangles (10961 culled, 3097 clipped), 1285091 shaded"
+    " pixels; digest 2e5381c6.",
 }
 SOURCES = (
     "crowd_draw.c",
@@ -49,6 +49,16 @@ SOURCES = (
     "uis_draw.c",
     "ball_draw.c",
     "scene_frame.c",
+    "scene_frame.h",
+    "scene_fixture.h",
+    "light_rig.c",
+    "light_rig.h",
+    "light_rig_fixture.h",
+    "camera_slots.c",
+    "camera_slots.h",
+    "name_tag_project.c",
+    "name_tag_project.h",
+    "marker_ram.h",
     "actor_palettes.c",
     "gx_texobj.c",
     "texture.c",

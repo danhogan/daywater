@@ -41,22 +41,30 @@ forwards each one to Aurora's GX as it is issued:
   frame to frame (field-line alpha pulse, mark alpha ramp, matrix stacks,
   screen state) carries over between frames.
 - **Controlled player:** the player standing on the select ring (Thomas in
-  the saved match) runs with the main stick. Each 60 Hz update goes through
-  the verified movement runtime (input, acceleration, turning, kinematics:
-  `reconstruction/command_to_movement`), seeded from that actor's own RAM.
-  The state is written back to its gameplay actor, and the native placement
-  (`800D4A6C`/`800D4B0C`) and palettes (`80162760`) put it in the scene. The
-  camera follows by the player's movement (a host choice). `NFL_LIVE_SCRIPT=1`
-  drives right, forward, then left for captures.
+  the saved match) runs with the main stick. Each 60 Hz update runs, in
+  order:
+  1. the select-ring update (`800E4A24`): the rings follow the position the
+     previous update left, so they trail by one update, as in the game;
+  2. the verified movement runtime (`reconstruction/command_to_movement`),
+     seeded from that actor's own RAM and written back to its gameplay actor;
+  3. the animation pose (`8015E9C8`, `8015EC30`, `80053404`, decoding
+     `animdata/00111.bin`) and the compact skeleton (`800D51B4`/`8015F08C`).
+     Which clip plays is a host choice (the existing `live_locomotion.c`
+     controller and an NSC1 set catalog), not the game's own selection.
+
+  Then the native placement (`800D4A6C`/`800D4B0C`) puts it on the field.
+  The camera follows by the player's movement (a host choice).
+  `NFL_LIVE_SCRIPT=1` drives right, forward, then left for captures.
+- **Each frame (scene_frame.c):** the field camera, its derived slots
+  (`801DFAB0`) and the light update (`801ED3A0`), then the venue, the crowd
+  and street props (`800D2F20`), the ball, then per player its name tag
+  projection (`800DB0E4`), skinning palettes (`80162760`) and draw, then
+  the HUD.
 - **Camera:** the C-stick turns the field camera (or `NFL_LIVE_ORBIT`, a
-  24-bit angle per frame). The venue, rings and players rebuild their
-  matrices from the camera as the original does. The player lights are
-  re-expressed from the saved frame (new view × inverse of the drawn view),
-  a stand-in until their per-frame update is reconstructed.
-- **Not live yet:** animation (the controlled player glides in its saved
-  stance; clip data streams from ARAM, so it needs the extracted
-  `animdata` banks), other players, the ball, the select ring's position,
-  the HUD values and the name tag's screen position.
+  24-bit angle per frame).
+- **Not live yet:** the game's own clip selection, the head and hand
+  secondary motion (skipped when enabled), the slerped body form (flag
+  0x4000), other players, the ball, clouds, particles and the HUD values.
 
 ## Build and run
 
@@ -64,7 +72,8 @@ forwards each one to Aurora's GX as it is issued:
 projects/nfl-street/native/live/build_windows_live.sh
 ```
 
-This copies the sources and `reconstruction/native_assets` to
+This copies the sources and the reconstruction folders they use (into a
+fresh `src`, so stale copies can never shadow current headers) to
 `W:\Daywater\research-temp\nflstreet-live-20261013`. It then builds with
 MSVC 2022 and CMake/Ninja against the Aurora checkout at
 `W:\Daywater\tools\aurora`. Aurora fetches a prebuilt Dawn and SDL3, and the
@@ -81,6 +90,11 @@ Options:
 - `NFL_LIVE_ORBIT=1` (or a 24-bit angle per frame) turns the camera.
 - `NFL_LIVE_DEBUG=1` logs Aurora at debug level.
 - `NFL_LIVE_TRACE=<file>` logs every bridged call.
+- `NFL_LIVE_ANIMDATA=<animdata/00111.bin>` and `NFL_LIVE_SETS=<NSC1 catalog>`
+  (e.g. `W:\Daywater\research-temp\nflstreet-set-playback-20261009\sets-14.bin`)
+  turn on the controlled player's animation; without them it keeps the
+  saved stance.
+- `NFL_LIVE_SCRIPT=1` replaces the stick with a scripted run for captures.
 
 The RAM image is your own saved state on W:. Nothing from the game is in
 the repository.

@@ -11,14 +11,16 @@ add_subdirectory(${AURORA_SOURCE_DIR} aurora EXCLUDE_FROM_ALL)
 # The verified native draws and placement (reconstruction/native_assets) and
 # the verified movement runtime (command_to_movement and the stages it uses),
 # copied under src/reconstruction by build_windows_live.sh, and the GX bridge.
-set(NFLSTREET_DRAWS scene_frame.c actor_palettes.c actor_world.c cluster_palette.c model_view.c scenery_draw.c marks_draw.c
-  ball_draw.c hud_draw.c uis_draw.c matrix_stack.c gx_texobj.c player_draw.c draw_engine.c live_movement.c)
+set(NFLSTREET_DRAWS scene_frame.c light_rig.c crowd_draw.c actor_palettes.c actor_world.c cluster_palette.c model_view.c scenery_draw.c marks_draw.c
+  ball_draw.c hud_draw.c uis_draw.c matrix_stack.c gx_texobj.c player_draw.c draw_engine.c live_movement.c
+  select_rings.c camera_slots.c name_tag_project.c actor_pose.c actor_skeleton.c compact_pose.c live_pose.c live_locomotion.c pose.c)
 list(TRANSFORM NFLSTREET_DRAWS PREPEND reconstruction/native_assets/)
 set(NFLSTREET_MOVEMENT command_to_movement/actor_runtime.c command_to_movement/actor_update_replay.c
   command_to_movement/preparation_replay.c command_to_movement/command_to_movement_replay.c
   command_to_movement/reset_acceleration_replay.c input_translation/input_translation_replay.c
   actor_target_input/actor_target_input.c actor_target_input/target_selection.c actor_target_input/command_timing.c
-  actor_target_input/event_signals.c kinematics/kinematics_replay.c)
+  actor_target_input/event_signals.c kinematics/kinematics_replay.c actor_target_input/locomotion_selection.c
+  actor_target_input/asset_loader.c actor_target_input/animation_channels.c)
 list(TRANSFORM NFLSTREET_MOVEMENT PREPEND reconstruction/)
 add_executable(nflstreet_live live_main.c gx_aurora.c ${NFLSTREET_DRAWS} ${NFLSTREET_MOVEMENT})
 target_include_directories(nflstreet_live PRIVATE reconstruction/native_assets)

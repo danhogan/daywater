@@ -19,8 +19,6 @@ struct nflstreet_gx_aurora {
  int in_begin;uint32_t begin_left,begin_args[3];
  struct {uint8_t size;uint32_t value;} *writes;uint32_t write_count,write_cap;
  uint8_t *bytes;uint32_t byte_count,byte_cap;
- /* Light view delta. */
- int delta_on;float delta[12];
 };
 static uint32_t be32(const uint8_t *p){return(uint32_t)p[0]<<24|(uint32_t)p[1]<<16|(uint32_t)p[2]<<8|p[3];}
 static uint16_t be16(const uint8_t *p){return(uint16_t)(p[0]<<8|p[1]);}
@@ -33,9 +31,6 @@ nflstreet_gx_aurora *nflstreet_gx_aurora_open(uint8_t *ram,uint32_t ram_bytes){
  nflstreet_gx_aurora *b=calloc(1,sizeof *b);if(!b)return NULL;b->ram=ram;b->ram_bytes=ram_bytes;return b;}
 void nflstreet_gx_aurora_new_frame(nflstreet_gx_aurora *b){for(unsigned a=21;a<=22;++a)b->arrays[a].dirty=1;}
 void nflstreet_gx_aurora_close(nflstreet_gx_aurora *b){if(b){nflstreet_gx_aurora_new_frame(b);free(b->writes);free(b->bytes);}free(b);}
-void nflstreet_gx_aurora_set_light_delta(nflstreet_gx_aurora *b,const float *delta){
- b->delta_on=delta!=NULL;if(delta)memcpy(b->delta,delta,sizeof b->delta);}
-static uint32_t float_word(float f){uint32_t v;memcpy(&v,&f,4);return v;}
 unsigned nflstreet_gx_aurora_calls(const nflstreet_gx_aurora *b){return b?b->calls:0;}
 static int set_arrays(nflstreet_gx_aurora *b,const uint32_t max_index[26],const int used[26]);
 /* Submits the buffered primitive: arrays sized from its indices, then
@@ -178,10 +173,7 @@ int nflstreet_gx_aurora_emit(void *sink,const nflstreet_gx_call *c){
  case NFLSTREET_GX_SET_TEX_COORD_GEN:GXSetTexCoordGen2((GXTexCoordID)a[0],(GXTexGenType)a[1],(GXTexGenSrc)a[2],a[3],(GXBool)a[4],a[5]);break;
  case NFLSTREET_GX_SET_NUM_TEX_GENS:GXSetNumTexGens((u8)a[0]);break;
  case NFLSTREET_GX_SET_CULL_MODE:GXSetCullMode((GXCullMode)a[0]);break;
- case NFLSTREET_GX_LOAD_LIGHT:{uint32_t w[16];memcpy(w,c->data,sizeof w);
-  if(b->delta_on){const float *d=b->delta,p[3]={word_float(w[10]),word_float(w[11]),word_float(w[12])},n[3]={word_float(w[13]),word_float(w[14]),word_float(w[15])};
-   for(unsigned i=0;i<3;++i){w[10+i]=float_word(d[4*i]*p[0]+d[4*i+1]*p[1]+d[4*i+2]*p[2]+d[4*i+3]);w[13+i]=float_word(d[4*i]*n[0]+d[4*i+1]*n[1]+d[4*i+2]*n[2]);}}
-  load_light(a[0],w);break;}
+ case NFLSTREET_GX_LOAD_LIGHT:load_light(a[0],c->data);break;
  case NFLSTREET_GX_SET_CHAN_AMB_COLOR:GXSetChanAmbColor((GXChannelID)a[0],color(c->data[0]));break;
  case NFLSTREET_GX_SET_CHAN_MAT_COLOR:GXSetChanMatColor((GXChannelID)a[0],color(c->data[0]));break;
  case NFLSTREET_GX_SET_NUM_CHANS:GXSetNumChans((u8)a[0]);break;

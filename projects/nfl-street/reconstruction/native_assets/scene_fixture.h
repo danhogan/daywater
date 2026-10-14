@@ -4,6 +4,7 @@
    player contexts). The including file defines R13, ram_at, ram32 and ramf
    and includes venue_fixture.h and hud_fixture.h. */
 #include "scene_frame.h"
+#include "light_rig_fixture.h"
 /* The head display-list compile behind 801626E0 is a supplied service: the
    saved lists are used as compiled. */
 static inline int scene_face(void *p,uint32_t actor,int *compiled){(void)p;(void)actor;*compiled=0;return 1;}
@@ -24,5 +25,15 @@ static inline void scene_fixture(uint8_t *ram,nflstreet_scene *sc,nflstreet_draw
  static nflstreet_actor_palette_context palettes;memset(&palettes,0,sizeof palettes);palettes.x=x;palettes.stacks=sc->hud.stacks;
  palettes.unit[0]=ramf(ram,0x803a3958u);palettes.unit[1]=ramf(ram,0x803a395cu);palettes.pool=R13-0x5680u;palettes.pool_index=R13-0x5678u;
  palettes.pool_used=R13-0x5670u;palettes.cache_on=R13-0x6200u;sc->palettes=&palettes;
+ /* the light update and the crowd (crowd_draw.md: 45 entries from 80C4E094) */
+ static nflstreet_light_rig_context lights;lights=light_rig_context(ram,x);sc->lights=&lights;
+ nflstreet_crowd_context *c=&sc->crowd;c->enable=R13-0x72a4u;c->view_slot=0x80331ec0u+0xc0u;c->cull_box=0x8028e2b4u;
+ c->game_mode=0x802a301cu;c->sides=ram32(ram,R13-0x5ba4u);c->hide_limit=0x802a3050u;c->scratch=R13-0x6430u;
+ c->hide_sign[0]=ramf(ram,0x80260f2cu);c->hide_sign[1]=ramf(ram,0x80260f30u);c->light_default[0]=ramf(ram,0x80260f04u);c->light_default[1]=ramf(ram,0x80260f54u);
+ c->palette_scale[0]=ramf(ram,0x80260f1cu);c->palette_scale[1]=ramf(ram,0x80260f58u);c->normal_scale=ramf(ram,0x8026381cu);c->quat_one=ramf(ram,0x802634d8u);
+ sc->crowd_first=0x80c4e094u;sc->crowd_count=45;
+ /* the camera slots and name-tag projection (player_markers.md) */
+ static nflstreet_view_context view;memset(&view,0,sizeof view);view.x=x;view.stacks=venue_stacks(ram);view.r13=R13;view.slots=0x80331ec0u;
+ sc->view=&view;sc->camera_node_word=R13-0x4eecu;
  nflstreet_scene_link(sc);}
 #endif

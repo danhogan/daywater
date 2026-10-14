@@ -6,6 +6,8 @@ set -euo pipefail
 here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 work=${1:-/mnt/w/Daywater/research-temp/nflstreet-live-20261013}
 case "$work" in /mnt/w/Daywater/*) ;; *) exit 2 ;; esac
+# A clean source tree each time: stale copies would shadow the current headers.
+rm -rf "$work/src"
 mkdir -p "$work/src"
 cp "$here"/CMakeLists.txt "$here"/*.c "$here"/*.h "$work/src/"
 # The reconstruction sources keep their folders (their includes are relative).
