@@ -20,4 +20,9 @@ float nflstreet_8018889c_sine(int32_t angle24, int cosine,
 void nflstreet_801a36ec_quaternion(int32_t x, int32_t y, int32_t z,
     const float coefficients[8], float result[4]);
 
+/* Candidate transcription of 801A383C.  Its transcendental calls are host
+   placeholders until the 80215844/80216B94 kernels are reconstructed. */
+void nflstreet_801a383c_slerp(float t, const float a[4], const float b[4],
+    float result[4]);
+
 #endif

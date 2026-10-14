@@ -107,3 +107,36 @@ void nflstreet_801a36ec_quaternion(int32_t x, int32_t y, int32_t z,
     result[0] = fmaf(sz, cxcy, -cz_sxsy);
     result[1] = fmaf(cz, cxsy, sz_sxcy);
 }
+
+void nflstreet_801a383c_slerp(float t, const float a[4], const float b[4],
+    float result[4])
+{
+    /* 801A2F74 then 801A2CE0/80188EAC. */
+    const float dot = fmaf(a[3], b[3], fmaf(a[2], b[2],
+        fmaf(a[0], b[0], a[1] * b[1])));
+    const float alen = fmaf(a[3], a[3], fmaf(a[2], a[2],
+        fmaf(a[0], a[0], a[1] * a[1])));
+    const float blen = fmaf(b[3], b[3], fmaf(b[2], b[2],
+        fmaf(b[0], b[0], b[1] * b[1])));
+    float cosine = dot * ((1.0f / sqrtf(alen)) * (1.0f / sqrtf(blen)));
+    float signed_a[4];
+    if (!(cosine >= 0.0f)) {
+        cosine = -cosine;
+        for (unsigned i = 0; i < 4; ++i) signed_a[i] = -a[i];
+    } else {
+        for (unsigned i = 0; i < 4; ++i) signed_a[i] = a[i];
+    }
+    float wa, wb;
+    if (cosine > 0.9900000095367431640625f) {
+        wa = t;
+        wb = 1.0f - t;
+    } else {
+        const float theta = acosf(cosine);
+        const float inverse = 1.0f / sinf(theta);
+        wb = sinf(theta * (1.0f - t)) * inverse;
+        wa = sinf(theta * t) * inverse;
+    }
+    for (unsigned i = 0; i < 4; ++i)
+        /* fmuls f0,wa,a; fmadds out,wb,b,f0 */
+        result[i] = fmaf(wb, b[i], wa * signed_a[i]);
+}
