@@ -19,9 +19,13 @@ int nflstreet_matrix_push(nflstreet_draw *d,const nflstreet_matrix_stacks *k){
  uint8_t *to=at(d,slots+0x40u*depth,0x40),*from=at(d,slots+0x40u*(depth-1),0x40);if(!to||!from)return 0;memmove(to,from,0x40);return 1;}
 int nflstreet_matrix_pop(nflstreet_draw *d,const nflstreet_matrix_stacks *k){uint32_t depth,slots;return depth_add(d,k,0xffffffffu,&depth,&slots);}
 /* 80189328: identity (0.0 from 80261800, 1.0 from 80261804). */
+static int identity(nflstreet_draw *d,uint32_t slot){
+ uint8_t *m=at(d,slot,0x40);if(!m)return 0;for(unsigned i=0;i<16;++i)put(m+4*i,i%5==0?1.0f:0.0f);return 1;}
 int nflstreet_matrix_reset(nflstreet_draw *d,const nflstreet_matrix_stacks *k){
- uint32_t s,slots;uint8_t *p,*m;if(!stack(d,k,&s)||!(p=at(d,s+4,4))||!word(d,s+8,&slots)||!(m=at(d,slots,0x40)))return 0;
- nflstreet_wr32(p,0);for(unsigned i=0;i<16;++i)put(m+4*i,i%5==0?1.0f:0.0f);return 1;}
+ uint32_t s,slots;uint8_t *p;if(!stack(d,k,&s)||!(p=at(d,s+4,4))||!word(d,s+8,&slots))return 0;
+ nflstreet_wr32(p,0);return identity(d,slots);}
+int nflstreet_matrix_push_identity(nflstreet_draw *d,const nflstreet_matrix_stacks *k){
+ uint32_t depth,slots;return depth_add(d,k,1,&depth,&slots)&&identity(d,slots+0x40u*depth);}
 int nflstreet_matrix_translate(nflstreet_draw *d,const nflstreet_matrix_stacks *k,float x,float y,float z){
  uint32_t top;uint8_t *m;if(!nflstreet_matrix_top(d,k,&top)||!(m=at(d,top,0x30)))return 0;
  for(unsigned r=0;r<3;++r){uint8_t *q=m+16*r;

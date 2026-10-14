@@ -8,7 +8,10 @@ work=${1:-/mnt/w/Daywater/research-temp/nflstreet-live-20261013}
 case "$work" in /mnt/w/Daywater/*) ;; *) exit 2 ;; esac
 mkdir -p "$work/src"
 cp "$here"/CMakeLists.txt "$here"/*.c "$here"/*.h "$work/src/"
-cp "$here"/../../reconstruction/native_assets/*.[ch] "$work/src/" 2>/dev/null || true
+# The reconstruction sources keep their folders (their includes are relative).
+for d in native_assets command_to_movement kinematics input_translation actor_target_input; do
+ mkdir -p "$work/src/reconstruction/$d"; cp "$here"/../../reconstruction/$d/*.[ch] "$work/src/reconstruction/$d/"
+done
 win=$(wslpath -w "$work")
 cat > "$work/build.cmd" <<CMD
 @echo off

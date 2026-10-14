@@ -4,14 +4,17 @@
    camera's view (8017D16C, then 801DFAB0's copy into stack slot 3), the sky,
    the field passes with the ground marks and ball shadows at their original
    points, actor shadows, field lines, player-select rings, the main field,
-   the ball, the 14 players, then the HUD camera, name tags and in-match
-   screens. Ten further models and the crowd are not drawn. */
+   the ball, the 14 players (each optionally rebuilding its skinning
+   palettes first, 80162760 as called from 80164000), then the HUD camera,
+   name tags and in-match screens. Ten further models and the crowd are not
+   drawn. */
 #include "scenery_draw.h"
 #include "hud_draw.h"
 #include "marks_draw.h"
 #include "ball_draw.h"
 #include "uis_draw.h"
 #include "player_draw.h"
+#include "actor_palettes.h"
 typedef struct {
  nflstreet_player_draw_context draw; /* span, memory and emit set by the caller */
  nflstreet_scenery_context venue;
@@ -26,6 +29,10 @@ typedef struct {
  uint32_t actors,actor_count;  /* value of r13-7BBC, and the count */
  uint32_t screen_camera_word;  /* r13-6CD8 */
  uint32_t view_slot;           /* 80331F80: stack slot 3 */
+ /* When set, each drawn player's palettes are rebuilt from its pose and
+    the current camera before it draws (the frame's palette pool starts
+    empty); when unset the stored palettes are drawn. */
+ nflstreet_actor_palette_context *palettes;
 } nflstreet_scene;
 /* Links the contexts to each other and to scene->draw; call once the
    struct is at its final address. */

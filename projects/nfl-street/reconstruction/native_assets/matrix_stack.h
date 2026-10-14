@@ -18,6 +18,7 @@ int nflstreet_matrix_top(nflstreet_draw *,const nflstreet_matrix_stacks *,uint32
 int nflstreet_matrix_push(nflstreet_draw *,const nflstreet_matrix_stacks *);            /* 8018941C */
 int nflstreet_matrix_pop(nflstreet_draw *,const nflstreet_matrix_stacks *);             /* 8018949C */
 int nflstreet_matrix_reset(nflstreet_draw *,const nflstreet_matrix_stacks *);           /* 801893EC: depth 0, identity */
+int nflstreet_matrix_push_identity(nflstreet_draw *,const nflstreet_matrix_stacks *);   /* 80189460: depth + 1, identity */
 int nflstreet_matrix_translate(nflstreet_draw *,const nflstreet_matrix_stacks *,float x,float y,float z); /* 80189BB0 */
 int nflstreet_matrix_load(nflstreet_draw *,const nflstreet_matrix_stacks *,uint32_t matrix);   /* 8018962C: top = 16 words */
 /* 801895BC: top = top x matrix (PSMTXConcat 801FFDF0; unit lanes from

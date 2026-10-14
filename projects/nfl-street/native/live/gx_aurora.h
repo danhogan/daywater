@@ -17,13 +17,11 @@ int nflstreet_gx_aurora_emit(void *bridge,const nflstreet_gx_call *);
    with update, every texture coordinate MTX2x4 from TEX0 with identity,
    konst selections from +1B0). */
 int nflstreet_gx_aurora_begin_frame(nflstreet_gx_aurora *,uint32_t gx_shadow);
-/* Optional view delta D (3x4, row-major), applied while set: position and
-   normal matrix loads, the matrix palettes (arrays 21/22, served from
-   transformed copies) and light positions/directions are re-expressed for a
-   new camera (D = new view x inverse of the view they were stored with).
-   NULL turns it off. */
-void nflstreet_gx_aurora_set_view_delta(nflstreet_gx_aurora *,const float *delta);
-/* Releases the frame's transformed palette copies (call at frame start). */
+/* Optional light view delta D (3x4, row-major), applied while set: light
+   positions and directions are re-expressed for a new camera (D = new view
+   x inverse of the view they were stored with). NULL turns it off. */
+void nflstreet_gx_aurora_set_light_delta(nflstreet_gx_aurora *,const float *delta);
+/* Frame start: the matrix palettes (arrays 21/22) are set again, as their contents change each frame. */
 void nflstreet_gx_aurora_new_frame(nflstreet_gx_aurora *);
 /* Closes an open primitive. */
 void nflstreet_gx_aurora_flush(nflstreet_gx_aurora *);

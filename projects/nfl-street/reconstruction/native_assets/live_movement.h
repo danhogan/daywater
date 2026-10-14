@@ -9,6 +9,10 @@ typedef struct {
 } nflstreet_live_movement;
 typedef struct {float x,y,facing,speed_per_update;} nflstreet_live_motion;
 int nflstreet_live_movement_open(const uint8_t *,size_t,nflstreet_live_movement *);
+/* Seeds from an actor's own fields (header word, signed ratings +BB4/+BBC,
+   +408, the +200 input block and the +1A8 movement block). */
+int nflstreet_live_movement_init(nflstreet_live_movement *,uint32_t header,int16_t rating_bb4,int16_t rating_bbc,uint32_t actor_408,
+ const uint32_t actor[12],const uint32_t state[21]);
 void nflstreet_live_movement_reset(nflstreet_live_movement *);
 /* 1 moving (including braking), 0 stopped, -1 unsupported branch. No fallback. */
 int nflstreet_live_movement_step(nflstreet_live_movement *,int,int,nflstreet_live_motion *);

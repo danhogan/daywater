@@ -75,16 +75,29 @@ int nflstreet_cluster_palette(const nflstreet_model_view_source *source,
         !span(source->size, rotations, (size_t)bones * 6) ||
         !span(source->size, rows, (size_t)clusters * 4) ||
         (pose && pose_count < (size_t)bones * 3)) return 0;
+    if (!nflstreet_cluster_palette_rows(source->bytes + translations,
+            source->bytes + rotations, source->bytes + rows, bones, clusters,
+            pose, root, polynomial, out)) return 0;
+    *count = clusters;
+    return 1;
+}
+
+int nflstreet_cluster_palette_rows(const uint8_t *translations,
+    const uint8_t *rotations, const uint8_t *rows, unsigned bones,
+    unsigned clusters, const int16_t *pose, const float root[12],
+    const float polynomial[6], float out[][12]) {
+    if (!translations || !rotations || !rows || !root || !polynomial || !out ||
+        !bones || bones > 256 || !clusters || clusters > 256) return 0;
     for (unsigned i = 0; i < 12; ++i) if (!isfinite(root[i])) return 0;
     for (unsigned i = 0; i < 6; ++i) if (!isfinite(polynomial[i])) return 0;
 
     float result[256][12];
     memcpy(result[0], root, sizeof result[0]);
     for (unsigned i = 1; i < clusters; ++i) {
-        const uint8_t *row = source->bytes + rows + (size_t)i * 4;
+        const uint8_t *row = rows + (size_t)i * 4;
         unsigned bone = row[0], parent = row[1], weight = u16(row + 2);
         if (bone >= bones || parent >= i) return 0;
-        const uint8_t *rot = source->bytes + rotations + (size_t)bone * 6;
+        const uint8_t *rot = rotations + (size_t)bone * 6;
         float s[3], c[3];
         for (unsigned axis = 0; axis < 3; ++axis) {
             int16_t angle = signed_half(u16(rot + axis * 2));
@@ -105,7 +118,7 @@ int nflstreet_cluster_palette(const nflstreet_model_view_source *source,
             sz*cy, fmaf(cz,cx,sz*a), fmaf(-cz,sx,sz*d), 0.0f,
             -sy, cy*sx, cy*cx, 0.0f
         };
-        const uint8_t *translation = source->bytes + translations + (size_t)bone * 16;
+        const uint8_t *translation = translations + (size_t)bone * 16;
         for (unsigned axis=0; axis<3; ++axis) {
             local[axis*4+3] = word_float(u32(translation + axis*4));
             if (!isfinite(local[axis*4+3])) return 0;
@@ -114,6 +127,5 @@ int nflstreet_cluster_palette(const nflstreet_model_view_source *source,
         for (unsigned j=0; j<12; ++j) if (!isfinite(result[i][j])) return 0;
     }
     memcpy(out, result, (size_t)clusters * sizeof result[0]);
-    *count = clusters;
     return 1;
 }

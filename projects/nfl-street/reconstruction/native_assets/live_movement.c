@@ -8,8 +8,12 @@ int nflstreet_live_movement_open(const uint8_t *b,size_t n,nflstreet_live_moveme
     if(!b||!out||n<152||(memcmp(b,"NMS1",4)&&memcmp(b,"NBS1",4)))return 0;
     unsigned count=be32(b+4);if(!count||count>1000||n!=152+(size_t)count*(!memcmp(b,"NBS1",4)?132:164))return 0;
     uint32_t actor[12],state[21];for(unsigned i=0;i<12;++i)actor[i]=be32(b+20+i*4);for(unsigned i=0;i<21;++i)state[i]=be32(b+68+i*4);
-    if(!isfinite(scalar(state[0]))||!isfinite(scalar(state[1])))return 0;
-    nflstreet_live_movement m={0};nflstreet_actor_runtime_init(&m.seed,be32(b+8),be16(b+12),be16(b+14),be32(b+16),actor,state);
+    return nflstreet_live_movement_init(out,be32(b+8),be16(b+12),be16(b+14),be32(b+16),actor,state);
+}
+int nflstreet_live_movement_init(nflstreet_live_movement *out,uint32_t header,int16_t rating_bb4,int16_t rating_bbc,uint32_t actor_408,
+    const uint32_t actor[12],const uint32_t state[21]){
+    if(!out||!isfinite(scalar(state[0]))||!isfinite(scalar(state[1])))return 0;
+    nflstreet_live_movement m={0};nflstreet_actor_runtime_init(&m.seed,header,rating_bb4,rating_bbc,actor_408,actor,state);
     m.origin[0]=scalar(state[0]);m.origin[1]=scalar(state[1]);m.runtime=m.seed;*out=m;return 1;
 }
 void nflstreet_live_movement_reset(nflstreet_live_movement *m){if(m)m->runtime=m->seed;}

@@ -22,9 +22,19 @@ int nflstreet_scene_venue(nflstreet_scene *sc,nflstreet_render_state *s){
  for(unsigned i=0;i<4;++i)if(!nflstreet_line_draw(&sc->venue,sc->lines[i],s))return 0;
  for(unsigned i=0;i<3;++i)if(!nflstreet_ring_draw(&sc->venue,sc->rings[i],s))return 0;
  return nflstreet_field_draw(&sc->venue,sc->main_field,s)&&nflstreet_ball_draw(&sc->ball,s);}
+/* 80164000's palette step for a drawn actor (its +4A8 record: +04 draw
+   flags, +08 LOD, +28 the held-item models). The scaled form (800DFB34,
+   when r13-7238 is set) is not modeled. */
+static int actor_palettes(nflstreet_scene *sc,nflstreet_draw *d,uint32_t actor){
+ nflstreet_actor_palette_context *c=sc->palettes;uint32_t record,flags,lod;
+ if(!nflstreet_draw_word(d,actor+0x4a8,&record)||!nflstreet_draw_word(d,record+4,&flags)||!nflstreet_draw_word(d,record+8,&lod))return 0;
+ if(flags&1)return 1;
+ return nflstreet_matrix_select(d,&c->stacks)&&nflstreet_actor_palettes(c,actor,NULL,actor+0x3ac,record+0x28,lod);}
 int nflstreet_scene_players(nflstreet_scene *sc,nflstreet_render_state *s){
  nflstreet_draw d={&sc->draw,s};
- for(uint32_t i=0;i<sc->actor_count;++i){uint32_t actor;if(!nflstreet_draw_word(&d,sc->actors+4*i,&actor)||!nflstreet_player_draw(&sc->draw,actor,s))return 0;}
+ if(sc->palettes){uint8_t *used=nflstreet_draw_at(&d,sc->palettes->pool_used,4);if(!used)return 0;nflstreet_wr32(used,0);}
+ for(uint32_t i=0;i<sc->actor_count;++i){uint32_t actor;if(!nflstreet_draw_word(&d,sc->actors+4*i,&actor)||
+   (sc->palettes&&!actor_palettes(sc,&d,actor))||!nflstreet_player_draw(&sc->draw,actor,s))return 0;}
  return 1;}
 int nflstreet_scene_hud(nflstreet_scene *sc,nflstreet_render_state *s){
  nflstreet_draw d={&sc->draw,s};uint32_t camera;

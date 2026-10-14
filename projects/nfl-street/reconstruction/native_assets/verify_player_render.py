@@ -28,14 +28,14 @@ RENDER = {
 }
 SCENE = {
     14: "(5822 GX calls) then 14 actors (4955 GX calls) and the HUD (8562 GX calls); 732 display lists, 27752"
-    " triangles (9967 culled, 3101 clipped), 345 decoded textures, 1286249 shaded pixels; digest "
-    "5e3eec4b.",
+    " triangles (9954 culled, 3101 clipped), 346 decoded textures, 1286004 shaded pixels; digest "
+    "a9ea2f0d.",
     15: "(5817 GX calls) then 14 actors (4955 GX calls) and the HUD (8558 GX calls); 732 display lists, 27754"
-    " triangles (9937 culled, 3096 clipped), 345 decoded textures, 1288636 shaded pixels; digest "
-    "9a9963c8.",
+    " triangles (9944 culled, 3096 clipped), 345 decoded textures, 1288588 shaded pixels; digest "
+    "14fd198a.",
     16: "(5872 GX calls) then 14 actors (4947 GX calls) and the HUD (8562 GX calls); 732 display lists, 27697"
-    " triangles (9924 culled, 3097 clipped), 343 decoded textures, 1284569 shaded pixels; digest "
-    "70d1479c.",
+    " triangles (9920 culled, 3097 clipped), 343 decoded textures, 1284616 shaded pixels; digest "
+    "984ca239.",
 }
 SOURCES = (
     "gx_render.c",
@@ -55,6 +55,12 @@ SOURCES = (
     "ball_draw.c",
     "ball_draw.h",
     "scene_frame.c",
+    "actor_palettes.c",
+    "actor_palettes.h",
+    "cluster_palette.c",
+    "cluster_palette.h",
+    "model_view.c",
+    "model_view.h",
     "scene_frame.h",
     "scene_fixture.h",
     "marks_draw.c",

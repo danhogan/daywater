@@ -40,20 +40,23 @@ forwards each one to Aurora's GX as it is issued:
 - **What advances each frame:** whatever the native draws advance from
   frame to frame (field-line alpha pulse, mark alpha ramp, matrix stacks,
   screen state) carries over between frames.
-- **Camera control:** the controller (or `NFL_LIVE_ORBIT`) moves the field
-  camera, and the whole scene follows it:
-  - **Sky, lines, marks, ball and shadows** use the matrix stack.
-  - **Field, field passes and rings** recompute their model-view matrices
-    from the camera each frame, as the original does (verified against the
-    original in the scenery gate).
-  - **Players** still carry the saved frame's skinning palettes. The bridge
-    re-expresses them, and the player lights, for the current camera
-    (new view × inverse of the drawn view). That stand-in is geometrically
-    exact but not a reconstruction of the game's skinning, which another
-    thread is connecting (`cluster_palette.c` and its callers).
-- **Not live yet:** game logic. Player poses, positions, the ball and the
-  HUD values are the saved frame's. The name tag keeps its saved screen
-  position.
+- **Controlled player:** the player standing on the select ring (Thomas in
+  the saved match) runs with the main stick. Each 60 Hz update goes through
+  the verified movement runtime (input, acceleration, turning, kinematics:
+  `reconstruction/command_to_movement`), seeded from that actor's own RAM.
+  The state is written back to its gameplay actor, and the native placement
+  (`800D4A6C`/`800D4B0C`) and palettes (`80162760`) put it in the scene. The
+  camera follows by the player's movement (a host choice). `NFL_LIVE_SCRIPT=1`
+  drives right, forward, then left for captures.
+- **Camera:** the C-stick turns the field camera (or `NFL_LIVE_ORBIT`, a
+  24-bit angle per frame). The venue, rings and players rebuild their
+  matrices from the camera as the original does. The player lights are
+  re-expressed from the saved frame (new view × inverse of the drawn view),
+  a stand-in until their per-frame update is reconstructed.
+- **Not live yet:** animation (the controlled player glides in its saved
+  stance; clip data streams from ARAM, so it needs the extracted
+  `animdata` banks), other players, the ball, the select ring's position,
+  the HUD values and the name tag's screen position.
 
 ## Build and run
 

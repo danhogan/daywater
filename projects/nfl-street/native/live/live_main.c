@@ -2,7 +2,8 @@
    running every frame on Aurora (window, D3D12/Vulkan through WebGPU) from a
    saved match RAM image. State the draws advance (field-line alpha pulse,
    mark alpha ramp, matrix stacks, the HUD) carries from frame to frame; the
-   field camera follows the controller or keyboard. */
+   controlled player moves with the main stick through the verified movement
+   runtime and is placed and skinned natively; the C-stick turns the camera. */
 #include <aurora/aurora.h>
 #include <aurora/event.h>
 #include <aurora/main.h>
@@ -13,7 +14,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include "gx_aurora.h"
+#include "actor_world.h"
+#include "live_movement.h"
 #define RAM_BASE 0x80000000u
 #define RAM_BYTES (24u*1024u*1024u)
 #define R13 0x803a9a40u
@@ -32,16 +36,42 @@ static void log_callback(AuroraLogLevel level,const char *module,const char *mes
  FILE *out=log_file?log_file:stderr;fprintf(out,"[%s %s] %s\n",(unsigned)level<5?names[level]:"?",module,message);fflush(out);
  if(level==LOG_FATAL)abort();}
 static void note(const char *what){if(log_file){fprintf(log_file,"%s\n",what);fflush(log_file);}}
-/* The field camera's data (+04 position, +14/+18/+1C angles) moved by the
-   stick: x/y pan, C-stick orbit about z and pitch. */
-static void steer(uint8_t *ram,uint32_t orbit){
+/* The field camera's data (+04 position, +14/+18/+1C angles): the C-stick
+   orbits about z and pitches; the camera position follows the controlled
+   player by its movement (a host choice: the game's camera logic is not
+   reconstructed). */
+static void steer(uint8_t *ram,uint32_t orbit,const PADStatus *p,float dx,float dy){
  uint8_t *d=ram_at(ram,ram32(ram,hud_cameras[0]+0x40),0x20);if(!d)return;
  if(orbit)wr32(d+0x1c,(rd32(d+0x1c)+orbit)&0xffffffu); /* demo: turn about z by this 24-bit angle per frame */
- PADStatus pads[4];PADRead(pads);const PADStatus *p=&pads[0];if(p->err!=PAD_ERR_NONE)return;
  float x,y;uint32_t w;w=rd32(d+4);memcpy(&x,&w,4);w=rd32(d+8);memcpy(&y,&w,4);
- x+=(float)p->stickX*0.003f;y+=(float)p->stickY*0.003f;memcpy(&w,&x,4);wr32(d+4,w);memcpy(&w,&y,4);wr32(d+8,w);
+ x+=dx;y+=dy;memcpy(&w,&x,4);wr32(d+4,w);memcpy(&w,&y,4);wr32(d+8,w);
+ if(p->err!=PAD_ERR_NONE)return;
  wr32(d+0x1c,(rd32(d+0x1c)+(uint32_t)(int32_t)(-p->substickX*40))&0xffffffu);
  wr32(d+0x14,(rd32(d+0x14)+(uint32_t)(int32_t)(p->substickY*20))&0xffffffu);}
+/* The controlled player: the visual actor standing nearest the player-select
+   ring, and its gameplay actor (the record whose +04 names the visual and
+   whose +1A8 position equals the visual's +04). A host lookup; the game's
+   controller-to-actor assignment is not reconstructed. */
+static uint32_t controlled_actor(uint8_t *ram){
+ const uint32_t table=ram32(ram,R13-0x7bbcu);uint32_t visual=0;float best=1e30f;
+ for(unsigned i=0;i<14;++i){const uint32_t v=ram32(ram,table+4*i);const float x=ramf(ram,v+4)-ramf(ram,venue_rings[0]+4),y=ramf(ram,v+8)-ramf(ram,venue_rings[0]+8);
+  if(x*x+y*y<best){best=x*x+y*y;visual=v;}}
+ for(uint32_t o=0;o+0x1000<=RAM_BYTES;o+=4){const uint8_t *g=ram+o;
+  if(rd32(g+4)==visual&&rd32(g+0x1a8)==ram32(ram,visual+4)&&rd32(g+0x1ac)==ram32(ram,visual+8))return RAM_BASE+o;}
+ return 0;}
+static int16_t ram16(uint8_t *ram,uint32_t a){const uint8_t *p=ram_at(ram,a,2);return p?(int16_t)(uint16_t)(p[0]<<8|p[1]):0;}
+static int seed_movement(uint8_t *ram,uint32_t g,nflstreet_live_movement *m){
+ uint32_t actor[12],state[21];for(unsigned i=0;i<12;++i)actor[i]=ram32(ram,g+0x200+4*i);for(unsigned i=0;i<21;++i)state[i]=ram32(ram,g+0x1a8+4*i);
+ if(!nflstreet_live_movement_init(m,ram32(ram,g),ram16(ram,g+0xbb4),ram16(ram,g+0xbbc),ram32(ram,g+0x408),actor,state))return 0;
+ /* Every update starts with the original's reset (80036AF8, then the
+    acceleration reset); the runtime skips it only for a first step resumed
+    from a recording. The saved player is standing (no prior acceleration),
+    so the first step needs it too. */
+ m->seed.completed=m->runtime.completed=1;return 1;}
+/* The stick as a cardinal or diagonal request (the movement runtime's input). */
+static void stick(const PADStatus *p,int *dx,int *dy){
+ *dx=*dy=0;if(p->err!=PAD_ERR_NONE)return;*dx=p->stickX>40?1:p->stickX<-40?-1:0;*dy=p->stickY>40?1:p->stickY<-40?-1:0;}
+static double seconds(void){struct timespec t;timespec_get(&t,TIME_UTC);return (double)t.tv_sec+t.tv_nsec*1e-9;}
 static float word_at(uint8_t *ram,uint32_t a){return ramf(ram,a);}
 /* The view the saved frame was drawn with: the stored main-field matrix
    without the venue translation (80165DC4: view x T(object +4)). */
@@ -80,20 +110,41 @@ int main(int argc,char *argv[]){
  const unsigned parts=argc>3?(unsigned)strtoul(argv[3],NULL,0):7u;
  /* NFL_LIVE_ORBIT: per-frame turn (24-bit angle; 1 means 0x2000, about 10 degrees a second at 60 fps). */
  uint32_t orbit=getenv("NFL_LIVE_ORBIT")?(uint32_t)strtoul(getenv("NFL_LIVE_ORBIT"),NULL,0):0;if(orbit==1)orbit=0x2000;
+ /* The controlled player (NFL_LIVE_SCRIPT=1 drives it right, forward, left for a capture). */
+ const uint32_t player=controlled_actor(ram);nflstreet_live_movement movement;int rejected=0;const int scripted=getenv("NFL_LIVE_SCRIPT")!=NULL;
+ if(player&&!seed_movement(ram,player,&movement)){note("cannot seed the controlled player's movement");return 4;}
+ if(log_file){fprintf(log_file,"controlled player %08x (visual %08x)\n",player,player?ram32(ram,player+4):0);fflush(log_file);}
+ const double start=seconds();double clock_time=start;
  const uint32_t gx=ram32(ram,R13-0x4c90u);float drawn_view[12];drawn_field_view(ram,drawn_view);unsigned frames=0;int exiting=0,failed=0;
  while(!exiting){
   const AuroraEvent *e=aurora_update();
   for(;e&&e->type!=AURORA_NONE;++e)if(e->type==AURORA_EXIT)exiting=1;
   if(exiting||!aurora_begin_frame())continue;
   GXSetCopyClear((GXColor){64,64,64,255},GX_MAX_Z24);
-  steer(ram,orbit);
+  /* Fixed 60 Hz updates of the controlled player's verified movement
+     (input, acceleration, turning, kinematics), written back to its
+     gameplay actor (+200 input, +1A8 movement block), then the native
+     placement (800D4A6C/800D4B0C) of its visual. */
+  PADStatus pads[4];PADRead(pads);float moved[2]={0,0};
+  if(player){int dx,dy;stick(&pads[0],&dx,&dy);if(scripted){const double t=seconds()-start;dx=t<1.5?1:t<3.0?0:t<4.5?-1:0;dy=t>=1.5&&t<3.0?1:0;}
+   for(const double now=seconds();clock_time+1.0/60.0<=now;clock_time+=1.0/60.0){
+    const float x0=ramf(ram,player+0x1a8),y0=ramf(ram,player+0x1ac);nflstreet_live_motion mo;
+    const int r=nflstreet_live_movement_step(&movement,dx,dy,&mo);
+    if(r<0){if(!rejected&&log_file){fprintf(log_file,"frame %u: movement request %d,%d takes an unreconstructed branch; held\n",frames,dx,dy);fflush(log_file);}rejected=1;continue;}
+    rejected=0;for(unsigned i=0;i<12;++i)wr32(ram_at(ram,player+0x200+4*i,4),movement.runtime.actor[i]);
+    for(unsigned i=0;i<21;++i)wr32(ram_at(ram,player+0x1a8+4*i,4),movement.runtime.state[i]);
+    moved[0]+=ramf(ram,player+0x1a8)-x0;moved[1]+=ramf(ram,player+0x1ac)-y0;}
+   nflstreet_render_state unused;memset(&unused,0,sizeof unused);nflstreet_draw d={&scene.draw,&unused};
+   if(!nflstreet_matrix_select(&d,&scene.hud.stacks)||!nflstreet_actor_place(&d,&scene.hud.stacks,player,R13-0x7078u))failed=1;}
+  steer(ram,orbit,&pads[0],moved[0],moved[1]);
   nflstreet_render_state s;memset(&s,0,sizeof s);for(unsigned i=0;i<6;++i)s.viewport[i]=ramf(ram,0x8039e584u+4*i);
   nflstreet_gx_aurora_new_frame(bridge);
   int ok=!failed&&nflstreet_gx_aurora_begin_frame(bridge,gx)&&(!(parts&1)||nflstreet_scene_venue(&scene,&s));
-  /* The players still carry the drawn frame's palettes: re-express them for
-     the current camera (top of the viewport's stack after the venue). */
-  float delta[12];if(ok&&view_delta(ram,drawn_view,delta))nflstreet_gx_aurora_set_view_delta(bridge,delta);
-  ok=ok&&(!(parts&2)||nflstreet_scene_players(&scene,&s));nflstreet_gx_aurora_set_view_delta(bridge,NULL);
+  /* The players' palettes are rebuilt from the current camera (80162760);
+     their lights are still the saved frame's: re-express them for the
+     current camera (top of the viewport's stack after the venue). */
+  float delta[12];if(ok&&view_delta(ram,drawn_view,delta))nflstreet_gx_aurora_set_light_delta(bridge,delta);
+  ok=ok&&(!(parts&2)||nflstreet_scene_players(&scene,&s));nflstreet_gx_aurora_set_light_delta(bridge,NULL);
   ok=ok&&(!(parts&4)||nflstreet_scene_hud(&scene,&s));
   if(!failed&&!ok){failed=1;
    if(log_file){fprintf(log_file,"frame %u: scene draw stopped after %u GX calls\n",frames,nflstreet_gx_aurora_calls(bridge));fflush(log_file);}}

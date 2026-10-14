@@ -20,5 +20,9 @@ static inline void scene_fixture(uint8_t *ram,nflstreet_scene *sc,nflstreet_draw
  sc->name_tags=HUD_NAME_TAGS;sc->name_tag_count=HUD_NAME_TAG_COUNT;sc->actors=ram32(ram,R13-0x7bbcu);sc->actor_count=14;
  sc->screen_camera_word=R13-0x6cd8u;sc->view_slot=0x80331ec0u+0xc0u;
  sc->venue.stacks=&sc->hud.stacks; /* recompute venue matrices from the camera, as the original frame does */
+ /* and rebuild the players' palettes */
+ static nflstreet_actor_palette_context palettes;memset(&palettes,0,sizeof palettes);palettes.x=x;palettes.stacks=sc->hud.stacks;
+ palettes.unit[0]=ramf(ram,0x803a3958u);palettes.unit[1]=ramf(ram,0x803a395cu);palettes.pool=R13-0x5680u;palettes.pool_index=R13-0x5678u;
+ palettes.pool_used=R13-0x5670u;palettes.cache_on=R13-0x6200u;sc->palettes=&palettes;
  nflstreet_scene_link(sc);}
 #endif

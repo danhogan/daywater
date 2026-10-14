@@ -25,7 +25,21 @@ assignments and LOD are explicit fixture inputs; fresh actor instances, natural
 head roots/pose selection and matrix token publication remain open. See
 [owned attachment palettes](reconstruction/native_assets/match_attachment_palettes.md).
 
-**Latest rendering: ground marks, ball shadows, the ball and the field camera are native.**
+**Latest rendering: players are skinned natively and one moves under control in the live app.**
+Each frame the players' skinning palettes are rebuilt from their poses and
+the current camera (`80162760`: body, attachments, head, hands and held
+items, through the frame's palette pool, the locked cache and its DMA).
+Actors are placed from their gameplay state (`800D4A6C`/`800D4B0C`). Both
+match the original in 401 cases per saved context with every RAM byte and
+the locked cache compared (16 deliberate faults caught). The venue and
+player-select rings now also rebuild their matrices from the camera. In
+the Aurora live app ([native/live](native/live/README.md)), the main stick
+drives the controlled player through the verified movement runtime, and
+the whole scene follows the camera at about 120 fps. Animation is not
+connected yet: the player glides in the saved stance. See
+[actor palettes and placement](reconstruction/native_assets/actor_palettes.md).
+
+**Earlier rendering: ground marks, ball shadows, the ball and the field camera are native.**
 The turf marks (`800D75EC`), the ball and field-object shadows (`801652BC`),
 the ball model (`8015CB60`, with its frustum tests and level of detail) and
 the field camera's view (`8017D16C` with handler `800C3508`) match the

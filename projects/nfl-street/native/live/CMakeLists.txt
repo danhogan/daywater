@@ -8,11 +8,27 @@ if (NOT AURORA_SOURCE_DIR)
 endif ()
 set(AURORA_ENABLE_RMLUI OFF CACHE BOOL "" FORCE)
 add_subdirectory(${AURORA_SOURCE_DIR} aurora EXCLUDE_FROM_ALL)
-# The verified native draws (reconstruction/native_assets, copied beside
-# these sources by build_windows_live.sh) and the GX bridge.
-set(NFLSTREET_DRAWS scene_frame.c scenery_draw.c marks_draw.c ball_draw.c hud_draw.c uis_draw.c matrix_stack.c
-  gx_texobj.c player_draw.c draw_engine.c)
-add_executable(nflstreet_live live_main.c gx_aurora.c ${NFLSTREET_DRAWS})
+# The verified native draws and placement (reconstruction/native_assets) and
+# the verified movement runtime (command_to_movement and the stages it uses),
+# copied under src/reconstruction by build_windows_live.sh, and the GX bridge.
+set(NFLSTREET_DRAWS scene_frame.c actor_palettes.c actor_world.c cluster_palette.c model_view.c scenery_draw.c marks_draw.c
+  ball_draw.c hud_draw.c uis_draw.c matrix_stack.c gx_texobj.c player_draw.c draw_engine.c live_movement.c)
+list(TRANSFORM NFLSTREET_DRAWS PREPEND reconstruction/native_assets/)
+set(NFLSTREET_MOVEMENT command_to_movement/actor_runtime.c command_to_movement/actor_update_replay.c
+  command_to_movement/preparation_replay.c command_to_movement/command_to_movement_replay.c
+  command_to_movement/reset_acceleration_replay.c input_translation/input_translation_replay.c
+  actor_target_input/actor_target_input.c actor_target_input/target_selection.c actor_target_input/command_timing.c
+  actor_target_input/event_signals.c kinematics/kinematics_replay.c)
+list(TRANSFORM NFLSTREET_MOVEMENT PREPEND reconstruction/)
+add_executable(nflstreet_live live_main.c gx_aurora.c ${NFLSTREET_DRAWS} ${NFLSTREET_MOVEMENT})
+target_include_directories(nflstreet_live PRIVATE reconstruction/native_assets)
+target_compile_definitions(nflstreet_live PRIVATE NFLSTREET_ACTOR_UPDATE_NO_MAIN NFLSTREET_PREPARATION_NO_MAIN
+  NFLSTREET_COMMAND_NO_MAIN NFLSTREET_KINEMATICS_NO_MAIN NFLSTREET_RESET_NO_MAIN NFLSTREET_INPUT_TRANSLATION_NO_MAIN
+  NFLSTREET_ACTOR_TARGET_INPUT_NO_MAIN)
+# The original's single-precision arithmetic: no contraction into fused multiply-adds.
+if (MSVC)
+  target_compile_options(nflstreet_live PRIVATE /fp:precise)
+endif ()
 target_link_libraries(nflstreet_live PRIVATE aurora::core aurora::gx aurora::pad aurora::main aurora::vi)
 # Runtime DLLs (SDL3, Dawn and its shader compiler) next to the executables.
 foreach (target nflstreet_live)
