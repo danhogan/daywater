@@ -146,13 +146,24 @@ nflstreet_live.exe <saved RAM image> [log file] [parts: 1 venue, 2 players, 4 HU
 ```
 
 Options:
+- `NFL_LIVE_DISC=<ISO path>` reads animation banks directly through nod (the
+  disc reader underlying Aurora DVD). Example:
+  `NFL_LIVE_DISC=W:\Daywater\research-temp\nflstreet-GNNE69.iso`.
+  It takes precedence over `NFL_LIVE_ANIMDIR`; no extracted animation files,
+  `NFL_LIVE_ANIMDATA` or `NFL_LIVE_SETS` are needed for the default native
+  animation path. Virtual `animdata/NNNNN.bin` paths refer to decoded entries
+  of the disc's `animdata.dat` TERF archive. Invalid disc/archive reads fail
+  startup with code 4. This integration is candidate until the external
+  Windows byte gate and live smoke run pass; see
+  [disc files](../../reconstruction/native_assets/disc_files.md).
 - `NFL_LIVE_ORBIT=1` (or a 24-bit angle per frame) turns the camera.
 - `NFL_LIVE_DEBUG=1` logs Aurora at debug level.
 - `NFL_LIVE_TRACE=<file>` logs every bridged call.
 - `NFL_LIVE_ANIMDIR=<unpacked/animdata directory>` enables channel animation
   for every actor, native group/event callbacks and the controlled player's
   reconstructed locomotion predicates and clip requests. Without it, channel animation
-  and requests are off; with no host fallback the saved stance remains.
+  and requests are off unless `NFL_LIVE_DISC` is set; with no host fallback
+  the saved stance remains. The existing directory-based smoke path is retained.
 - `NFL_LIVE_HOST_LOCOMOTION=1` bypasses native selection for the explicit
   host controller fallback (default: off), retained for unreconstructed
   gameplay events or missing bank streaming. Requires both files below; invalid
@@ -162,10 +173,14 @@ Options:
   (e.g. `W:\Daywater\research-temp\nflstreet-set-playback-20261009\sets-14.bin`)
   supply the explicit host fallback. They are unused unless
   `NFL_LIVE_HOST_LOCOMOTION=1`; native channel animation needs no NSC1 catalog.
+  With `NFL_LIVE_DISC`, the fallback bank comes from disc entry
+  `animdata/00111.bin` instead of `NFL_LIVE_ANIMDATA`. The fallback still
+  requires `NFL_LIVE_SETS`: that NSC1 inspection catalog is generated from
+  saved RAM and has no disc-file equivalent.
 - `NFL_LIVE_SCRIPT=1` replaces the stick with a scripted run for captures.
 
-The RAM image is your own saved state on W:. Nothing from the game is in
-the repository.
+The RAM image is still required for game state, including in disc mode. It
+is your own saved state on W:. Nothing from the game is in the repository.
 
 If Aurora reports a shader error at startup after a code change, clear its
 pipeline cache (`%APPDATA%\NFL Street live`). Pipelines cached from an
