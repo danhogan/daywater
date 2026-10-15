@@ -1,0 +1,12 @@
+[
+ {"name":"omit-controlled-phase","file":"actor_ai_dispatch.c","old":"if(controlled){","new":"if(0&&controlled){"},
+ {"name":"pop-clears-payload","file":"actor_ai_dispatch.c","old":"p[4*n-4]=0;","new":"p[4*n-3]=0;"},
+ {"name":"remove-wrong-state","file":"actor_ai_dispatch.c","old":"if(r8(c,q+4*k)==type){","new":"if(r8(c,q+4*k)!=type){"},
+ {"name":"entry-marker","file":"actor_ai_dispatch.c","old":"w8(c,a+0xc0c,1);notify(c,a);","new":"w8(c,a+0xc0c,0);notify(c,a);"},
+ {"name":"replace-clears-payload","file":"actor_ai_dispatch.c","old":"w8(c,q+4,0);w32(c,q,command);","new":"w8(c,q+5,0);w32(c,q,command);"},
+ {"name":"type12-eligible","file":"actor_ai_dispatch.c","old":"if(type==0x12){*result=0;","new":"if(type==0x12){*result=1;"},
+ {"name":"interaction-timer","file":"actor_ai_dispatch.c","old":"w32(c,a+0x128,300);","new":"w32(c,a+0x128,301);"},
+ {"name":"no-selected-status","file":"actor_ai_dispatch.c","old":"w8(c,a+0x20e,1);w32(c,a+0x204","new":"w8(c,a+0x20e,0);w32(c,a+0x204"},
+ {"name":"omit-input-commit","file":"actor_ai_dispatch.c","old":"return nflstreet_locomotion_select(c,a);","new":"(void)c;(void)a;return 1;"},
+ {"name":"omit-finished-requested-strength","file":"actor_ai_dispatch.c","old":"wf(c,a+0x210,strength);wf(c,a+0x200,strength);","new":"wf(c,a+0x210,strength);"}
+]
