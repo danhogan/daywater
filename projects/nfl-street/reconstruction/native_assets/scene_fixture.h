@@ -43,5 +43,12 @@ static inline void scene_fixture(uint8_t *ram,nflstreet_scene *sc,nflstreet_draw
  pt->gate_72fc=R13-0x72fcu;pt->gate_58bc=R13-0x58bcu;pt->shader_flat=ram32(ram,R13-0x68f8u);pt->shader_textured=ram32(ram,R13-0x68fcu);pt->corners=0x802898c0u;
  pt->color_unit=ramf(ram,0x802603d8u);pt->zero=ramf(ram,0x802603dcu);pt->one=ramf(ram,0x802603e0u);pt->angle_scale=ramf(ram,0x802603e4u);
  pt->byte_scale=ramf(ram,0x802603e8u);pt->cell[0]=ramf(ram,0x80261218u);pt->cell[1]=ramf(ram,0x8026121cu);pt->fade_one=ramf(ram,0x8026323cu);
+ /* Sky node entry 1 and field overlay entry 14, with the original enable bytes. */
+ nflstreet_cloud_context *cl=&sc->clouds;cl->enable=R13-0x71e3u;cl->sky_enable=R13-0x71e4u;
+ cl->gx_state=ram32(ram,R13-0x4c90u);cl->texture=0x802aa7a4u;cl->records=0x80385c8cu;cl->count=R13-0x7284u;cl->texcoords=0x8028cc80u;
+ cl->period=0x802a3088u;cl->overlay=0x802a3068u;cl->palette=0x8028cbc0u;cl->sky_record=0x8030feb4u;cl->projection_value=ramf(ram,0x802536ccu);
+ cl->blend_cap=ramf(ram,0x802606d8u);cl->blend_half=ramf(ram,0x802606dcu);cl->blend_floor=ramf(ram,0x802606e0u);cl->color_alpha=ramf(ram,0x802606e4u);
+ cl->one=ramf(ram,0x802606f8u);cl->zero=ramf(ram,0x802606fcu);cl->half=ramf(ram,0x80260700u);cl->byte_scale=ramf(ram,0x80260704u);
+ sc->field_overlay_enabled=1;
  nflstreet_scene_link(sc);}
 #endif

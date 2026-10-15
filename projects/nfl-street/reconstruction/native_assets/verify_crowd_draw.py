@@ -76,6 +76,13 @@ SOURCES = (
     "build_windows_crowd_draw_original_check.sh",
     "build_windows_crowd_render_check.sh",
     "verify_crowd_draw.py",
+    "cloud_draw.c",
+    "cloud_draw.h",
+    "field_overlay.c",
+    "field_overlay.h",
+    "player_draw.h",
+    "gx_render.h",
+    "gekko_float.h",
 )
 BOUNDARY = (
     "Native 800D2F20 for the 45 entries of the saved scene node (EARS props through hook 800D2860, garbage cans and "

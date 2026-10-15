@@ -28,12 +28,12 @@ static const sdk_entry sdk[]={
  {0x8020810cu,NFLSTREET_GX_SET_VIEWPORT,0},{0x80207e7cu,NFLSTREET_GX_LOAD_POS_MTX,0},{0x80207eccu,NFLSTREET_GX_LOAD_NRM_MTX,0},
  {0x802079c8u,NFLSTREET_GX_SET_Z_MODE,3},{0x802079fcu,NFLSTREET_GX_SET_Z_COMP_LOC,1},{0x80207600u,NFLSTREET_GX_SET_FOG,1},
  {0x80203fc0u,NFLSTREET_GX_BEGIN,3},{0x80206e90u,NFLSTREET_GX_SET_TEV_OP,2},{0x80206d30u,NFLSTREET_GX_SET_NUM_IND_STAGES,1},
- {0x80206d58u,NFLSTREET_GX_SET_TEV_DIRECT,1}};
+ {0x80206d58u,NFLSTREET_GX_SET_TEV_DIRECT,1},{0x80207d5cu,NFLSTREET_GX_SET_PROJECTION_V,0}};
 /* Memory-only SDK functions that execute: GXInitLightColor/GXGetLightColor
    and the texture-object encoders GXInitTexObj, GXInitTexObjCI,
    GXInitTexObjLOD and GXInitTlutObj. */
 static int sdk_executes(uint32_t at){
- static const uint32_t executed[][2]={{0x80205140u,0x80205158u},{0x80205754u,0x80205ba4u},{0x80205df4u,0x80205e3cu}};
+ static const uint32_t executed[][2]={{0x80205140u,0x80205158u},{0x80205754u,0x80205ba4u},{0x80205df4u,0x80205e3cu},{0x80207e1cu,0x80207e7cu}};
  for(unsigned i=0;i<sizeof executed/sizeof *executed;++i)if(at>=executed[i][0]&&at<executed[i][1])return 1;return 0;}
 static int capture(const CPUState *c,const sdk_entry *e,nflstreet_gx_call *g){
  memset(g,0,sizeof *g);g->op=e->op;for(unsigned i=0;i<e->args;++i)g->arg[i]=c->gpr[3+i];
@@ -44,6 +44,7 @@ static int capture(const CPUState *c,const sdk_entry *e,nflstreet_gx_call *g){
   if(!(p=ram_at(oracle_ram,c->gpr[4],4)))return 0;g->data[0]=rd32(p);break;
  case NFLSTREET_GX_LOAD_TEX_MTX:{unsigned n=c->gpr[5]==1?8:12;if(!(p=ram_at(oracle_ram,c->gpr[3],4*n)))return 0;
   g->arg[0]=c->gpr[4];g->arg[1]=c->gpr[5];for(unsigned i=0;i<n;++i)g->data[i]=rd32(p+4*i);break;}
+ case NFLSTREET_GX_SET_PROJECTION_V:if(!(p=ram_at(oracle_ram,c->gpr[3],28)))return 0;for(unsigned i=0;i<7;++i)g->data[i]=rd32(p+4*i);break;
  case NFLSTREET_GX_SET_VIEWPORT:for(unsigned i=0;i<6;++i)g->data[i]=fbits((float)c->fpr[1+i]);break;
  case NFLSTREET_GX_LOAD_POS_MTX:if(!(p=ram_at(oracle_ram,c->gpr[3],48)))return 0;g->arg[0]=c->gpr[4];for(unsigned i=0;i<12;++i)g->data[i]=rd32(p+4*i);break;
  case NFLSTREET_GX_LOAD_NRM_MTX:if(!(p=ram_at(oracle_ram,c->gpr[3],48)))return 0;g->arg[0]=c->gpr[4];

@@ -10,8 +10,8 @@
    from 80164000, after projecting its name tag when view is set), then the
    HUD camera, name tags and in-match screens.
    With effects set, also the actor fans before the ball and the actor
-   strips and particles after the players (effects_draw.md). The clouds
-   (cloud_draw.c, invisible in the saved frames) and 800D1118 are not drawn. */
+   strips and particles after entry 14 (800D1118), following the players.
+   The sky node includes clouds (invisible in the saved frames). */
 #include "scenery_draw.h"
 #include "hud_draw.h"
 #include "marks_draw.h"
@@ -25,9 +25,13 @@
 #include "camera_projection.h"
 #include "effects_draw.h"
 #include "actor_scale.h"
+#include "field_overlay.h"
 typedef struct {
  nflstreet_player_draw_context draw; /* span, memory and emit set by the caller */
  nflstreet_scenery_context venue;
+ nflstreet_cloud_context clouds;
+ nflstreet_field_overlay_context field_overlay;
+ int field_overlay_enabled; /* caller supplies EFB depth service; original byte r13-71C0 still gates the entry */
  nflstreet_hud_context hud;
  nflstreet_marks_context marks;
  nflstreet_ball_context shadows;

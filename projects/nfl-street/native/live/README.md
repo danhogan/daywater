@@ -3,9 +3,9 @@
 `nflstreet_live` draws the verified native scene every frame in a real
 window on the GPU. It runs the original frame order (`scene_frame.c`):
 - field camera;
-- sky and field with marks and ball shadows;
+- sky node and clouds, then field with marks and ball shadows;
 - lines, rings, main field and ball;
-- the 14 players;
+- the 14 players, field overlay, strips and particles;
 - the HUD camera, name tags and in-match screens.
 
 It uses [Aurora](https://github.com/encounter/aurora) (MIT), a
@@ -26,6 +26,14 @@ forwards each one to Aurora's GX as it is issued:
   sized from the highest index its display lists (or immediate primitives)
   use. The scan follows a list's own CP descriptor and format writes and its
   indexed matrix loads (`LOAD_INDX`).
+- **Projection and depth:** projection vectors go directly to `GXSetProjectionv`;
+  overlay matrices go to `GXSetProjection`. Overlay depth probes flush pending
+  primitives and use Aurora's real asynchronous EFB Z24 readback. The latest
+  completed depth is retained per probe order; zero initially keeps an unready
+  probe hidden. Results may lag a few frames, including after a camera move:
+  this is a host timing choice, not synchronous GameCube `GXPeekZ`. An
+  unavailable readback rejects the draw. The emitted peek op observes the
+  supplied value and does not read a second time.
 - **Frame start:** the saved projection and viewport, plus `801C769C`'s
   defaults (depth LEQUAL with update, every texture coordinate from TEX0,
   konst selections). `GXInit` runs once at startup, as the game does at
@@ -47,16 +55,23 @@ forwards each one to Aurora's GX as it is issued:
      previous update left, so they trail by one update, as in the game;
   2. the verified movement runtime (`reconstruction/command_to_movement`),
      seeded from that actor's own RAM and written back to its gameplay actor;
-  3. the movement-state clip-request phase (`8003A1F4`), using the restored
-     movement/input blocks, byte `+20E` as the selector, and the actor's
-     stored manager/set/channel pointers. Supported selectors dispatch
-     changed keys through `nflstreet_clip_request_group` (`80177EF4`);
-     unchanged and suppressed requests leave the group alone;
+  3. the movement-state clip-request phase (`8003A1F4`), through
+     `locomotion_predicates.c` (`800150E8` and all eleven selectors), using
+     the restored movement/input blocks and stored manager/set/channel pointers.
+     Changed/restarted keys call `nflstreet_clip_request_group` with the existing
+     group/event adapters; suppressed/unchanged requests leave channels alone;
   4. the channel manager, program and pose passes for **all 14 actors**,
      including the controlled player, then twist and the compact skeleton
-     (`80053404`, `800D51B4`/`8015F08C`).
+     (`80053404`, `800D51B4`/`8015F08C`). Selector and callback writes are
+     copied back into persistent movement input/state before its next step;
+  5. actor placement (`800D4A6C`/`800D4B0C`) for all actors, then each ball
+     record in the saved pool (byte count, stride `0xF4`) runs `800C0FE4`,
+     visual publication `800C09D8` and its draw matrix refresh. Delta is
+     **1 game tick**, not wall-clock seconds. Matrix translation publication
+     is the ball module's documented host scene connection.
 
-  Then the native placement (`800D4A6C`/`800D4B0C`) puts it on the field.
+  Ball motion consumes the current carrier root after movement and pose.
+  Simulation runs once per fixed update, independently of render rate.
 - **Animation integration (candidate; live smoke verification pending):**
   with `NFL_LIVE_ANIMDIR` set, streamed frames come from the bank files.
   The persistent `channel_callbacks` context supplies program events and
@@ -69,36 +84,46 @@ forwards each one to Aurora's GX as it is issued:
   and [clip requests](../../reconstruction/native_assets/clip_requests.md)
   for the modules' evidence and remaining verification limits.
 
-  The live selector adapter is a bounded, source-traced integration, not a
-  verified reconstruction of `800150E8`: it covers selectors 0, 4–A and
-  the `actor+3` byte equal to 2 branch of selectors 1/2/3. Other 1/2/3 branches require
-  `8006510C` and `80014750`/`80014898`; suppression paths that need
-  `8004F214` are also unavailable. They log and hold the request without
-  inventing predicate results. **Ordinary stick movement selects 1, so
-  full game-driven locomotion selection remains incomplete.** Existing
-  channel programs and callbacks continue updating while a request is held.
-  `NFL_LIVE_HOST_LOCOMOTION=1` explicitly enables the previous host pose
-  controller for unsupported selectors (or without channel animation),
-  using `NFL_LIVE_ANIMDATA` and `NFL_LIVE_SETS`. With channel animation on,
-  all actors still run every pass before that fallback overwrites the
-  controlled player's pose. Without the fallback, `live_pose.c` does not
-  choose the controlled player's clips.
+  The default controlled-player selector is now the reconstructed predicate
+  module. Its request adapter propagates clip/group/event failures; every
+  selection result other than 1 stops the update with diagnostics. The two
+  downstream gameplay event services `80076C48` and `80076E18` remain
+  unreconstructed: reaching one logs its function, actor and mode and stops
+  with exit code 5. No event effects or predicate values are invented.
+
+  `NFL_LIVE_HOST_LOCOMOTION=1` explicitly bypasses native selection and runs
+  the previous host pose controller using `NFL_LIVE_ANIMDATA` and
+  `NFL_LIVE_SETS`. This fallback remains for those missing gameplay event
+  systems or operation without streamed banks. With channel animation on,
+  all actors still run every channel pass before the fallback overwrites
+  the controlled player's pose. Default animation needs `NFL_LIVE_ANIMDIR`,
+  with no host catalog. The live target gives the predicates entry a local
+  link alias (`nflstreet_live_locomotion_select`) because the older host
+  catalog selector exports the same name; neither verified module is changed.
 
   The camera follows by the player's movement (a host choice).
   `NFL_LIVE_SCRIPT=1` drives right, forward, then left for captures.
 - **Each frame (scene_frame.c):** the field camera, its slots (`801DF8C4`,
   `801DF938` and `801DFAB0`'s tail) and the light update (`801ED3A0`), then
-  the venue, the crowd and street props (`800D2F20`), the actor fans
+  the sky node/clouds (entry 1, original enable bytes), the venue, the crowd
+  and street props (`800D2F20`), the actor fans
   (`801646CC`), the ball, then per player its name tag projection
   (`800DB0E4`), skinning palettes (`80162760`, with the scaled form when
-  `r13-7238` is set) and draw, then the actor strips (`801649C4`) and
+  `r13-7238` is set) and draw, then field overlay entry 14 (`800E5CA0` ->
+  `800D1118`, gated by byte `r13-71C0`) while the field camera node is
+  selected, then the actor strips (`801649C4`) and
   particles (`80158798`), then the HUD.
 - **Camera:** the C-stick turns the field camera (or `NFL_LIVE_ORBIT`, a
   24-bit angle per frame).
-- **Not live yet:** the remaining movement-selector gameplay predicates,
-  the other players' movement, the
-  ball, clouds (verified but invisible in the saved frames) and the HUD
-  values.
+- **Remaining boundaries:** the other players' movement, HUD values, full
+  ball state/force dispatch, release/catch decisions, spin, wind, ground-rest
+  and contacts, and the two downstream locomotion gameplay event systems.
+  Unsupported ball inputs stop the update. Clouds are integrated but their
+  original saved alpha yields effectively invisible pixels.
+- **Integration validation:** render executables and changed live C sources
+  cross-compile here. Original-module gates, render expectation regeneration,
+  full MSVC build and window smoke run belong to the external check script;
+  this integration makes no new runtime or exact-pixel verification claim.
 
 ## Build and run
 
@@ -126,10 +151,11 @@ Options:
 - `NFL_LIVE_TRACE=<file>` logs every bridged call.
 - `NFL_LIVE_ANIMDIR=<unpacked/animdata directory>` enables channel animation
   for every actor, native group/event callbacks and the controlled player's
-  supported movement-state clip requests. Without it, channel animation
+  reconstructed locomotion predicates and clip requests. Without it, channel animation
   and requests are off; with no host fallback the saved stance remains.
-- `NFL_LIVE_HOST_LOCOMOTION=1` opts into the host controller fallback for
-  unsupported selectors (default: off). Requires both files below; invalid
+- `NFL_LIVE_HOST_LOCOMOTION=1` bypasses native selection for the explicit
+  host controller fallback (default: off), retained for unreconstructed
+  gameplay events or missing bank streaming. Requires both files below; invalid
   fallback inputs or an animation directory with no mapped banks exit with
   code 4.
 - `NFL_LIVE_ANIMDATA=<animdata/00111.bin>` and `NFL_LIVE_SETS=<NSC1 catalog>`
