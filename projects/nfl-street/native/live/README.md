@@ -84,6 +84,71 @@ forwards each one to Aurora's GX as it is issued:
 
   Ball motion consumes the current carrier root after movement and pose.
   Simulation runs once per fixed update, independently of render rate.
+- **Non-controlled actors (candidate live integration):** `live_ai.c` reads
+  the gameplay roster at `*(r13-7C30)` (array at +0, u16 count at +0A,
+  stride `0x14D4`). It seeds a separate `nflstreet_live_movement` from each
+  actor's own header, signed BB4/BBC ratings, +408, twelve +200 input words
+  and twenty-one +1A8 movement words, with the same first-update reset as
+  the controlled actor. The host-selected player and actors whose original
+  +8 byte is not FF keep their existing controlled path.
+
+  After the rings, the fixed update dispatches each actor's saved +BE4
+  queue (`8007E0B4`, index 0, controlled=false), then runs selector commit
+  (`800150E8`) and input finalization (`800F8214`). Supported actors step
+  from all twelve **committed RAM input words**, using the movement runtime
+  directly, never the stick/target projection adapters. Status zero uses the
+  verified braking branch; status one uses the bounded movement step. The
+  wrapper clears transient +20E/+21E and publishes +1C0 at `*(actor+31C)+8`,
+  as in `800F86BC`'s tail. Other movement branches, including its flag-100
+  tail, hold only that actor and log once. Runtime blocks are refreshed from
+  RAM before movement and after the existing all-actor channel/pose passes.
+  Placement for all actors remains after pose and before ball motion/draw.
+  The wrapper connection is compile-checked, not newly oracle-verified.
+
+  **This does not yet make the saved thirteen AI actors move.** The verified
+  dispatcher still delegates their policy callbacks to missing services.
+  In saved context 15, direct RAM inspection finds these update PCs:
+
+  | Saved state row | Missing policy PC | Actors |
+  | --- | --- | --- |
+  | 20 | `800AAC08` | 6 |
+  | 5C | `800AFC88` | 3 |
+  | 02 | `8006E2E4` | 1 |
+  | 1A | `8007C180` | 1 |
+  | 21 | `800A0D10` | 2 |
+
+  These counts describe that capture, not a new claim about policy semantics.
+  There is no production AI service provider or original-module DLL in this
+  app. Play selection, assignment installation, other policies, interaction
+  effects, contact admission (`8005DCF8`) and reached avoidance (`800F8088`)
+  remain unmodeled; queues and assignments are never replaced with follow.
+  Contact admission is required by input finalization even if dispatch
+  succeeds, so implementing only those five policy PCs is insufficient.
+
+  To retain the saved state and the existing controlled-player behavior,
+  the host snapshots MEM1 before an AI dispatch/finalization call, restores
+  **all** its writes if it reaches a missing service, logs the phase/actor/PC
+  once, and holds that actor for the rest of this run. This is an explicit
+  host containment rule around a rejected call, not an original idle policy
+  or successful service result. Eight target bytes are owned by the live
+  context behind an AI-only host token outside MEM1; no game RAM is borrowed
+  for scratch. The rollback buffer uses another 24 MiB of host memory.
+  RAM/arithmetic failures and clip/gameplay-event failures still stop updates;
+  clip providers retain host state, so MEM1 rollback cannot undo their effects.
+
+  Every 120 render frames and at clean exit, the app flushes `AI movement:
+  N/13 actors changed XY` with last-update, rejection and missing-service
+  counts. This counts actual movement write-back, not successful dispatches
+  or animation. The external context-15 smoke log at
+  `/mnt/w/Daywater/research-temp/nflstreet-live-smoke-codex-aiwire/smoke.log`
+  records **0/13**, all held for missing policies, through frame 1320 and
+  668 completed AI updates at its last summary. The app kept rendering;
+  the first smoke verdict was a false positive because its failure-word
+  search matched the zero-valued summary `0 rejected movement`. Routine
+  summaries now label that counter `movement holds`. Actual movement
+  rejection still emits `takes an unreconstructed branch` once per actor;
+  fatal failure diagnostics are unchanged. No gate or input generator was
+  changed, and the next external run must confirm the smoke verdict.
 - **Animation integration (candidate; live smoke verification pending):**
   with `NFL_LIVE_ANIMDIR` set, streamed frames come from the bank files.
   The persistent `channel_callbacks` context supplies program events and
@@ -127,7 +192,8 @@ forwards each one to Aurora's GX as it is issued:
   particles (`80158798`), then the HUD.
 - **Camera:** the C-stick turns the field camera (or `NFL_LIVE_ORBIT`, a
   24-bit angle per frame).
-- **Remaining boundaries:** the other players' movement, HUD values, full
+- **Remaining boundaries:** the other players' missing AI policy/effect
+  services and movement branches outside the bounded runtime, HUD values, full
   ball state/force dispatch, release/catch decisions, spin, wind, ground-rest
   and contacts, and the two downstream locomotion gameplay event systems.
   Unsupported ball inputs stop the update. Clouds are integrated but their
