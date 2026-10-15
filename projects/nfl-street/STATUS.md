@@ -57,6 +57,16 @@ faults caught:
   ([actor_slerp.md](reconstruction/native_assets/gekko_quaternion/actor_slerp.md),
   [actor_dynamics.md](reconstruction/native_assets/actor_dynamics.md)).
 
+- **Clip requests and channel callbacks:** `8017413C`/`80177EF4`/`80178780`
+  and the group/event callbacks (r13-0x6718 tables, `8001532C`) are native
+  ([clip_requests.md](reconstruction/native_assets/clip_requests.md),
+  [channel_callbacks.md](reconstruction/native_assets/channel_callbacks.md)).
+  In the live app the other players' programs continue, and the controlled
+  player's clips come from the game's own requests where the selector
+  inputs are reconstructed (`NFL_LIVE_HOST_LOCOMOTION=1` restores the host
+  controller). Written by Codex; checked and integrated through the
+  automated write/check loop.
+
 The scene and the live app now run all of these. Two Codex-written modules
 (camera projection and scaled actors) were checked here before merging.
 
