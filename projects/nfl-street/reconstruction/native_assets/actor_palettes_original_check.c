@@ -2,10 +2,9 @@
    matrix 800D4B0C) against the original on a saved context. Each case prepares a fresh copy of the saved RAM (the viewport's
    stack selected, the palette pool emptied as at frame start) and runs all
    14 actors, natively and then in the preserved original module from the
-   same RAM and locked cache. Every routine executes in the original except:
-   the enabled head and hand dynamics (8004C268/8004BF1C with a nonzero
-   third argument), which return at once as natively; the locked-cache
-   enable and cache flush (801F0C84, 801F0BD0), which have no RAM effect;
+   same RAM and locked cache. Every routine executes in the original
+   (including the head and hand dynamics 8004C268/8004BF1C) except: the
+   locked-cache enable and cache flush (801F0C84, 801F0BD0), which have no RAM effect;
    and the locked-cache DMA 801F0DD4, served by copying whole 32-byte blocks
    from the oracle's locked cache. All RAM outside the oracle stack and the
    locked cache must be equal. Case 0 is the saved frame; the others edit
@@ -102,7 +101,6 @@ static int run_original(uint32_t pc,const uint32_t *args,unsigned n){
  for(unsigned step=0;c.pc;++step){
   if(step>20000000u){fprintf(stderr,"%08x did not return (pc %08x)\n",pc,c.pc);return 0;}
   const uint32_t at=c.pc;
-  if((at==0x8004bf1cu||at==0x8004c268u)&&c.gpr[5]){c.pc=c.lr;continue;}
   if(at==0x801f0c84u||at==0x801f0bd0u){c.pc=c.lr;continue;}
   if(at==0x801f0dd4u){const uint32_t n=(c.gpr[5]+0x1fu)&~0x1fu;uint8_t *to=ram_at(oracle,c.gpr[3],n);const uint8_t *from=external(&c,c.gpr[4],n);
    if(n&&(!to||!from)){fprintf(stderr,"DMA %08x <- %08x (%u) outside memory\n",c.gpr[3],c.gpr[4],n);return 0;}if(n)memmove(to,from,n);c.pc=c.lr;continue;}

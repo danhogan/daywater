@@ -48,6 +48,15 @@ faults caught:
   the live app the other 13 players now animate from their saved channel
   state; clip requests and the group callbacks are not reconstructed yet.
 
+- **Per-player skinning is complete:** the slerped body form `801EAD98`/
+  `801CA900` (flag 0x4000) and the head and hand secondary motion
+  `8004C268`/`8004BF1C` are native, so `80162760` now runs with no skipped
+  routine (only the cache instructions, which touch no RAM, return early in
+  its check). The game's own sine, square root and arc cosine (`80216B94`,
+  `802165C8`, `80215844`) are reconstructed bit for bit for it
+  ([actor_slerp.md](reconstruction/native_assets/gekko_quaternion/actor_slerp.md),
+  [actor_dynamics.md](reconstruction/native_assets/actor_dynamics.md)).
+
 The scene and the live app now run all of these. Two Codex-written modules
 (camera projection and scaled actors) were checked here before merging.
 

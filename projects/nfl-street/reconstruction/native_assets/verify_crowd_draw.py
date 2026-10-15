@@ -19,18 +19,15 @@ EXPECTED = {
     "7610 model and copy draws completed; digest 9fba097b.",
 }
 RENDERED = {
-    14: "Scene without crowd: 5845 venue GX calls, 23208 in all; 732 display lists, 28002 triangles (9966 "
-    "culled, 3119 clipped), 1288583 shaded pixels; digest 903eefb5.\nScene with crowd: 6444 venue GX "
-    "calls, 23807 in all; 752 display lists, 30894 triangles (11003 culled, 3119 clipped), 1289042 shaded"
-    " pixels; digest e538d9f5.",
-    15: "Scene without crowd: 5842 venue GX calls, 21817 in all; 732 display lists, 27898 triangles (9948 "
-    "culled, 3114 clipped), 1290660 shaded pixels; digest 2c3be665.\nScene with crowd: 6441 venue GX "
-    "calls, 22416 in all; 752 display lists, 30790 triangles (10991 culled, 3114 clipped), 1291127 shaded"
-    " pixels; digest 1b0276af.",
-    16: "Scene without crowd: 5895 venue GX calls, 22645 in all; 732 display lists, 27931 triangles (9936 "
-    "culled, 3115 clipped), 1287330 shaded pixels; digest 5188a0c4.\nScene with crowd: 6494 venue GX "
-    "calls, 23244 in all; 752 display lists, 30823 triangles (10977 culled, 3115 clipped), 1287793 shaded"
-    " pixels; digest 3d82697f.",
+    14: "Scene without crowd: 5845 venue GX calls, 23208 in all; 732 display lists, 28002 triangles (9965 culled, 3119 "
+    "clipped), 1288584 shaded pixels; digest 90962aa4.\nScene with crowd: 6444 venue GX calls, 23807 in all; 752 "
+    "display lists, 30894 triangles (11002 culled, 3119 clipped), 1289043 shaded pixels; digest 7a414a64.",
+    15: "Scene without crowd: 5842 venue GX calls, 21817 in all; 732 display lists, 27898 triangles (9948 culled, 3114 "
+    "clipped), 1290660 shaded pixels; digest 79e21c4c.\nScene with crowd: 6441 venue GX calls, 22416 in all; 752 "
+    "display lists, 30790 triangles (10991 culled, 3114 clipped), 1291127 shaded pixels; digest 7e42426e.",
+    16: "Scene without crowd: 5895 venue GX calls, 22645 in all; 732 display lists, 27931 triangles (9939 culled, 3115 "
+    "clipped), 1287325 shaded pixels; digest c53cf63f.\nScene with crowd: 6494 venue GX calls, 23244 in all; 752 "
+    "display lists, 30823 triangles (10980 culled, 3115 clipped), 1287788 shaded pixels; digest a9be1328.",
 }
 SOURCES = (
     "crowd_draw.c",
@@ -66,6 +63,14 @@ SOURCES = (
     "actor_scale.c",
     "actor_scale.h",
     "actor_palettes.c",
+    "gekko_quaternion/quaternion_kernels.c",
+    "gekko_quaternion/quaternion_kernels.h",
+    "gekko_quaternion/actor_slerp.c",
+    "gekko_quaternion/actor_slerp.h",
+    "actor_dynamics.c",
+    "actor_dynamics.h",
+    "actor_dynamics_math.c",
+    "actor_dynamics_math.h",
     "gx_texobj.c",
     "texture.c",
     "build_windows_crowd_draw_original_check.sh",

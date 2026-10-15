@@ -70,9 +70,11 @@ forwards each one to Aurora's GX as it is issued:
   particles (`80158798`), then the HUD.
 - **Camera:** the C-stick turns the field camera (or `NFL_LIVE_ORBIT`, a
   24-bit angle per frame).
-- **Not live yet:** the game's own clip selection, the head and hand
-  secondary motion (skipped when enabled), the slerped body form (flag
-  0x4000), other players, the ball, clouds (verified but invisible in the saved frames) and the HUD values.
+- **Not live yet:** the clip requests that start new animations (the
+  controlled player's clips are a host choice; other players hold their
+  last pose when their programs end), the other players' movement, the
+  ball, clouds (verified but invisible in the saved frames) and the HUD
+  values.
 
 ## Build and run
 

@@ -22,10 +22,8 @@ typedef struct {
    (+3AC), items the address of the two held-item models.
    Flag 0x4000 selects gekko_quaternion/actor_slerp.c (801EAD98/801CA900),
    verified against the original with the rest of this routine.
-   The secondary head and hand dynamics
-   8004C268/8004BF1C are modeled only for their disabled form (they clear
-   the state's +02 byte); when enabled they are skipped, leaving their state
-   as stored. */
+   The secondary head and hand dynamics 8004C268/8004BF1C run natively
+   (actor_dynamics.c). */
 int nflstreet_actor_palettes(nflstreet_actor_palette_context *,uint32_t actor,const float *scale,uint32_t world,uint32_t items,
  uint32_t lod);
 #endif

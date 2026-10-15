@@ -2,7 +2,9 @@
 
 #include <string.h>
 
-#ifdef __clang__
+#if defined(_MSC_VER)
+#define PPC_NOINLINE __declspec(noinline)
+#elif defined(__clang__)
 #define PPC_NOINLINE __attribute__((noinline))
 #else
 #define PPC_NOINLINE __attribute__((noinline, noclone))
@@ -178,11 +180,21 @@ static PPC_NOINLINE float ppc_fmadds(float left, float right, float addend)
 
 /* 802165C8.  This is the MSL restoring square-root loop, including its
    final tie-to-even increment; it is deliberately integer-only. */
+/* The quiet NaN the verified builds produce for 0/0 (0x7FC00000), spelled
+   out so every compiler returns the same bits. */
+static float msl_quiet_nan(void)
+{
+    const uint32_t bits = 0x7fc00000u;
+    float value;
+    memcpy(&value, &bits, sizeof value);
+    return value;
+}
+
 static float msl_sqrt(float x)
 {
     uint32_t ix = msl_bits(x);
     if ((ix & 0x7fffffffu) == 0) return x;
-    if (ix & 0x80000000u) return 0.0f / 0.0f;
+    if (ix & 0x80000000u) return msl_quiet_nan();
     int m = (int)(ix >> 23) - 127;
     ix = (ix & 0x007fffffu) | 0x00800000u;
     if (m & 1) ix += ix;
@@ -490,7 +502,7 @@ float nflstreet_80216b94_sine(float x)
     }
     /* 801A383C never reaches the MSL large-argument reducer.  Keep this
        explicit instead of silently replacing it with a host transcendental. */
-    return 0.0f / 0.0f;
+    return msl_quiet_nan();
 }
 
 void nflstreet_801a36ec_quaternion(int32_t x, int32_t y, int32_t z,

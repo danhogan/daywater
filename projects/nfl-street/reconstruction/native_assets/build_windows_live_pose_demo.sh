@@ -11,7 +11,7 @@ zig=${DAYWATER_ZIG:-/mnt/w/Daywater/tools/zig-x86_64-linux-0.16.0/zig}
  -DNFLSTREET_ACTOR_UPDATE_NO_MAIN -DNFLSTREET_PREPARATION_NO_MAIN -DNFLSTREET_COMMAND_NO_MAIN -DNFLSTREET_KINEMATICS_NO_MAIN \
  -DNFLSTREET_RESET_NO_MAIN -DNFLSTREET_INPUT_TRANSLATION_NO_MAIN -DNFLSTREET_ACTOR_TARGET_INPUT_NO_MAIN \
  "$root/live_pose_demo.c" "$root/live_pose.c" "$root/actor_pose.c" "$root/actor_skeleton.c" "$root/compact_pose.c" \
- "$root/actor_palettes.c" "$root/gekko_quaternion/quaternion_kernels.c" "$root/gekko_quaternion/actor_slerp.c" "$root/actor_world.c" "$root/cluster_palette.c" "$root/model_view.c" "$root/matrix_stack.c" "$root/draw_engine.c" \
+ "$root/actor_palettes.c" "$root/gekko_quaternion/quaternion_kernels.c" "$root/gekko_quaternion/actor_slerp.c" "$root/actor_dynamics.c" "$root/actor_dynamics_math.c" "$root/actor_world.c" "$root/cluster_palette.c" "$root/model_view.c" "$root/matrix_stack.c" "$root/draw_engine.c" \
  "$root/live_locomotion.c" "$root/pose.c" "$root/live_movement.c" \
  "$r/actor_target_input/locomotion_selection.c" "$r/actor_target_input/asset_loader.c" "$r/actor_target_input/animation_channels.c" \
  "$r/actor_target_input/command_timing.c" \

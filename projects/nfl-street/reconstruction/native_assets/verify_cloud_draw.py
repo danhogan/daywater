@@ -15,17 +15,17 @@ ORACLE = (
 EXPECTED = {14: ORACLE.format("d621b617"), 15: ORACLE.format("1893cf17"), 16: ORACLE.format("c2c9bdf8")}
 RENDERED = {
     14: "Scene with the sky alone: 6444 venue GX calls and writes, 23807 in all; 752 display lists, 10059 primitives, "
-    "30894 triangles (11003 culled, 3119 clipped), 1289042 shaded pixels; digest e538d9f5.\nScene with the sky "
+    "30894 triangles (11002 culled, 3119 clipped), 1289043 shaded pixels; digest 7a414a64.\nScene with the sky "
     "node: 15528 venue GX calls and writes, 32891 in all; 752 display lists, 10139 primitives, 31456 triangles "
-    "(11003 culled, 3597 clipped), 1289487 shaded pixels; digest e538d9f5.",
+    "(11002 culled, 3597 clipped), 1289488 shaded pixels; digest 7a414a64.",
     15: "Scene with the sky alone: 6441 venue GX calls and writes, 22416 in all; 752 display lists, 10050 primitives, "
-    "30790 triangles (10991 culled, 3114 clipped), 1291127 shaded pixels; digest 1b0276af.\nScene with the sky "
+    "30790 triangles (10991 culled, 3114 clipped), 1291127 shaded pixels; digest 7e42426e.\nScene with the sky "
     "node: 15523 venue GX calls and writes, 31498 in all; 752 display lists, 10130 primitives, 31352 triangles "
-    "(10991 culled, 3592 clipped), 1291572 shaded pixels; digest 1b0276af.",
+    "(10991 culled, 3592 clipped), 1291572 shaded pixels; digest 7e42426e.",
     16: "Scene with the sky alone: 6494 venue GX calls and writes, 23244 in all; 752 display lists, 10037 primitives, "
-    "30823 triangles (10977 culled, 3115 clipped), 1287793 shaded pixels; digest 3d82697f.\nScene with the sky "
+    "30823 triangles (10980 culled, 3115 clipped), 1287788 shaded pixels; digest a9be1328.\nScene with the sky "
     "node: 15578 venue GX calls and writes, 32328 in all; 752 display lists, 10117 primitives, 31385 triangles "
-    "(10977 culled, 3589 clipped), 1288237 shaded pixels; digest 3d82697f.",
+    "(10980 culled, 3589 clipped), 1288232 shaded pixels; digest a9be1328.",
 }
 SOURCES = (
     "cloud_draw.c",
@@ -62,6 +62,14 @@ SOURCES = (
     "name_tag_project.h",
     "marker_ram.h",
     "actor_palettes.c",
+    "gekko_quaternion/quaternion_kernels.c",
+    "gekko_quaternion/quaternion_kernels.h",
+    "gekko_quaternion/actor_slerp.c",
+    "gekko_quaternion/actor_slerp.h",
+    "actor_dynamics.c",
+    "actor_dynamics.h",
+    "actor_dynamics_math.c",
+    "actor_dynamics_math.h",
     "gx_texobj.c",
     "texture.c",
     "build_windows_cloud_draw_original_check.sh",

@@ -1,5 +1,6 @@
 #include "actor_palettes.h"
 #include "cluster_palette.h"
+#include "actor_dynamics.h"
 #include "gekko_quaternion/actor_slerp.h"
 #include <string.h>
 #define rd32 nflstreet_rd32
@@ -65,15 +66,13 @@ static int copy_out(context *c,uint32_t actor,uint32_t m,uint32_t desc){
 /* Copy three angles from the body pose into a sub-model's pose. */
 static int angles(context *c,uint32_t to,uint32_t from){
  uint8_t *t=mem(c,to,6);const uint8_t *f=mem(c,from,6);if(!t||!f)return 0;memmove(t,f,6);return 1;}
-/* 8004BF1C/8004C268 in their disabled form. */
-static int dynamics_off(context *c,uint32_t state){uint8_t *p=mem(c,state+2,1);if(!p)return 0;*p=0;return 1;}
 int nflstreet_actor_palettes(context *c,uint32_t actor,const float *scale,uint32_t world,uint32_t items,uint32_t lod){
  static nflstreet_render_state unused;
  if(!c||!c->x||!c->x->span||!actor)return 0;
  nflstreet_draw dd={c->x,&unused},*d=&dd;const nflstreet_matrix_stacks *k=&c->stacks;
  uint32_t flags,pose,skeleton,m,count;const uint8_t *a=mem(c,actor,0x1360);float s;
  if(!a)return 0;flags=rd32(a+0x14);pose=rd32(a+0x5c);skeleton=rd32(a+0x60);s=fword(a+0x1358);
- const int dynamic=((flags^8u)>>3)&1u;
+ const int dynamic=((flags^8u)>>3)&1u;nflstreet_actor_dynamics_context dc={c->x,c->stacks}; /* 8004C268/8004BF1C */
  if(!nflstreet_matrix_push(d,k)||!nflstreet_matrix_concat(d,k,world,c->unit)||!nflstreet_matrix_scale(d,k,fword(a+0x18),fword(a+0x18),fword(a+0x18)))return 0;
  if(scale&&!nflstreet_matrix_scale(d,k,scale[0],scale[1],scale[2]))return 0;
  if(!nflstreet_matrix_push(d,k))return 0;
@@ -87,15 +86,15 @@ int nflstreet_actor_palettes(context *c,uint32_t actor,const float *scale,uint32
   if(count&&((lod<2&&!scale_rows(c,m,base,0xd,1,1,s))||!copy_out(c,actor,m,parts[i].desc)))return 0;}
  if(!nflstreet_matrix_pop(d,k))return 0;
  if((m=rd32(a+0x698))){uint32_t head=rd32(a+0x344);
-  if(!nflstreet_matrix_push(d,k)||!nflstreet_matrix_load(d,k,actor+0x3ac)||(!dynamic&&!dynamics_off(c,actor+0x214))||!nflstreet_matrix_pop(d,k)||
+  if(!nflstreet_matrix_push(d,k)||!nflstreet_matrix_load(d,k,actor+0x3ac)||!nflstreet_actor_head_dynamics(&dc,actor,actor+0x214,dynamic)||!nflstreet_matrix_pop(d,k)||
      !nflstreet_matrix_push(d,k)||!nflstreet_matrix_concat(d,k,skeleton+0x340,c->unit)||!angles(c,head,pose+0x4e)||
      !attachment(c,d,m,actor+0x1020,head,&count))return 0;
   if(count&&((lod<2&&!scale_rows(c,m,LOCKED,0,0,1,s))||!copy_out(c,actor,m,0x1020)))return 0;
   if(!nflstreet_matrix_pop(d,k))return 0;}
  for(unsigned i=0;i<2;++i){const uint32_t state=actor+0x11c+0x7cu*i;
-  if(lod){if(!dynamics_off(c,state))return 0;continue;}
+  if(lod){if(!nflstreet_actor_hand_dynamics(&dc,actor,state,0))return 0;continue;}
   const uint32_t bone=i?0xe:0x14,to=rd32(a+0x18c+0x7cu*i);
-  if(!nflstreet_matrix_push(d,k)||!nflstreet_matrix_load(d,k,actor+0x3ac)||(!dynamic&&!dynamics_off(c,state))||!nflstreet_matrix_pop(d,k)||
+  if(!nflstreet_matrix_push(d,k)||!nflstreet_matrix_load(d,k,actor+0x3ac)||!nflstreet_actor_hand_dynamics(&dc,actor,state,dynamic)||!nflstreet_matrix_pop(d,k)||
      !nflstreet_matrix_push(d,k)||!nflstreet_matrix_concat(d,k,skeleton+0x40u*bone,c->unit)||!angles(c,to,pose+6u*bone)||
      !body(c,d,rd32(a+0xd28+0xf0u*i),actor+0x105c+0xcu*i,to,0)||!nflstreet_matrix_pop(d,k))return 0;}
  if(lod<2)for(unsigned i=0;i<2;++i){if(a[0x78+0x48u*i]!=1)continue;
