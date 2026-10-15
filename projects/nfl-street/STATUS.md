@@ -25,7 +25,34 @@ assignments and LOD are explicit fixture inputs; fresh actor instances, natural
 head roots/pose selection and matrix token publication remain open. See
 [owned attachment palettes](reconstruction/native_assets/match_attachment_palettes.md).
 
-**Latest rendering: the frame gains fans, strips and particles, live camera projection and the scaled-actor path.**
+**Latest rendering: field overlay, sky node/clouds, live ball and native locomotion selection are connected.**
+The scene now runs entry 14 (`800E5CA0 -> 800D1118`) after the players,
+while the field camera is still selected, before strips/particles; its
+original `r13-71C0` byte gates the draw. Entry 1 runs the sky node and
+clouds with their original gates. Projection-vector calls update both the
+software executor and Aurora; the overlay's full-matrix projection and
+depth observations are also handled. Software checks read their current
+EFB depth. Aurora uses real asynchronous Z24 readback, retaining the last
+sample per probe (initially hidden); this latency is a host choice.
+
+Each live 60 Hz update selects the controlled player's clips through the
+reconstructed locomotion predicates, before all actors' channel passes,
+and retains their input/movement writes for the next movement step. After
+poses and actor placement, each ball record runs motion, visual pose and
+matrix publication with delta 1 game tick. Full ball state/force dispatch,
+spin/wind/contact branches and the locomotion event services `80076C48` /
+`80076E18` remain unmodeled; reached unsupported branches stop updates.
+`NFL_LIVE_HOST_LOCOMOTION=1` explicitly bypasses native selection and uses
+the host controller for those unreconstructed event paths or missing
+streamed banks. The default requires only `NFL_LIVE_ANIMDIR` for animation.
+See [field overlay](reconstruction/native_assets/field_overlay.md),
+[ball update](reconstruction/native_assets/ball_update.md),
+[locomotion predicates](reconstruction/native_assets/locomotion_predicates.md)
+and [live app](native/live/README.md). Integration is compiled here; the
+external gate owns render rebaselining, original-module checks and live
+build/smoke verification. No new execution or pixel claim is made here.
+
+**Earlier rendering: the frame gains fans, strips and particles, live camera projection and the scaled-actor path.**
 Each matches the original module on all RAM (and every GX call and pipe
 write where there are any) in all three saved contexts, with planted
 faults caught:

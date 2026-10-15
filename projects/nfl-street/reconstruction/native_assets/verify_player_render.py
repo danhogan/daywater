@@ -4,14 +4,21 @@
 import json
 from pathlib import Path
 
+from verify_actor_channels import SOURCES as CHANNEL_SOURCES
 from verify_actor_palettes import SOURCES as PALETTE_SOURCES
 from verify_actor_scale import SOURCES as SCALE_SOURCES
+from verify_ball_update import SOURCES as BALL_SOURCES
 from verify_camera_projection import SOURCES as PROJECTION_SOURCES
+from verify_channel_callbacks import SOURCES as CALLBACK_SOURCES
+from verify_clip_requests import SOURCES as CLIP_SOURCES
+from verify_cloud_draw import SOURCES as CLOUD_SOURCES
 from verify_controller_checks import PRIVATE, baseline_hashes, digest, private, run, windows
 from verify_crowd_draw import SOURCES as CROWD_SOURCES
 from verify_effects_draw import SOURCES as EFFECTS_SOURCES
+from verify_field_overlay import SOURCES as OVERLAY_SOURCES
 from verify_hud_draw import SOURCES as HUD_SOURCES
 from verify_light_rig import SOURCES as LIGHT_SOURCES
+from verify_locomotion_predicates import SOURCES as LOCOMOTION_SOURCES
 from verify_player_draw import SOURCES as DRAW_SOURCES
 from verify_player_markers import SOURCES as MARKER_SOURCES
 from verify_player_startup import source_hashes
@@ -107,6 +114,11 @@ SOURCES = (
     "texture.h",
     "build_windows_player_render_check.sh",
     "verify_player_render.py",
+    "cloud_draw.c",
+    "cloud_draw.h",
+    "field_overlay.c",
+    "field_overlay.h",
+    "gekko_float.h",
 )
 BOUNDARY = (
     "Software GX execution of the verified native 80161E10 submission for the 14 captured players of three saved "
@@ -141,6 +153,13 @@ def main() -> None:
     projection_report = private(PRIVATE / "research-temp/nflstreet-camera-projection-20261014/verification.json")
     effects_report = private(PRIVATE / "research-temp/nflstreet-effects-draw-20261014/verification.json")
     scale_report = private(PRIVATE / "research-temp/nflstreet-actor-scale-20261014/verification.json")
+    cloud_draw_report = private(PRIVATE / "research-temp/nflstreet-cloud-draw-20261014/verification.json")
+    field_overlay_report = private(PRIVATE / "research-temp/nflstreet-frame14-20261015/verification.json")
+    ball_update_report = private(PRIVATE / "research-temp/nflstreet-ball-20261015/verification.json")
+    locomotion_predicates_report = private(PRIVATE / "research-temp/nflstreet-locopred-20261015/verification.json")
+    actor_channels_report = private(PRIVATE / "research-temp/nflstreet-actor-channels-20261014/verification.json")
+    channel_callbacks_report = private(PRIVATE / "research-temp/nflstreet-clips2-20261015/verification.json")
+    clip_requests_report = private(PRIVATE / "research-temp/nflstreet-clips-20261015/verification.json")
     entries = tuple("native_assets/" + name for name in SOURCES)
     record: dict[str, object] = {"status": "running", "boundary": BOUNDARY}
     try:
@@ -154,6 +173,13 @@ def main() -> None:
             (marker_report, MARKER_SOURCES),
             (projection_report, PROJECTION_SOURCES),
             (effects_report, EFFECTS_SOURCES),
+            (cloud_draw_report, CLOUD_SOURCES),
+            (field_overlay_report, OVERLAY_SOURCES),
+            (ball_update_report, BALL_SOURCES),
+            (locomotion_predicates_report, LOCOMOTION_SOURCES),
+            (actor_channels_report, CHANNEL_SOURCES),
+            (channel_callbacks_report, CALLBACK_SOURCES),
+            (clip_requests_report, CLIP_SOURCES),
             (scale_report, SCALE_SOURCES),
         ):
             reference = json.loads(path.read_text())

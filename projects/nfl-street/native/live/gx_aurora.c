@@ -1,4 +1,6 @@
 #include "gx_aurora.h"
+#include "field_overlay.h"
+#include <stdbool.h>
 #include <dolphin/gx.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +11,7 @@
 typedef struct {uint32_t base,size;uint8_t attr;} array_size;
 struct nflstreet_gx_aurora {
  uint8_t *ram;uint32_t ram_bytes;unsigned calls;
+ struct {AuroraReadbackStream stream;uint32_t depth;} *probes;unsigned probe_count,probe_capacity,probe_index;
  uint8_t desc[26],cnt[8][26],type[8][26],frac[8][26];
  struct {uint32_t base,stride,set_size;int dirty;} arrays[26];
  array_size sizes[ARRAY_SIZES];unsigned size_count;
@@ -29,9 +32,10 @@ static GXColor color(uint32_t v){GXColor c={(u8)(v>>24),(u8)(v>>16),(u8)(v>>8),(
 
 nflstreet_gx_aurora *nflstreet_gx_aurora_open(uint8_t *ram,uint32_t ram_bytes){
  nflstreet_gx_aurora *b=calloc(1,sizeof *b);if(!b)return NULL;b->ram=ram;b->ram_bytes=ram_bytes;return b;}
-void nflstreet_gx_aurora_new_frame(nflstreet_gx_aurora *b){for(unsigned a=21;a<=22;++a)b->arrays[a].dirty=1;}
-void nflstreet_gx_aurora_close(nflstreet_gx_aurora *b){if(b){nflstreet_gx_aurora_new_frame(b);free(b->writes);free(b->bytes);}free(b);}
+void nflstreet_gx_aurora_new_frame(nflstreet_gx_aurora *b){b->probe_index=0;for(unsigned a=21;a<=22;++a)b->arrays[a].dirty=1;}
+void nflstreet_gx_aurora_close(nflstreet_gx_aurora *b){if(b){nflstreet_gx_aurora_new_frame(b);free(b->writes);free(b->bytes);for(unsigned i=0;i<b->probe_count;++i)AuroraReadbackDestroyStream(b->probes[i].stream);free(b->probes);}free(b);}
 unsigned nflstreet_gx_aurora_calls(const nflstreet_gx_aurora *b){return b?b->calls:0;}
+static uint32_t direct_bytes(const nflstreet_gx_aurora *,unsigned f,unsigned a);
 static int set_arrays(nflstreet_gx_aurora *b,const uint32_t max_index[26],const int used[26]);
 /* Submits the buffered primitive: arrays sized from its indices, then
    GXBegin, the writes as recorded, GXEnd. */
@@ -48,6 +52,22 @@ static int submit_primitive(nflstreet_gx_aurora *b){
   if(b->writes[k].size==1)GXCmd1u8((u8)v);else if(b->writes[k].size==2)GXCmd1u16((u16)v);else GXCmd1u32(v);}
  GXEnd();b->in_begin=0;return 1;}
 void nflstreet_gx_aurora_flush(nflstreet_gx_aurora *b){if(b->in_begin)submit_primitive(b);}
+
+/* Aurora exposes real EFB Z24 readback asynchronously, keyed by probe order.
+   Keep the last completed sample; zero initially hides an unready probe.
+   This bridge latency is a host choice, not synchronous GameCube timing. */
+int nflstreet_gx_aurora_depth(void *user,uint32_t x,uint32_t y,uint32_t *depth){
+ nflstreet_gx_aurora *b=user;if(!b||!depth||x>=640||y>=448)return 0;
+ nflstreet_gx_aurora_flush(b);unsigned i=b->probe_index++;
+ if(i==b->probe_count){
+  if(i==b->probe_capacity){unsigned n=b->probe_capacity?b->probe_capacity*2:8;void *p=realloc(b->probes,n*sizeof *b->probes);if(!p)return 0;
+   b->probes=p;b->probe_capacity=n;}
+  b->probes[i].stream=AuroraReadbackCreateStream();b->probes[i].depth=0;if(!b->probes[i].stream)return 0;++b->probe_count;}
+ AuroraReadbackDest result={0,&b->probes[i].depth,sizeof(uint32_t),GX_FALSE};
+ AuroraReadbackGet(b->probes[i].stream,&result,1);
+ const AuroraReadbackPeekRequest request={0,AURORA_READBACK_PEEK_Z,(u16)x,(u16)y};
+ if(!AuroraReadbackCapturePeeks(b->probes[i].stream,&request,1))return 0;
+ *depth=b->probes[i].depth;return 1;}
 
 /* Bytes one vertex attribute occupies in format f (direct data). */
 static uint32_t direct_bytes(const nflstreet_gx_aurora *b,unsigned f,unsigned a){
@@ -195,10 +215,14 @@ int nflstreet_gx_aurora_emit(void *sink,const nflstreet_gx_call *c){
  case NFLSTREET_GX_SET_CURRENT_MTX:GXSetCurrentMtx(a[0]);break;
  case NFLSTREET_GX_LOAD_TEX_MTX:{float m[3][4];memset(m,0,sizeof m);for(unsigned i=0;i<(a[1]==1?8u:12u);++i)m[i/4][i%4]=word_float(c->data[i]);
   GXLoadTexMtxImm(m,a[0],(GXTexMtxType)a[1]);break;}
+ case NFLSTREET_GX_SET_PROJECTION_V:{float p[7];for(unsigned i=0;i<7;++i)p[i]=word_float(c->data[i]);GXSetProjectionv(p);break;}
+ case NFLSTREET_FIELD_GX_SET_PROJECTION:{float m[4][4];for(unsigned i=0;i<16;++i)m[i/4][i%4]=word_float(c->data[i]);
+  GXSetProjection(m,(GXProjectionType)a[0]);break;}
+ case NFLSTREET_FIELD_GX_PEEK_Z:break; /* depth service already captured it; observation only */
  case NFLSTREET_GX_SET_VIEWPORT:GXSetViewport(word_float(c->data[0]),word_float(c->data[1]),word_float(c->data[2]),word_float(c->data[3]),word_float(c->data[4]),word_float(c->data[5]));break;
- case NFLSTREET_GX_LOAD_POS_MTX:{float m[12];for(unsigned i=0;i<12;++i)m[i]=word_float(c->data[i]);
+ case NFLSTREET_GX_LOAD_POS_MTX:{float m[3][4];for(unsigned i=0;i<12;++i)m[i/4][i%4]=word_float(c->data[i]);
   GXLoadPosMtxImm(m,a[0]);break;}
- case NFLSTREET_GX_LOAD_NRM_MTX:{float m[12];memset(m,0,sizeof m);for(unsigned i=0;i<9;++i)m[4*(i/3)+i%3]=word_float(c->data[i]);
+ case NFLSTREET_GX_LOAD_NRM_MTX:{float m[3][4];memset(m,0,sizeof m);for(unsigned i=0;i<9;++i)m[i/3][i%3]=word_float(c->data[i]);
   GXLoadNrmMtxImm(m,a[0]);break;}
  case NFLSTREET_GX_SET_Z_MODE:GXSetZMode((GXBool)a[0],(GXCompare)a[1],(GXBool)a[2]);break;
  case NFLSTREET_GX_SET_Z_COMP_LOC:GXSetZCompLoc((GXBool)a[0]);break;

@@ -45,7 +45,10 @@ typedef enum {
  NFLSTREET_GX_SET_TEV_OP,         /* 80206E90 stage, mode (modulate, decal, blend, replace, pass color) */
  NFLSTREET_GX_SET_NUM_IND_STAGES, /* 80206D30 count */
  NFLSTREET_GX_SET_TEV_DIRECT,     /* 80206D58 stage */
- NFLSTREET_GX_OPS
+ NFLSTREET_GX_OPS, /* legacy extension base; keep its value for cloud/field module compatibility */
+ NFLSTREET_GX_SET_PROJECTION_V = NFLSTREET_GX_OPS, /* 80207D5C; data = type as F32, six projection parameters */
+ NFLSTREET_FIELD_GX_SET_PROJECTION = NFLSTREET_GX_OPS+1, /* 80207CA8; arg type, data full matrix */
+ NFLSTREET_FIELD_GX_PEEK_Z = NFLSTREET_GX_OPS+2 /* 80203CE4; args x/y, data sampled depth */
 } nflstreet_gx_op;
 typedef struct {nflstreet_gx_op op;uint32_t arg[7];uint32_t data[16];} nflstreet_gx_call;
 /* Render-engine state the original keeps at 8039E560..8039E5F0, r13-6220,

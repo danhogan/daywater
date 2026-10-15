@@ -1,4 +1,5 @@
 #include "gx_render.h"
+#include "field_overlay.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -398,6 +399,14 @@ int nflstreet_gx_run(nflstreet_gx_machine *m,const nflstreet_gx_call *calls,unsi
   case NFLSTREET_GX_CALL_DISPLAY_LIST:if(!display_list(m,a[0],a[1]))return 0;break;
   case NFLSTREET_GX_SET_CURRENT_MTX:m->current=a[0];break;
   case NFLSTREET_GX_LOAD_TEX_MTX:{if(a[1]!=1||a[0]>61)return 0;for(unsigned k=0;k<8;++k)m->xf[4*a[0]+k]=as_float(c->data[k]);break;}
+  case NFLSTREET_GX_SET_PROJECTION_V:
+   if(m->imm_need)return 0;m->frame.projection_type=as_float(c->data[0])==0.0f?0u:1u;
+   for(unsigned k=0;k<6;++k)m->frame.projection[k]=as_float(c->data[k+1]);break;
+  case NFLSTREET_FIELD_GX_SET_PROJECTION:{
+   if(m->imm_need)return 0;m->frame.projection_type=a[0];
+   const unsigned index[6]={0,a[0]?3u:2u,5,a[0]?7u:6u,10,11};
+   for(unsigned k=0;k<6;++k)m->frame.projection[k]=as_float(c->data[index[k]]);break;}
+  case NFLSTREET_FIELD_GX_PEEK_Z:if(m->imm_need)return 0;break; /* observation; caller already sampled the target */
   case NFLSTREET_GX_SET_VIEWPORT:for(unsigned k=0;k<6;++k)m->viewport[k]=as_float(c->data[k]);break;
   default:return 0;}}
  return 1;}

@@ -75,6 +75,11 @@ SOURCES = (
     "build_windows_cloud_draw_original_check.sh",
     "build_windows_cloud_render_check.sh",
     "verify_cloud_draw.py",
+    "field_overlay.c",
+    "field_overlay.h",
+    "player_draw.h",
+    "gx_render.h",
+    "gekko_float.h",
 )
 BOUNDARY = (
     "Native 800E398C, the field camera scene node's entry 1: the enable bytes r13-71E3/-71E4, GXSetZMode, "

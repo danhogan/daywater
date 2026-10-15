@@ -30,6 +30,8 @@ static int stream_call(void *sink,const nflstreet_gx_call *c){stream *x=sink;
  if(!nflstreet_gx_run(x->machine,c,1,x->stats)){fprintf(stderr,"executor rejected streamed call %u op %d args %08x %08x %08x %08x\n",x->count,
   (int)c->op,c->arg[0],c->arg[1],c->arg[2],c->arg[3]);return 0;}
  ++x->count;return 1;}
+static int scene_depth(void *user,uint32_t x,uint32_t y,uint32_t *depth){
+ const nflstreet_gx_target *t=user;if(x>=t->width||y>=t->height)return 0;*depth=t->depth[y*t->width+x];return 1;}
 static void reset_state(uint8_t *ram,nflstreet_render_state *s){memset(s,0,sizeof *s);for(unsigned i=0;i<6;++i)s->viewport[i]=ramf(ram,0x8039e584u+4*i);}
 int main(int argc,char **argv){
  if(argc!=4)return 2;
@@ -46,6 +48,7 @@ int main(int argc,char **argv){
   nflstreet_gx_target target={WIDTH,HEIGHT,bgra,depth};nflstreet_gx_machine *m=nflstreet_gx_open(span,ram,&frame,&target);if(!m)return 4;
   nflstreet_render_state s;reset_state(ram,&s);nflstreet_gx_stats stats;memset(&stats,0,sizeof stats);
   stream streamed={m,&stats,0};static nflstreet_scene sc;scene_fixture(ram,&sc,span,stream_call,&streamed);
+  sc.field_overlay.depth=scene_depth;sc.field_overlay.depth_user=&target;
   if(!pass)sc.crowd_count=0;
   if(!nflstreet_scene_start(&sc,&s)||!nflstreet_scene_venue(&sc,&s))return 12;const unsigned venue=streamed.count;
   if(!nflstreet_scene_players(&sc,&s)||!nflstreet_scene_hud(&sc,&s))return 5;

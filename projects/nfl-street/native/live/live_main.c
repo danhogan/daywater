@@ -23,6 +23,11 @@
 #include "actor_channels.h"
 #include "live_clips.h"
 #include "select_rings.h"
+#include "ball_update.h"
+/* Live-only link alias: the optional host catalog selector has the same name. */
+#define nflstreet_locomotion_select nflstreet_live_locomotion_select
+#include "locomotion_predicates.h"
+#undef nflstreet_locomotion_select
 #define RAM_BASE 0x80000000u
 #define RAM_BYTES (24u*1024u*1024u)
 #define R13 0x803a9a40u
@@ -45,6 +50,13 @@ static int channel_status(int ok,const nflstreet_channel_callbacks *callbacks,un
  if(ok&&callbacks->ok)return 1;
  if(log_file){fprintf(log_file,"frame %u: animation %s failed, actor %08x, callback pc %08x address %08x budget %d\n",
   frame,phase,actor,callbacks->failure_pc,callbacks->failure_address,callbacks->failure_budget_exhausted);fflush(log_file);}return 0;}
+static int selected_request(void *user,const nflstreet_locomotion_request *r){
+ nflstreet_live_clips *clips=user;
+ return nflstreet_clip_request_group(&clips->requests,r->weight,r->manager,r->set,r->channels,r->key,r->actor)&&clips->callbacks->ok;}
+/* The downstream gameplay event systems are not reconstructed. Diagnose and
+   reject before an event executes; never claim its effects were supplied. */
+static int gameplay_effect(void *user,uint32_t function,uint32_t actor,uint32_t mode){
+ (void)user;if(log_file){fprintf(log_file,"unreconstructed locomotion event %08x actor %08x mode %u\n",function,actor,mode);fflush(log_file);}return 0;}
 /* The field camera's data (+04 position, +14/+18/+1C angles): the C-stick
    orbits about z and pitches; the camera position follows the controlled
    player by its movement (a host choice: the game's camera logic is not
@@ -99,7 +111,10 @@ int main(int argc,char *argv[]){
  GXSetScissor(0,0,mode.fbWidth,mode.efbHeight);
  PADInit();
  nflstreet_gx_aurora *bridge=nflstreet_gx_aurora_open(ram,RAM_BYTES);static nflstreet_scene scene;
+ if(!bridge){note("cannot allocate GX bridge");return 4;}
  scene_fixture(ram,&scene,span,nflstreet_gx_aurora_emit,bridge);
+ scene.field_overlay.depth=nflstreet_gx_aurora_depth;scene.field_overlay.depth_user=bridge;
+ const nflstreet_ball_update_context ball_step={&scene.draw,scene.hud.stacks,R13};
  /* Optional third argument: the parts to draw (1 venue, 2 players, 4 HUD). */
  const unsigned parts=argc>3?(unsigned)strtoul(argv[3],NULL,0):7u;
  /* NFL_LIVE_ORBIT: per-frame turn (24-bit angle; 1 means 0x2000, about 10 degrees a second at 60 fps). */
@@ -108,8 +123,8 @@ int main(int argc,char *argv[]){
  const uint32_t player=controlled_actor(ram);nflstreet_live_movement movement;int rejected=0;const int scripted=getenv("NFL_LIVE_SCRIPT")!=NULL;
  if(player&&!seed_movement(ram,player,&movement)){note("cannot seed the controlled player's movement");return 4;}
  if(log_file){fprintf(log_file,"controlled player %08x (visual %08x)\n",player,player?ram32(ram,player+4):0);fflush(log_file);}
- /* Explicit host fallback for movement selectors whose gameplay predicates
-    are not reconstructed. Normal animation uses the game's channels. */
+ /* Explicit host fallback for unreconstructed gameplay events or missing
+    bank streaming. Default selection uses the reconstructed predicates. */
  const int host_fallback=getenv("NFL_LIVE_HOST_LOCOMOTION")&&strcmp(getenv("NFL_LIVE_HOST_LOCOMOTION"),"1")==0;
  size_t bank_n=0,sets_n=0;uint8_t *bank=host_fallback?read_file(getenv("NFL_LIVE_ANIMDATA"),&bank_n):NULL,
   *sets=host_fallback?read_file(getenv("NFL_LIVE_SETS"),&sets_n):NULL;
@@ -122,7 +137,8 @@ int main(int argc,char *argv[]){
     the bank files and the candidate native group/event callbacks. */
  static uint8_t *anim_files[200];static size_t anim_sizes[200];static nflstreet_anim_aram aram;static nflstreet_actor_channels channels;
  static nflstreet_channel_callbacks callbacks;static nflstreet_live_clips clips;
- int channel_anim=0,selector_held=0;
+ int channel_anim=0;
+ nflstreet_locomotion_context selector={span,ram,selected_request,gameplay_effect,&clips,0,0};
  if(getenv("NFL_LIVE_ANIMDIR")){char path[1024];
   for(unsigned i=0;i<200;++i){snprintf(path,sizeof path,"%s/%05u.bin",getenv("NFL_LIVE_ANIMDIR"),i);anim_files[i]=read_file(path,anim_sizes+i);}
   const int banks=nflstreet_anim_aram_map(&aram,span,ram,(const uint8_t *const *)anim_files,anim_sizes,200);
@@ -152,7 +168,7 @@ int main(int argc,char *argv[]){
    /* The rings follow the position the previous update left (800E4A24),
       so they trail the player by one update, as in the saved frame. */
    if(!nflstreet_rings_update(&rings)){note("select-ring update failed");failed=1;break;}
-   int host_pose=animated&&!channel_anim;
+   int host_pose=animated; /* explicit fallback bypasses predicates with unreconstructed event services */
    if(player){const float x0=ramf(ram,player+0x1a8),y0=ramf(ram,player+0x1ac);nflstreet_live_motion mo;
     const int r=nflstreet_live_movement_step(&movement,dx,dy,&mo);
     if(r<0){if(!rejected&&log_file){fprintf(log_file,"frame %u: movement request %d,%d takes an unreconstructed branch; held\n",frames,dx,dy);fflush(log_file);}rejected=1;}
@@ -161,12 +177,11 @@ int main(int argc,char *argv[]){
      moved[0]+=ramf(ram,player+0x1a8)-x0;moved[1]+=ramf(ram,player+0x1ac)-y0;}
     /* 8003A1F4: requests consume the restored movement blocks and the
        actor's stored manager/set/channel pointers, before 8003A24C. */
-    if(channel_anim){const int request=nflstreet_live_clips_movement(&clips,player);
-     if(!request){channel_status(0,&callbacks,frames,player,"request");failed=1;}
-     else if(request<0){host_pose=animated;
-      if(!selector_held&&log_file){fprintf(log_file,"frame %u: movement animation selector %u needs an unreconstructed predicate; %s\n",
-       frames,(unsigned)(ram32(ram,player+0x20c)>>8)&255u,host_pose?"host locomotion fallback":"request held (NFL_LIVE_HOST_LOCOMOTION=1 enables host fallback)");fflush(log_file);}selector_held=1;}
-     else selector_held=0;}}
+    if(channel_anim&&!host_pose){const int request=nflstreet_live_locomotion_select(&selector,player);
+     if(request!=1){
+      if(log_file){fprintf(log_file,"frame %u: locomotion selection failed (%d), actor %08x, selector %u, unsupported %08x\n",
+       frames,request,player,(unsigned)(ram32(ram,player+0x20c)>>8)&255u,selector.unsupported);fflush(log_file);}
+      channel_status(0,&callbacks,frames,player,"request");failed=1;}}}
    /* 8003A24C: manager for ALL actors, step for ALL actors, then each
       actor's pose, twist and compact skeleton. Check the persistent callback
       status after every phase call; channels.ok is reset by those calls. */
@@ -184,10 +199,20 @@ int main(int argc,char *argv[]){
    /* Callbacks/roots can write the shared actor blocks. Retain those writes
       when the movement runtime starts the next update. */
    if(player&&channel_anim){for(unsigned i=0;i<12;++i)movement.runtime.actor[i]=ram32(ram,player+0x200+4*i);
-    for(unsigned i=0;i<21;++i)movement.runtime.state[i]=ram32(ram,player+0x1a8+4*i);}}
-  if(player&&!failed){
-   nflstreet_render_state unused;memset(&unused,0,sizeof unused);nflstreet_draw d={&scene.draw,&unused};
-   if(!nflstreet_matrix_select(&d,&scene.hud.stacks)||!nflstreet_actor_place(&d,&scene.hud.stacks,player,R13-0x7078u))failed=1;}
+    for(unsigned i=0;i<21;++i)movement.runtime.state[i]=ram32(ram,player+0x1a8+4*i);}
+   /* Current roots/poses precede ball motion (8002E198). Place all live
+      actors so any saved carrier association sees this update's transform. */
+   if(!failed){nflstreet_render_state unused={0};nflstreet_draw d={&scene.draw,&unused};
+    if(!nflstreet_matrix_select(&d,&scene.hud.stacks))failed=1;
+    for(unsigned i=0;!failed&&i<actor_count;++i){const uint32_t g=gameplay_actors+0x14d4u*i;
+     if(!nflstreet_actor_place(&d,&scene.hud.stacks,g,R13-0x7078u))failed=1;}
+    const uint32_t pool=ram32(ram,R13-0x73d0u);const uint8_t *count=ram_at(ram,pool,1);
+    if(!count){note("ball pool unavailable");failed=1;}
+    for(unsigned i=0;!failed&&i<*count;++i){const uint32_t record=pool+8+0xf4u*i;
+     if(!nflstreet_ball_update(&ball_step,record,1.0)||!nflstreet_ball_update_visual(&ball_step,record)||
+        !nflstreet_ball_update_matrix(&ball_step,ram32(ram,record))){note("ball update failed (unsupported state or memory)");failed=1;}}}
+  }
+
   steer(ram,orbit,&pads[0],moved[0],moved[1]);
   nflstreet_render_state s;memset(&s,0,sizeof s);for(unsigned i=0;i<6;++i)s.viewport[i]=ramf(ram,0x8039e584u+4*i);
   nflstreet_gx_aurora_new_frame(bridge);

@@ -22,6 +22,8 @@ int nflstreet_gx_aurora_begin_frame(nflstreet_gx_aurora *,uint32_t gx_shadow);
    with update, every texture coordinate MTX2x4 from TEX0 with identity,
    konst selections from +1B0). */
 int nflstreet_gx_aurora_begin_frame(nflstreet_gx_aurora *,uint32_t gx_shadow);
+/* Overlay EFB service: real Aurora Z24 readback, delayed until a capture completes. */
+int nflstreet_gx_aurora_depth(void *,uint32_t x,uint32_t y,uint32_t *depth);
 /* Optional light view delta D (3x4, row-major), applied while set: light
    positions and directions are re-expressed for a new camera (D = new view
    x inverse of the view they were stored with). NULL turns it off. */
