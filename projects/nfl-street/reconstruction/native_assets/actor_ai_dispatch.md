@@ -116,6 +116,16 @@ are emitted in the private evidence logs. No fixed actor address is required.
 | actor+210/+214/+218/+21E | f32 / 4; u32 / 4 each; u8 / 1 | existing `800150E8`: active input commit, selector-dependent |
 | r13-7CF4 | u32 / 4 | `8002E4F8`: observable cached phase word, including rejected policy |
 
+The external runner's first attempt passed the saved suites and found a valid
+edited-input mismatch in finalization (context 14, case 1, actor 3, actor+200).
+The shared tail at `800F8654/8658` writes the normalized strength to **both**
++210 and +200 for all cap/default branches, including code 4. The native tail
+now preserves both stores; code 30 first selects requested strength as its
+source, then publishes the capped value to both. The generator is unchanged.
+The `omit-finished-requested-strength` mutant restores the missing-store fault.
+A fresh Windows gate result is still required; this is disassembly evidence
+and a compile-checked correction, not a claimed successful execution.
+
 ## Gate and private evidence
 
 Windows-capable runner, from the worktree root:

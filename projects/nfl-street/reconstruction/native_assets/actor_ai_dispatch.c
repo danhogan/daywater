@@ -145,15 +145,15 @@ int nflstreet_ai_input_finish(C *c,uint32_t a){
  }else timer=0;
  uint8_t *timer_bytes=mem(c,a+0x21c,2);if(timer_bytes){timer_bytes[0]=timer>>8;timer_bytes[1]=timer;}
  code=r8(c,a+0x20f);float strength=rf(c,a+0x210);uint32_t limit=0x8025458cu;
- int both=0,avoid=0;
+ int avoid=0;
  switch(code){
- case 0:case 12:w8(c,a+0x21f,code);both=1;avoid=code==0;break;
+ case 0:case 12:w8(c,a+0x21f,code);avoid=code==0;break;
  case 1:case 7:case 13:{
   w8(c,a+0x21f,code);const float first=rf(c,0x80254580u);if(first<strength)strength=first;
   if(a==selected(c)){const float second=rf(c,0x80254574u);if(second<strength)strength=second;avoid=code==1;}
-  limit=0;both=1;break;}
+  limit=0;break;}
  case 2:case 3:case 8:case 9:case 10:case 11:
-  w8(c,a+0x21f,code);limit=code==2||code==8||code==10?0x80254578u:0x8025457cu;both=1;
+  w8(c,a+0x21f,code);limit=code==2||code==8||code==10?0x80254578u:0x8025457cu;
   if((code==8||code==9)&&rf(c,a+0x1c4)!=zero){w8(c,a+0x309,1);w8(c,a+0x308,1);}
   if(code==10||code==11){w8(c,a+0x309,2);w8(c,a+0x308,2);}break;
  case 4:case 5:case 6:case 17:case 18:case 20:case 21:case 24:w8(c,a+0x21f,code);break;
@@ -165,11 +165,13 @@ int nflstreet_ai_input_finish(C *c,uint32_t a){
  case 27:case 29:w8(c,a+0x21f,code);limit=0x80254580u;break;
  case 28:w8(c,a+0x21f,code);limit=0x80254590u;break;
  case 30:w8(c,a+0x21f,code);strength=rf(c,a+0x200);limit=0x80254570u;break;
- case 31:w8(c,a+0x21f,code);limit=0;both=1;break;
+ case 31:w8(c,a+0x21f,code);limit=0;break;
  default:break;
  }
  if(limit){const float ceiling=rf(c,limit);if(ceiling<strength)strength=ceiling;}
- wf(c,a+0x210,strength);if(both)wf(c,a+0x200,strength);
+ /* 800F8654/8658: every cap tail publishes BOTH strengths, including
+    default/code-4 paths and code 30's requested-strength source. */
+ wf(c,a+0x210,strength);wf(c,a+0x200,strength);
  /* 800F8088's first two rejection gates are side-effect free. The reached
     neighborhood/contact policy is supplied rather than guessed. */
  if(avoid&&angular_distance(0x400000u,r32(c,a+0x1c0))<=0x355554u&&a==selected(c))
