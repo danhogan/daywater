@@ -1,0 +1,74 @@
+[
+  {
+    "name": "hand-first-frame-initialization",
+    "file": "actor_dynamics.c",
+    "old": "if(!s[2]){for(unsigned i=0;i<3;++i){pf(s+4+4*i,pos[i]);",
+    "new": "if(0){for(unsigned i=0;i<3;++i){pf(s+4+4*i,pos[i]);"
+  },
+  {
+    "name": "hand-nonpositive-scale-branch",
+    "file": "actor_dynamics.c",
+    "old": "float k=f(at(c,z<1?0x80246d0cu:0x80246d08u,4));",
+    "new": "float k=f(at(c,0x80246d08u,4));"
+  },
+  {
+    "name": "hand-positive-scale-branch",
+    "file": "actor_dynamics.c",
+    "old": "float k=f(at(c,z<1?0x80246d0cu:0x80246d08u,4));",
+    "new": "float k=f(at(c,0x80246d0cu,4));"
+  },
+  {
+    "name": "hand-nonpositive-limit-table",
+    "file": "actor_dynamics.c",
+    "old": "at(c,z<1?0x8026da34u:0x8026da1cu,8)",
+    "new": "at(c,0x8026da1cu,8)"
+  },
+  {
+    "name": "hand-positive-limit-table",
+    "file": "actor_dynamics.c",
+    "old": "at(c,z<1?0x8026da34u:0x8026da1cu,8)",
+    "new": "at(c,0x8026da34u,8)"
+  },
+  {
+    "name": "hand-disabled-reset",
+    "file": "actor_dynamics.c",
+    "old": "if(!enabled){s[2]=0;return 1;}if(!word(c,state+0x78,&model)",
+    "new": "if(!enabled){s[2]=1;return 1;}if(!word(c,state+0x78,&model)"
+  },
+  {
+    "name": "head-first-frame-joint-initialization",
+    "file": "actor_dynamics.c",
+    "old": "if(first)for(unsigned i=0;i<3;++i){nflstreet_wr32(p+0x28+4*i,",
+    "new": "if(0)for(unsigned i=0;i<3;++i){nflstreet_wr32(p+0x28+4*i,"
+  },
+  {
+    "name": "head-ninth-joint",
+    "file": "actor_dynamics.c",
+    "old": "joint<9",
+    "new": "joint<8"
+  },
+  {
+    "name": "head-damping",
+    "file": "actor_dynamics.c",
+    "old": "f(at(c,0x803a1f00u,4))",
+    "new": "1.0f"
+  },
+  {
+    "name": "head-look-force-sign",
+    "file": "actor_dynamics.c",
+    "old": "gravity=-f(at(c,0x803a1efcu,4))",
+    "new": "gravity=f(at(c,0x803a1efcu,4))"
+  },
+  {
+    "name": "head-pose-output-offset",
+    "file": "actor_dynamics.c",
+    "old": "at(c,pose+12+12*joint+2*i,2)",
+    "new": "at(c,pose+6+12*joint+2*i,2)"
+  },
+  {
+    "name": "head-velocity-limit",
+    "file": "actor_dynamics.c",
+    "old": "limit_local(c,0x8026da04u,&velocity)",
+    "new": "limit_local(c,0x8026d91cu,&velocity)"
+  }
+]
