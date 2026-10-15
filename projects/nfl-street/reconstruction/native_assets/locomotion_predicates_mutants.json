@@ -1,0 +1,62 @@
+[
+  {
+    "name": "selector-byte",
+    "file": "projects/nfl-street/reconstruction/native_assets/locomotion_predicates.c",
+    "old": "return dispatch(c,g,r8(c,g+0x20e));",
+    "new": "return dispatch(c,g,r8(c,g+0x20f));"
+  },
+  {
+    "name": "guard-record-heading",
+    "file": "projects/nfl-street/reconstruction/native_assets/locomotion_predicates.c",
+    "old": "record(c,m,0x21)+0x14",
+    "new": "record(c,m,0x21)+0x10"
+  },
+  {
+    "name": "forced-heading",
+    "file": "projects/nfl-street/reconstruction/native_assets/locomotion_predicates.c",
+    "old": "if(forced)w32(c,g+0x208,0xc00000u);",
+    "new": "if(forced)w32(c,g+0x208,0x800000u);"
+  },
+  {
+    "name": "input-heading-mask",
+    "file": "projects/nfl-street/reconstruction/native_assets/locomotion_predicates.c",
+    "old": "w32(c,g+0x204,r32(c,g+0x204)&0xffffffu);",
+    "new": "w32(c,g+0x204,r32(c,g+0x204));"
+  },
+  {
+    "name": "cached-state-write",
+    "file": "projects/nfl-street/reconstruction/native_assets/locomotion_predicates.c",
+    "old": "w32(c,R13-0x7cf4u,v);return v;",
+    "new": "w32(c,R13-0x7cf4u,v^1u);return v;"
+  },
+  {
+    "name": "predicate-flag-clear",
+    "file": "projects/nfl-street/reconstruction/native_assets/locomotion_predicates.c",
+    "old": "w32(c,g+0xc,flags&~0x400000u);",
+    "new": "w32(c,g+0xc,flags&~0x4000u);"
+  },
+  {
+    "name": "rng-counter",
+    "file": "projects/nfl-street/reconstruction/native_assets/locomotion_predicates.c",
+    "old": "w32(c,wrapper+8,r32(c,wrapper+8)+1u);",
+    "new": "w32(c,wrapper+8,r32(c,wrapper+8)+2u);"
+  },
+  {
+    "name": "turn-fixed-product",
+    "file": "projects/nfl-street/reconstruction/native_assets/locomotion_predicates.c",
+    "old": "w32(c,g+0x13c,(uint32_t)(product>>24));",
+    "new": "w32(c,g+0x13c,(uint32_t)(product>>25));"
+  },
+  {
+    "name": "handler-weight",
+    "file": "projects/nfl-street/reconstruction/native_assets/locomotion_predicates.c",
+    "old": "blocked=guard(c,g);weight=0x80244d70u;break;",
+    "new": "blocked=guard(c,g);weight=0x80244d74u;break;"
+  },
+  {
+    "name": "group-pointer",
+    "file": "projects/nfl-street/reconstruction/native_assets/locomotion_predicates.c",
+    "old": "const nflstreet_locomotion_request r={r32(c,g+0x318),r32(c,g+0x31c),",
+    "new": "const nflstreet_locomotion_request r={r32(c,g+0x318),r32(c,g+0x320),"
+  }
+]
