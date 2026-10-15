@@ -1,0 +1,11 @@
+[
+  {"name":"history-word", "file":"../ball/ball_frame.c", "old":"memcpy(next+0x28,next+0x0c,28);", "new":"memcpy(next+0x28,next+0x0c,24);"},
+  {"name":"angular-clear", "file":"../ball/ball_frame.c", "old":"memset(next+0x7c,0,24);", "new":"memset(next+0x7c,0,20);"},
+  {"name":"velocity-scale", "file":"../ball/ball_orientation.c", "old":"if(delta!=0)velocity[i]*=reciprocal;", "new":"if(delta!=0)velocity[i]*=1.0f;"},
+  {"name":"force-scale", "file":"ball_update_motion.c", "old":"float a=nflstreet_gk_muls(force,word(0x3b5f4ed0));", "new":"float a=nflstreet_gk_muls(force,word(0x3b5f4ed1));"},
+  {"name":"field-limit", "file":"ball_update_motion.c", "old":"const float hi[3]={42.0f,75.0f,30.0f}", "new":"const float hi[3]={41.0f,75.0f,30.0f}"},
+  {"name":"lighting-store", "file":"ball_update.c", "old":"put(v+0x294,lighting);", "new":"put(v+0x294,0);"},
+  {"name":"stack-scale", "file":"ball_update.c", "old":"scaled&&!nflstreet_matrix_scale(d,k,scale,scale,scale)", "new":"scaled&&!nflstreet_matrix_scale(d,k,1,1,scale)"},
+  {"name":"side-flip", "file":"ball_update.c", "old":"int flip=s&&*s==1;", "new":"int flip=s&&*s==2;"},
+  {"name":"matrix-sign", "file":"ball_update.c", "old":"1-(yy+zz),xy-zw,xz+yw", "new":"1-(yy+zz),xy+zw,xz+yw"}
+]
