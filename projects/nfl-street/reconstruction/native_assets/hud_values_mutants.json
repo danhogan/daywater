@@ -1,0 +1,12 @@
+[
+  {"name":"recharge-without-clamp","file":"hud_values.c","old":"if(value>maximum)value=maximum;","new":"if(0)value=maximum;"},
+  {"name":"recharge-wrong-source","file":"hud_values.c","old":"word(c,r+8)+word(c,r+0x10)","new":"word(c,r+8)+1u"},
+  {"name":"wait-does-not-decrement","file":"hud_values.c","old":"--wait;p[0]=(uint8_t)(wait>>8);","new":"wait+=0;p[0]=(uint8_t)(wait>>8);"},
+  {"name":"used-flag-retained","file":"hud_values.c","old":"p[1]=p[0];p[0]=0;","new":"p[1]=p[0];p[0]=1;"},
+  {"name":"missing-key-54","file":"hud_values.c","old":"case 0x46:case 0x54:case 0xa5:","new":"case 0x46:case 0x55:case 0xa5:"},
+  {"name":"substate-9-recharges","file":"hud_values.c","old":"status!=3&&status!=9&&status!=11","new":"status!=3&&status!=11"},
+  {"name":"turbo-publish-slot-order","file":"hud_values.c","old":"i<2?8u+4u*i:4u*i-8u","new":"4u*i"},
+  {"name":"turbo-fraction-wrong-denominator","file":"hud_values.c","old":"word(c,r+0x18),bias","new":"word(c,r+0x10),bias"},
+  {"name":"gamebreaker-unit-endpoint","file":"hud_values.c","old":"else if(value==10000)*out=real(c,0x8024f7f4u);","new":"else if(value==10000)*out=real(c,0x8024f7f0u);"},
+  {"name":"timer-not-activated","file":"hud_values.c","old":"else if(!state)put(c,t+0x14,2);","new":"else if(!state)put(c,t+0x14,1);"}
+]
