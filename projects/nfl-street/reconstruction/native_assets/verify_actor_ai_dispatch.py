@@ -38,7 +38,8 @@ SUMMARY = re.compile(
     r"Original actor AI dispatch: 401 cases \(saved \+ 400 edited\) x 14 actors; "
     r"step 5614 transition 5614 commit 5614 follow 5614 eligibility 5614 facing 5614 interaction 5614 finish 5614; "
     r"persistent 24 x 32 x 14 = 10752; all RAM outside oracle stack and service effects match; "
-    r"entry/pop/remove (\d+)/(\d+)/(\d+); original-backed policy calls (\d+); digest [0-9a-f]{8}\."
+    r"entry/pop/remove (\d+)/(\d+)/(\d+); remove phases (\d+)/(\d+); "
+    r"original-backed policy calls (\d+); digest [0-9a-f]{8}\."
 )
 BOUNDARY = (
     "GNNE69 r0 native 8007E0B4 state-table dispatcher, entry/pop/replace/enqueue/remove, "
@@ -53,6 +54,8 @@ BOUNDARY = (
     "Standalone follow and edited dispatcher/transition tables enter follow once before their batch; "
     "persistent sequences do so once before updates, because saved +154/+158 belong to other state unions. "
     "Every entry is compared too. Saved dispatcher/transition cases preserve their original state. "
+    "Removal coverage counts original callback return predicates at 8007E110/190, since the "
+    "8007E5A4 calls jump inside the compiled chunk; both controlled/update removal phases are required. "
     "No complete autonomous policies, football physics or original movement simulation claimed."
 )
 

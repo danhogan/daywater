@@ -145,6 +145,20 @@ These are edited interpreter fixtures, not reconstructed policies for those
 states. Windows rerun is pending; native callback code and the finite-input
 contract are unchanged.
 
+The next context-14 process matched every RAM/effect comparison through all
+401 cases and 24 persistent sequences (digest `eb430e61`), but the gate rejected
+its removal coverage count of zero. The recompiled `8007E154/8007E1D0` calls
+jump directly to the removal label within the same compiled chunk. Counting
+only dispatch entries at `8007E5A4` therefore misses those calls. Removal
+coverage now counts the original branch predicate at indirect callback return
+PCs `8007E110` and `8007E190`: r3 must equal 1 and actor+C0C must be nonzero
+(actor is the original preserved r30). This observes the original execution
+without hooks, skipped instructions or native decisions. The gate requires
+positive counts separately for controlled and update callback removal. Edited
+resolved-actor cases now include odd as well as even indices to exercise both
+phases. No saved input or acceptance comparison is weakened. That one process
+is external evidence only; all-context repeats and mutant kills remain pending.
+
 ## Gate and private evidence
 
 Windows-capable runner, from the worktree root:

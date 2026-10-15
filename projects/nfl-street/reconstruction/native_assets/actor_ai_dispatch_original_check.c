@@ -39,6 +39,7 @@ static uint32_t hash(uint32_t h,const uint8_t *p,size_t n){for(size_t k=0;k<n;++
 typedef struct {uint32_t pc,args[5],weight;} call;
 typedef struct {call calls[256];unsigned count;} trace;
 static trace native_trace,original_trace;
+static unsigned remove_phases[2];
 static unsigned bridged,skips,entry_hits,pop_hits,remove_hits,follow_hits,eligible_hits,face_hits,interact_hits,commit_hits;
 static int append(trace *t,uint32_t pc,const uint32_t *a,uint32_t weight){
  if(t->count>=256)return 0;call *q=&t->calls[t->count++];q->pc=pc;memcpy(q->args,a,20);q->weight=weight;return 1;}
@@ -52,7 +53,16 @@ static int original(uint8_t *ram,trace *t,uint32_t pc,const uint32_t *args,float
  for(unsigned k=0;k<6;++k)c.gpr[3+k]=args[k];c.fpr[1]=weight;c.pc=pc;
  for(unsigned n=0;c.pc;++n){
   if(n>1000000){fprintf(stderr,"timeout entry %08x at %08x\n",pc,c.pc);return 0;}
-  if(ram==oracle){entry_hits+=c.pc==0x8007dde8u;pop_hits+=c.pc==0x8007dd80u;remove_hits+=c.pc==0x8007e5a4u;}
+  if(ram==oracle){entry_hits+=c.pc==0x8007dde8u;pop_hits+=c.pc==0x8007dd80u;
+   /* 8007E110/190 are the indirect callback return boundaries. The original
+      branches to removal iff r3==1 and actor+C0C!=0; both BL sites jump
+      within the recompiled chunk, so dispatch never exposes 8007E5A4.
+      Count the real branch predicate without changing original execution. */
+   if((c.pc==0x8007e110u||c.pc==0x8007e190u)&&c.gpr[3]==1){
+    const uint8_t *marker=at(ram,c.gpr[30]+0xc0cu,1);if(!marker)return 0;
+    if(*marker){++remove_hits;++remove_phases[c.pc==0x8007e190u];}
+   }
+  }
   if(effect_args(c.pc)){if(!effect(t,c.pc,&c.gpr[3],c.pc==0x80177ef4u?bits((float)c.fpr[1]):0))return 0;
    ++skips;c.gpr[3]=0;c.pc=c.lr;continue;}
   c.downcount=-1000000000;module->dispatch(&c,c.pc);
@@ -92,11 +102,12 @@ static void table_fixture(uint8_t *p,unsigned index,uint32_t a){
  const uint32_t q=a+0xbe4;
  for(unsigned k=0;k<10;++k)w32(p,q+4*k,((1+(index+k)%7)<<24)|(rnd()&0xffffffu));
  w8(p,q+4*(2+index%8),0);w32(p,a+0x310,q);
- /* Most edited queues use no-selected; index%6==2 exercises a resolved
-    actor. Real follow entry initializes its union before dispatch below.
+ /* Most edited queues use no-selected. Resolved-actor cases include even
+    and odd indices, exercising update AND controlled callback reentry.
+    Real follow entry initializes its union before dispatch below.
     8009AD80 rejects natively in phase 3. */
  const uint32_t balls=SCRATCH+0x1000;w32(p,R13-0x73d0u,balls);memset(at(p,balls,0x200),0,0x200);
- if(index%6==2)w32(p,balls+0xbc,r32(p,a));
+ if(index%6==2||index%6==5)w32(p,balls+0xbc,r32(p,a));
  w32(p,r32(p,R13-0x7cf8u),3);w32(p,R13-0x7cf4u,rnd());
  w8(p,a+0xbe0,index%3==0?0x39:0);w32(p,a+0xbdc,(index%3==0)?50:rnd()%40);
  w32(p,a+0x1c4,bits(random_float(0,5)));w32(p,a+0x1c8,rnd());
@@ -191,6 +202,6 @@ int main(int argc,char **argv){
     if(!one(ram,0,sequence+1,i,step)||!one(ram,2,sequence+1,i,step)||!one(ram,7,sequence+1,i,step))return 7;++updates;}
    if(!same(ram,8,sequence,0,step))return 7;
    digest=hash(digest,ram,STACK_LO-BASE);digest=hash(digest,ram+STACK_HI-BASE,BYTES-(STACK_HI-BASE));}}
- printf("Original actor AI dispatch: 401 cases (saved + 400 edited) x 14 actors; step %u transition %u commit %u follow %u eligibility %u facing %u interaction %u finish %u; persistent 24 x 32 x 14 = %u; all RAM outside oracle stack and service effects match; entry/pop/remove %u/%u/%u; original-backed policy calls %u; digest %08x.\n",runs[0],runs[1],runs[2],runs[3],runs[4],runs[5],runs[6],runs[7],updates,entry_hits,pop_hits,remove_hits,bridged,digest);
+ printf("Original actor AI dispatch: 401 cases (saved + 400 edited) x 14 actors; step %u transition %u commit %u follow %u eligibility %u facing %u interaction %u finish %u; persistent 24 x 32 x 14 = %u; all RAM outside oracle stack and service effects match; entry/pop/remove %u/%u/%u; remove phases %u/%u; original-backed policy calls %u; digest %08x.\n",runs[0],runs[1],runs[2],runs[3],runs[4],runs[5],runs[6],runs[7],updates,entry_hits,pop_hits,remove_hits,remove_phases[0],remove_phases[1],bridged,digest);
  return 0;
 }
