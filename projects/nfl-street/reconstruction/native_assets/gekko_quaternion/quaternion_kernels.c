@@ -1,7 +1,8 @@
 #include "quaternion_kernels.h"
 
-#include <math.h>
 #include <string.h>
+
+static float ppc_fmadds(float left, float right, float addend);
 
 typedef struct {
     float lo;
@@ -20,7 +21,7 @@ static pair muls(pair a, float scalar)
 
 static pair madd(pair a, pair b, pair c)
 {
-    return (pair){fmaf(a.lo, b.lo, c.lo), fmaf(a.hi, b.hi, c.hi)};
+    return (pair){ppc_fmadds(a.lo, b.lo, c.lo), ppc_fmadds(a.hi, b.hi, c.hi)};
 }
 
 void nflstreet_80188bb0_pair(uint16_t angle, const float coefficients[6],
@@ -102,6 +103,67 @@ static uint32_t msl_bits(float value)
     return word;
 }
 
+/* ppc_fdivs first divides the (double-extended) FPR operands, then writes a
+   single-precision result.  A native float division is permitted to perform
+   a different intermediate operation, so retain the explicit rounding point. */
+static __attribute__((noinline, noclone)) float ppc_fdivs(float numerator, float denominator)
+{
+    volatile double quotient = (double)numerator / (double)denominator;
+    return (float)quotient;
+}
+
+/* Like fdivs, fmuls operates on double FPR operands and then rounds the
+   result to single precision.  Spell out the FPR operation: native float
+   multiplication selects a different last bit on this host for a real tie
+   reached by 801A383C's first Slerp weight. */
+static __attribute__((noinline, noclone)) float ppc_fmuls(float left, float right)
+{
+    volatile double product = (double)left * (double)right;
+    return (float)product;
+}
+
+static __attribute__((noinline, noclone)) float ppc_fsubs(float left, float right)
+{
+    volatile double difference = (double)left - (double)right;
+    return (float)difference;
+}
+
+static uint64_t msl_bits64(double value)
+{
+    uint64_t bits;
+    memcpy(&bits, &value, sizeof bits);
+    return bits;
+}
+
+static double msl_f64(uint64_t bits)
+{
+    double value;
+    memcpy(&value, &bits, sizeof value);
+    return value;
+}
+
+/* This is DolRecomp's single_fma_value/correct_single_fma_tie rule, reduced
+   to the finite normal values reached by the quaternion routines.  Gekko
+   single FMAs select the adjacent IEEE value for an exact halfway result in
+   cases where a host FMA's usual tie-to-even choice does not. */
+static __attribute__((noinline, noclone)) float ppc_fmadds(float left, float right, float addend)
+{
+    /* A product of two binary32 values is exact in binary64 (at most 48
+       significant bits).  The following binary64 add therefore supplies the
+       fused binary32 result without using host libm. */
+    volatile double product = (double)left * (double)right;
+    double result = product + (double)addend;
+    uint64_t bits = msl_bits64(result);
+    if ((bits & UINT64_C(0x000000001fffffff)) == UINT64_C(0x0000000010000000)) {
+        const double left_over = (double)addend - result;
+        const double rounded_back = result + left_over;
+        const double error = (product + left_over) + ((double)addend - rounded_back);
+        if (error != 0.0)
+            result = msl_f64((error > 0.0) == (result > 0.0) ? bits + 1u : bits - 1u);
+    }
+    return (float)result;
+}
+
 /* 802165C8.  This is the MSL restoring square-root loop, including its
    final tie-to-even increment; it is deliberately integer-only. */
 static float msl_sqrt(float x)
@@ -144,25 +206,25 @@ static float msl_acos(float x)
     const float pio2 = msl_f32(0x3fc90fdau);
     if (x <= 0.5f) {
         const float z = x * x;
-        float p = fmaf(z, p1, p2);
-        p = fmaf(z, p, p3); p = fmaf(z, p, p4);
-        p = fmaf(z, p, p5); p = fmaf(z, p, p6);
-        float q = fmaf(z, q1, q2);
-        q = fmaf(z, q, q3); q = fmaf(z, q, q4);
-        const float r = (z * p) / fmaf(z, q, one);
+        float p = ppc_fmadds(z, p1, p2);
+        p = ppc_fmadds(z, p, p3); p = ppc_fmadds(z, p, p4);
+        p = ppc_fmadds(z, p, p5); p = ppc_fmadds(z, p, p6);
+        float q = ppc_fmadds(z, q1, q2);
+        q = ppc_fmadds(z, q, q3); q = ppc_fmadds(z, q, q4);
+        const float r = ppc_fdivs(ppc_fmuls(z, p), ppc_fmadds(z, q, one));
         return pio2 - (x - (tiny - x * r));
     }
     const float z = (one - x) * half;
     const float s = msl_sqrt(z);
     const float df = msl_f32(msl_bits(s) & 0xfffff000u);
     const float c = (z - df * df) / (s + df);
-    float p = fmaf(z, p1, p2);
-    p = fmaf(z, p, p3); p = fmaf(z, p, p4);
-    p = fmaf(z, p, p5); p = fmaf(z, p, p6);
-    float q = fmaf(z, q1, q2);
-    q = fmaf(z, q, q3); q = fmaf(z, q, q4);
-    const float r = (z * p) / fmaf(z, q, one);
-    const float w = fmaf(r, s, c);
+    float p = ppc_fmadds(z, p1, p2);
+    p = ppc_fmadds(z, p, p3); p = ppc_fmadds(z, p, p4);
+    p = ppc_fmadds(z, p, p5); p = ppc_fmadds(z, p, p6);
+    float q = ppc_fmadds(z, q1, q2);
+    q = ppc_fmadds(z, q, q3); q = ppc_fmadds(z, q, q4);
+    const float r = ppc_fdivs(ppc_fmuls(z, p), ppc_fmadds(z, q, one));
+    const float w = ppc_fmadds(r, s, c);
     const float result = df + w;
     return result + result;
 }
@@ -180,23 +242,24 @@ float nflstreet_802165c8_sqrt(float x)
 /* 80216EF4, __kernel_sinf(x,y,0), including each fmadds/fmsubs rounding. */
 static float msl_kernel_sin(float x, float y)
 {
-    const float s1 = msl_f32(0x2f2ec9d3u);
-    const float s2 = msl_f32(0xb2d72f34u);
-    const float s3 = msl_f32(0x3638ef1bu);
-    const float s4 = msl_f32(0xb9500d01u);
-    const float s5 = msl_f32(0x3c088889u);
-    const float s6 = msl_f32(0xbe2aaaabu);
+    const float s1 = msl_f32(0xbe2aaaabu);
+    const float s2 = msl_f32(0x3c088889u);
+    const float s3 = msl_f32(0xb9500d01u);
+    const float s4 = msl_f32(0x3638ef1bu);
+    const float s5 = msl_f32(0xb2d72f34u);
+    const float s6 = msl_f32(0x2f2ec9d3u);
     const float half = msl_f32(0x3f000000u);
-    const float z = x * x;
-    float r = fmaf(z, s1, s2);
-    r = fmaf(z, r, s3);
-    r = fmaf(z, r, s4);
-    r = fmaf(z, r, s5);
-    const float v = z * x;
-    r = v * r;
-    const float t = fmaf(y, half, -r);
-    const float u = fmaf(z, t, -y);
-    return x - (u - v * s6);
+    const float z = ppc_fmuls(x, x);
+    float r = ppc_fmadds(z, s6, s5);
+    r = ppc_fmadds(z, r, s4);
+    r = ppc_fmadds(z, r, s3);
+    r = ppc_fmadds(z, r, s2);
+    const float v = ppc_fmuls(z, x);
+    if (y == 0.0f)
+        return ppc_fmadds(v, ppc_fmadds(z, r, s1), x);
+    const float t = ppc_fmadds(y, half, -ppc_fmuls(v, r));
+    const float u = ppc_fmadds(z, t, -y);
+    return ppc_fsubs(x, ppc_fsubs(u, ppc_fmuls(v, s1)));
 }
 
 /* 80216E0C, __kernel_cosf(x,y).  qx is formed with the original bit edit,
@@ -214,18 +277,20 @@ static float msl_kernel_cos(float x, float y)
     const float half = msl_f32(0x3f000000u);
     const uint32_t ax = msl_bits(x) & 0x7fffffffu;
     const float z = x * x;
-    float r = fmaf(z, c1, c2);
-    r = fmaf(z, r, c3);
-    r = fmaf(z, r, c4);
-    r = fmaf(z, r, c5);
-    r = fmaf(z, r, c6);
-    r = z * r; /* f12 at 80216E8C */
+    float r = ppc_fmadds(z, c1, c2);
+    r = ppc_fmadds(z, r, c3);
+    r = ppc_fmadds(z, r, c4);
+    r = ppc_fmadds(z, r, c5);
+    r = ppc_fmadds(z, r, c6);
+    r = ppc_fmuls(z, r); /* f12 at 80216E8C */
     if (ax <= 0x3e999999u)
-        return one - fmaf(z, half, -fmaf(z, r, -x * y));
+        return ppc_fsubs(one, ppc_fmadds(z, half,
+            -ppc_fmadds(z, r, -ppc_fmuls(x, y))));
     const float qx = ax > 0x3f480000u ? msl_f32(0x3e900000u) :
         msl_f32(ax - 0x01000000u);
-    const float hz = fmaf(z, half, -qx);
-    return (one - qx) - (hz - fmaf(z, r, -x * y));
+    const float hz = ppc_fmadds(z, half, -qx);
+    return ppc_fsubs(ppc_fsubs(one, qx), ppc_fsubs(hz,
+        ppc_fmadds(z, r, -ppc_fmuls(x, y))));
 }
 
 float nflstreet_80216b94_sine(float x)
@@ -275,23 +340,24 @@ void nflstreet_801a36ec_quaternion(int32_t x, int32_t y, int32_t z,
     const float sz_sxcy = sz * sxcy;
     const float sz_cxsy = sz * cxsy;
     const float cz_sxsy = cz * sxsy;
-    result[3] = fmaf(cz, cxcy, sz_sxsy);
-    result[2] = fmaf(cz, sxcy, -sz_cxsy);
-    result[0] = fmaf(sz, cxcy, -cz_sxsy);
-    result[1] = fmaf(cz, cxsy, sz_sxcy);
+    result[3] = ppc_fmadds(cz, cxcy, sz_sxsy);
+    result[2] = ppc_fmadds(cz, sxcy, -sz_cxsy);
+    result[0] = ppc_fmadds(sz, cxcy, -cz_sxsy);
+    result[1] = ppc_fmadds(cz, cxsy, sz_sxcy);
 }
 
 void nflstreet_801a383c_slerp(float t, const float a[4], const float b[4],
     float result[4])
 {
     /* 801A2F74 then 801A2CE0/80188EAC. */
-    const float dot = fmaf(a[3], b[3], fmaf(a[2], b[2],
-        fmaf(a[0], b[0], a[1] * b[1])));
-    const float alen = fmaf(a[3], a[3], fmaf(a[2], a[2],
-        fmaf(a[0], a[0], a[1] * a[1])));
-    const float blen = fmaf(b[3], b[3], fmaf(b[2], b[2],
-        fmaf(b[0], b[0], b[1] * b[1])));
-    float cosine = dot * ((1.0f / msl_sqrt(alen)) * (1.0f / msl_sqrt(blen)));
+    const float dot = ppc_fmadds(a[3], b[3], ppc_fmadds(a[2], b[2],
+        ppc_fmadds(a[0], b[0], ppc_fmuls(a[1], b[1]))));
+    const float alen = ppc_fmadds(a[3], a[3], ppc_fmadds(a[2], a[2],
+        ppc_fmadds(a[0], a[0], ppc_fmuls(a[1], a[1]))));
+    const float blen = ppc_fmadds(b[3], b[3], ppc_fmadds(b[2], b[2],
+        ppc_fmadds(b[0], b[0], ppc_fmuls(b[1], b[1]))));
+    float cosine = ppc_fmuls(dot, ppc_fmuls(ppc_fdivs(1.0f, msl_sqrt(alen)),
+        ppc_fdivs(1.0f, msl_sqrt(blen))));
     float signed_a[4];
     if (!(cosine >= 0.0f)) {
         cosine = -cosine;
@@ -305,11 +371,13 @@ void nflstreet_801a383c_slerp(float t, const float a[4], const float b[4],
         wb = 1.0f - t;
     } else {
         const float theta = msl_acos(cosine);
-        const float inverse = 1.0f / nflstreet_80216b94_sine(theta);
-        wb = nflstreet_80216b94_sine(theta * (1.0f - t)) * inverse;
-        wa = nflstreet_80216b94_sine(theta * t) * inverse;
+        const float inverse = ppc_fdivs(1.0f, nflstreet_80216b94_sine(theta));
+        wb = ppc_fmuls(nflstreet_80216b94_sine(ppc_fmuls(theta, 1.0f - t)), inverse);
+        const float arga = ppc_fmuls(theta, t);
+        const float sina = nflstreet_80216b94_sine(arga);
+        wa = ppc_fmuls(sina, inverse);
     }
     for (unsigned i = 0; i < 4; ++i)
         /* fmuls f0,wa,a; fmadds out,wb,b,f0 */
-        result[i] = fmaf(wb, b[i], wa * signed_a[i]);
+        result[i] = ppc_fmadds(wb, b[i], ppc_fmuls(wa, signed_a[i]));
 }
