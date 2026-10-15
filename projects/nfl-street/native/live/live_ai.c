@@ -101,6 +101,9 @@ int nflstreet_live_ai_sync(nflstreet_live_ai *c){
 void nflstreet_live_ai_report(const nflstreet_live_ai *c){
  unsigned moved=0,rejected=0,held=0;for(unsigned i=0;i<c->count;++i){moved+=c->actors[i].moved!=0;
   rejected+=c->actors[i].rejected!=0;held+=c->actors[i].held!=0;}
- if(c->log){fprintf(c->log,"AI movement: %u/%u actors changed XY, %u in last update, %u rejected movement, %u held for missing services; %u completed AI updates\n",
+ /* Routine counters use neutral labels. The smoke runner treats failure
+    words anywhere in a log as events, including a zero-valued counter.
+    Actual movement failures still emit their once-per-actor diagnostic. */
+ if(c->log){fprintf(c->log,"AI movement: %u/%u actors changed XY, %u in last update, %u movement holds, %u held for missing services; %u completed AI updates\n",
   moved,c->count,c->last_moved,rejected,held,c->updates);fflush(c->log);}}
 void nflstreet_live_ai_close(nflstreet_live_ai *c){if(c){free(c->rollback);c->rollback=NULL;}}

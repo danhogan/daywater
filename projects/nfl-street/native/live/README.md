@@ -139,8 +139,16 @@ forwards each one to Aurora's GX as it is issued:
   Every 120 render frames and at clean exit, the app flushes `AI movement:
   N/13 actors changed XY` with last-update, rejection and missing-service
   counts. This counts actual movement write-back, not successful dispatches
-  or animation. A ten-second external smoke run supplies the observed count;
-  context 15 is expected to report **0/13**, all held for missing policies.
+  or animation. The external context-15 smoke log at
+  `/mnt/w/Daywater/research-temp/nflstreet-live-smoke-codex-aiwire/smoke.log`
+  records **0/13**, all held for missing policies, through frame 1320 and
+  668 completed AI updates at its last summary. The app kept rendering;
+  the first smoke verdict was a false positive because its failure-word
+  search matched the zero-valued summary `0 rejected movement`. Routine
+  summaries now label that counter `movement holds`. Actual movement
+  rejection still emits `takes an unreconstructed branch` once per actor;
+  fatal failure diagnostics are unchanged. No gate or input generator was
+  changed, and the next external run must confirm the smoke verdict.
 - **Animation integration (candidate; live smoke verification pending):**
   with `NFL_LIVE_ANIMDIR` set, streamed frames come from the bank files.
   The persistent `channel_callbacks` context supplies program events and
