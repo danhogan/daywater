@@ -15,7 +15,11 @@
    actors have none) and the camera. Placement cases run 800D4A6C for every
    gameplay actor (found as the record whose +04 names a visual actor and
    whose +1A8 position equals the visual's +04) with edited positions,
-   headings, +30C, visual flags, offsets and the mirrored side. */
+   headings, +30C, visual flags, offsets and the mirrored side.
+   Optional third argument "slerp" adds flag 0x4000, compact-pose/rest
+   comparisons, cluster weights in [0,4096] and 8028DD70 enable-byte edits.
+   It reports slerp coverage separately and omits the unrelated placement
+   suite; without that argument the historical palette suite is unchanged. */
 #include <windows.h>
 #include "moderngekko/module_abi.h"
 #include "scenery_draw.h"
@@ -27,7 +31,8 @@
 #define ACTORS 14u
 #define SCALE_VECTOR 0x80f37f00u /* below the oracle stack: an optional x/y/z scale */
 #define ITEMS 0x80f37f10u        /* the two held-item model words (80164000 passes its +28) */
-static const ModernGekkoModuleDesc *module;static uint8_t *oracle;static uint8_t locked[NFLSTREET_LOCKED_CACHE_BYTES];
+#define SLERP_ENABLES 0x8028dd70u
+static const ModernGekkoModuleDesc *module;static uint8_t *oracle;static uint8_t locked[NFLSTREET_LOCKED_CACHE_BYTES];static int slerp;
 typedef struct {uint32_t lod[ACTORS];int scaled[ACTORS];} palette_case;
 static void *external(CPUState *c,uint32_t a,uint32_t n){(void)c;return a>=0xe0000000u&&(uint64_t)a-0xe0000000u+n<=sizeof locked?locked+(a-0xe0000000u):NULL;}
 static uint64_t read_external(CPUState *c,uint32_t a,uint8_t n){const uint8_t *p=external(c,a,n);uint64_t v=0;if(!p)return 0;for(unsigned i=0;i<n;++i)v=v<<8|p[i];return v;}
@@ -61,6 +66,29 @@ static void prepare(uint8_t *ram,unsigned index,palette_case *pc){
   for(unsigned k=0;k<2;++k)if(rnd()%2)wr32(p+0xd28+0xf0*k,ram32(ram,ITEMS+4*(rnd()%2)));
   if(rnd()%8==0)wr32(p+0x1008+4,0); /* the body built in place, then flushed */
   if(rnd()%2){uint32_t pose=rd32(p+0x5c);for(unsigned b=0;b<75*3;++b)if(rnd()%3==0){uint8_t *q=ram_at(ram,pose+2*b,2);uint16_t v=(uint16_t)rnd();q[0]=(uint8_t)(v>>8);q[1]=(uint8_t)v;}}}}
+static int prepare_slerp(uint8_t *ram,unsigned index){
+ unsigned max_bones=0;
+ for(unsigned i=0;i<ACTORS;++i){uint32_t a=actor_at(ram,i),model=ram32(ram,a+0x4b8),skel=ram32(ram,model+16),bones=ram32(ram,skel);
+  if(!bones||bones>256)return 0;if(bones>max_bones)max_bones=bones;
+  /* Case 0: the original pose with every body on the slerp route. Case 1:
+     mixed ordinary/slerp bodies. Cases 2/3/4: disabled/weight 0/weight 1.
+     Remaining cases mix both routes, in-place and locked-cache output. */
+  uint32_t flags=ram32(ram,a+0x14)&~0x4000u;
+  if(index==0||(index>=2&&index<=4)||((index+i)&1u))flags|=0x4000u;
+  wr32(ram_at(ram,a+0x14,4),flags);
+  if(!index)continue;
+  uint32_t clst=ram32(ram,model+12),count=ram32(ram,clst+4),rows=ram32(ram,clst),pose=ram32(ram,a+0x5c),rest=ram32(ram,skel+12);
+  if(!count||count>256||!ram_at(ram,rows,count*4)||!ram_at(ram,pose,bones*6)||!ram_at(ram,rest,bones*6))return 0;
+  for(unsigned b=0;b<bones;++b)for(unsigned axis=0;axis<3;++axis)if(index<=4||rnd()%3==0){
+   uint8_t *p=ram_at(ram,pose+6*b+2*axis,2);uint16_t value=(uint16_t)rnd();
+   if(index%11==0){const uint8_t *r=ram_at(ram,rest+6*b+2*axis,2);value=(uint16_t)((unsigned)r[0]<<8|r[1]);}
+   p[0]=(uint8_t)(value>>8);p[1]=(uint8_t)value;}
+  for(unsigned row=1;row<count;++row){uint8_t *p=ram_at(ram,rows+4*row,4);unsigned weight;
+   if(index==3)weight=0;else if(index==4)weight=4096;else if(rnd()%2)weight=rnd()%4097;else {static const unsigned edge[]={0,1,2048,4095,4096};weight=edge[(index+row)%5];}
+   p[2]=(uint8_t)(weight>>8);p[3]=(uint8_t)weight;}}
+ if(index){uint8_t *enable=ram_at(ram,SLERP_ENABLES,max_bones);if(!enable)return 0;
+  for(unsigned bone=0;bone<max_bones;++bone)enable[bone]=(uint8_t)(index==2?0:index<=4?1:rnd()%3==0?0:1+rnd()%255);}
+ return 1;}
 static int native_case(uint8_t *ram,const palette_case *pc,uint8_t *cache){
  nflstreet_player_draw_context x;nflstreet_actor_palette_context *c=native_context(ram,&x);memcpy(c->locked,cache,sizeof c->locked);
  for(unsigned i=0;i<ACTORS;++i){float v[3];for(unsigned k=0;k<3;++k)v[k]=ramf(ram,SCALE_VECTOR+4*k);uint32_t a=actor_at(ram,i);
@@ -109,25 +137,31 @@ static int place_case(uint8_t *ram){
 static int same(const uint8_t *native,const uint8_t *native_cache){
  const uint32_t lo=STACK_LO-RAM_BASE,hi=STACK_HI-RAM_BASE;
  for(uint32_t i=0;i<RAM_BYTES;++i)if((i<lo||i>=hi)&&oracle[i]!=native[i]){
-  fprintf(stderr,"RAM differs at %08x: original %02x native %02x\n",RAM_BASE+i,oracle[i],native[i]);return 0;}
+  fprintf(stderr,"RAM differs at %08x: original %02x native %02x (words %08x/%08x)\n",RAM_BASE+i,oracle[i],native[i],ram32(oracle,(RAM_BASE+i)&~3u),ram32((uint8_t *)native,(RAM_BASE+i)&~3u));return 0;}
  for(uint32_t i=0;i<sizeof locked;++i)if(locked[i]!=native_cache[i]){fprintf(stderr,"locked cache differs at +%04x\n",i);return 0;}
  return 1;}
 int main(int argc,char **argv){
- if(argc!=3)return 2;HMODULE h=LoadLibraryA(argv[2]);if(!h)return 3;
+ if(argc!=3&&argc!=4)return 2;if(argc==4&&strcmp(argv[3],"slerp"))return 2;slerp=argc==4;HMODULE h=LoadLibraryA(argv[2]);if(!h)return 3;
  ModernGekkoGetModuleFn get=(ModernGekkoGetModuleFn)GetProcAddress(h,MODERNGEKKO_GET_MODULE_SYMBOL);if(!get||!(module=get()))return 3;
  uint8_t *pristine=load_ram(argv[1]),*ram=malloc(RAM_BYTES),*before=malloc(RAM_BYTES);oracle=malloc(RAM_BYTES);
  static uint8_t cache[NFLSTREET_LOCKED_CACHE_BYTES];if(!pristine||!ram||!before||!oracle)return 3;
- unsigned runs=0,matrices=0,lods[4]={0},scaled=0,hands=0,items=0;uint32_t digest=2166136261u;
+ unsigned runs=0,matrices=0,lods[4]={0},scaled=0,hands=0,items=0,flagged=0,enabled_rows=0,disabled_rows=0,zero_weights=0,unit_weights=0;uint32_t digest=2166136261u;
  for(unsigned index=0;index<CASES;++index){
-  memcpy(ram,pristine,RAM_BYTES);palette_case pc;prepare(ram,index,&pc);memcpy(before,ram,RAM_BYTES);
+  memcpy(ram,pristine,RAM_BYTES);palette_case pc;prepare(ram,index,&pc);if(slerp&&!prepare_slerp(ram,index)){fprintf(stderr,"bad slerp fixture case %u\n",index);return 4;}memcpy(before,ram,RAM_BYTES);
   memset(cache,0,sizeof cache);if(!native_case(ram,&pc,cache)){fprintf(stderr,"case %u\n",index);return 5;}
   memcpy(oracle,before,RAM_BYTES);memset(locked,0,sizeof locked);
   for(unsigned i=0;i<ACTORS;++i){if(!original_actor(actor_at(before,i),pc.scaled[i]?SCALE_VECTOR:0,pc.lod[i])){fprintf(stderr,"case %u actor %u\n",index,i);return 6;}
    ++runs;++lods[pc.lod[i]];scaled+=pc.scaled[i]?1u:0u;
    const uint32_t a=actor_at(before,i);if(!pc.lod[i])for(unsigned k=0;k<2;++k)hands+=ram32(before,a+0xd28+0xf0*k)?1u:0u;
-   if(pc.lod[i]<2)for(unsigned k=0;k<2;++k)items+=ram_at(before,a+0x78+0x48*k,1)[0]==1?1u:0u;}
+   if(pc.lod[i]<2)for(unsigned k=0;k<2;++k)items+=ram_at(before,a+0x78+0x48*k,1)[0]==1?1u:0u;
+   if(slerp&&(ram32(before,a+0x14)&0x4000u)){++flagged;uint32_t m=ram32(before,a+0x4b8),clst=ram32(before,m+12),rows=ram32(before,clst),count=ram32(before,clst+4);
+    for(unsigned j=1;j<count;++j){const uint8_t *row=ram_at(before,rows+4*j,4);unsigned weight=(unsigned)row[2]<<8|row[3];
+     if(ram_at(before,SLERP_ENABLES+row[0],1)[0])++enabled_rows;else ++disabled_rows;zero_weights+=weight==0;unit_weights+=weight==4096;}}}
   if(!same(ram,cache)){fprintf(stderr,"original actor palettes mismatch case %u\n",index);return 7;}
   matrices+=ram32(ram,R13-0x5670u);digest=fnv(digest,ram,RAM_BYTES);}
+ if(slerp){
+  if(!flagged||flagged==runs||!enabled_rows||!disabled_rows||!zero_weights||!unit_weights){fprintf(stderr,"incomplete slerp coverage\n");return 9;}
+  printf("Original actor slerp: %u runs of 80162760 over 14 actors x %u cases; %u flagged bodies, %u enabled and %u disabled rows, %u zero and %u unit weights; all RAM and locked cache match; %u palette matrices allocated; digest %08x.\n",runs,CASES,flagged,enabled_rows,disabled_rows,zero_weights,unit_weights,matrices,digest);return 0;}
  for(unsigned i=0;i<ACTORS;++i)if(!(gameplay[i]=gameplay_actor(pristine,actor_at(pristine,i)))){fprintf(stderr,"no gameplay actor for visual %u\n",i);return 8;}
  unsigned placed=0,mirrored=0;
  for(unsigned index=0;index<PLACE_CASES;++index){

@@ -1,5 +1,6 @@
 #include "actor_palettes.h"
 #include "cluster_palette.h"
+#include "gekko_quaternion/actor_slerp.h"
 #include <string.h>
 #define rd32 nflstreet_rd32
 #define LOCKED 0xe0000000u
@@ -39,7 +40,8 @@ static int palette(context *c,nflstreet_draw *d,uint32_t out,uint32_t skel,uint3
 static int model(context *c,uint32_t m,uint32_t *skel,uint32_t *clst){
  *skel=*clst=0;return !m||(word(c,m+0xc,clst)&&word(c,m+0x10,skel));}
 /* 801EAC78: the body form (to the descriptor's scratch, then copied out). */
-static int body(context *c,nflstreet_draw *d,uint32_t m,uint32_t desc,uint32_t pose){
+static int body(context *c,nflstreet_draw *d,uint32_t m,uint32_t desc,uint32_t pose,int slerp){
+ if(slerp)return nflstreet_801ead98_slerp_body(c,d,m,desc,pose,0x8028dd70u);
  uint32_t skel,clst,scratch,count,out;if(!model(c,m,&skel,&clst))return 0;if(!skel||!clst)return 1;
  if(!word(c,desc+4,&scratch)||(scratch&&!cache(c))||!word(c,clst+4,&count)||!allocate(c,desc,count)||!word(c,desc,&out))return 0;
  if(!palette(c,d,scratch?scratch:out,skel,clst,pose))return 0;
@@ -71,13 +73,12 @@ int nflstreet_actor_palettes(context *c,uint32_t actor,const float *scale,uint32
  nflstreet_draw dd={c->x,&unused},*d=&dd;const nflstreet_matrix_stacks *k=&c->stacks;
  uint32_t flags,pose,skeleton,m,count;const uint8_t *a=mem(c,actor,0x1360);float s;
  if(!a)return 0;flags=rd32(a+0x14);pose=rd32(a+0x5c);skeleton=rd32(a+0x60);s=fword(a+0x1358);
- if(flags&0x4000)return 0; /* 801CA900 */
  const int dynamic=((flags^8u)>>3)&1u;
  if(!nflstreet_matrix_push(d,k)||!nflstreet_matrix_concat(d,k,world,c->unit)||!nflstreet_matrix_scale(d,k,fword(a+0x18),fword(a+0x18),fword(a+0x18)))return 0;
  if(scale&&!nflstreet_matrix_scale(d,k,scale[0],scale[1],scale[2]))return 0;
  if(!nflstreet_matrix_push(d,k))return 0;
  if(!(flags&0x2000)&&(!nflstreet_matrix_translate(d,k,fword(a+0x34),fword(a+0x38),fword(a+0x3c))||!nflstreet_matrix_rotate(d,k,1,rd32(a+0x4c))))return 0;
- if(!body(c,d,rd32(a+0x4b8),actor+0x1008,pose))return 0;
+ if(!body(c,d,rd32(a+0x4b8),actor+0x1008,pose,(flags&0x4000)!=0))return 0;
  if(lod<2){m=rd32(a+0x5a8);if(!attachment(c,d,m,actor+0x1014,pose,&count))return 0;
   if(count&&(!scale_rows(c,m,LOCKED,0xd,1,0,s)||!copy_out(c,actor,m,0x1014)))return 0;}
  static const struct {uint16_t model,desc;} parts[2]={{0x788,0x102c},{0x968,0x1038}};
@@ -96,9 +97,9 @@ int nflstreet_actor_palettes(context *c,uint32_t actor,const float *scale,uint32
   const uint32_t bone=i?0xe:0x14,to=rd32(a+0x18c+0x7cu*i);
   if(!nflstreet_matrix_push(d,k)||!nflstreet_matrix_load(d,k,actor+0x3ac)||(!dynamic&&!dynamics_off(c,state))||!nflstreet_matrix_pop(d,k)||
      !nflstreet_matrix_push(d,k)||!nflstreet_matrix_concat(d,k,skeleton+0x40u*bone,c->unit)||!angles(c,to,pose+6u*bone)||
-     !body(c,d,rd32(a+0xd28+0xf0u*i),actor+0x105c+0xcu*i,to)||!nflstreet_matrix_pop(d,k))return 0;}
+     !body(c,d,rd32(a+0xd28+0xf0u*i),actor+0x105c+0xcu*i,to,0)||!nflstreet_matrix_pop(d,k))return 0;}
  if(lod<2)for(unsigned i=0;i<2;++i){if(a[0x78+0x48u*i]!=1)continue;
   const uint32_t bone=i?0x11:0x17,to=rd32(a+0xb4+0x48u*i);uint32_t item;
   if(!word(c,items+4*i,&item)||!nflstreet_matrix_push(d,k)||!nflstreet_matrix_concat(d,k,skeleton+0x40u*bone,c->unit)||
-     !angles(c,to,pose+6u*bone+6u)||!body(c,d,item,actor+0x1044+0xcu*i,to)||!nflstreet_matrix_pop(d,k))return 0;}
+     !angles(c,to,pose+6u*bone+6u)||!body(c,d,item,actor+0x1044+0xcu*i,to,0)||!nflstreet_matrix_pop(d,k))return 0;}
  return nflstreet_matrix_pop(d,k);}
