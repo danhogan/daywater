@@ -201,6 +201,18 @@ trace mismatch. Build failures, crashes, timeouts and native rejections do not
 count. It tries all three contexts before declaring a mutant escaped. Mutation
 results include edited-source, executable and log hashes in `verification.json`.
 
+A subsequent external build failed when lld-link tried to overwrite the fixed
+`actor-ai-dispatch-original-check.exe` path (permission denied). This is
+consistent with Windows retaining an open executable. The gate now compiles
+each baseline and mutant to a fresh `builds/checker-*/` directory underneath
+its existing private output directory and runs that exact returned path. It
+never overwrites or removes an older executable. The latest build diagnostics
+remain in `build.log`; the report records the actual executable path as well as
+its hash, including for mutants. This changes build artifact ownership only;
+inputs, coverage requirements, all-RAM comparisons and live integration are
+unchanged. Compilation can be checked without executing the gate or Windows
+programs, as required for this author.
+
 ## Exact integration instructions (not applied to shared files)
 
 In `native/live/CMakeLists.txt`, add `actor_ai_dispatch.c` and `actor_ai.c` to

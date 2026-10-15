@@ -5,6 +5,7 @@ import json
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from verify_controller_checks import BASELINES, PRIVATE, baseline_hashes, digest, private, run, windows
@@ -60,6 +61,18 @@ BOUNDARY = (
 )
 
 
+def build_checker(here: Path, out: Path) -> Path:
+    """Compile only, preserving any older executable Windows still has open."""
+    builds = private(out / "builds")
+    builds.mkdir(parents=True, exist_ok=True)
+    build = private(Path(tempfile.mkdtemp(prefix="checker-", dir=builds)))
+    run(
+        ["bash", str(here / "build_windows_actor_ai_dispatch_original_check.sh"), str(build)],
+        out / "build.log",
+    )
+    return build / "actor-ai-dispatch-original-check.exe"
+
+
 def mutants(here: Path, out: Path, contexts: dict[int, Path]) -> list[dict[str, object]]:
     edits = json.loads((here / "actor_ai_dispatch_mutants.json").read_text())
     if len(edits) < 5 or len({edit["name"] for edit in edits}) != len(edits):
@@ -88,11 +101,7 @@ def mutants(here: Path, out: Path, contexts: dict[int, Path]) -> list[dict[str, 
         if source.count(old) != 1:
             raise RuntimeError(f"Mutant {name} does not match exactly once")
         target.write_text(source.replace(old, new))
-        run(
-            ["bash", str(tree / "build_windows_actor_ai_dispatch_original_check.sh"), str(scratch)],
-            scratch / "build.log",
-        )
-        exe = scratch / "actor-ai-dispatch-original-check.exe"
+        exe = build_checker(tree, scratch)
         caught = False
         for context, snapshot in contexts.items():
             log = scratch / f"original-{context}.log"
@@ -112,6 +121,7 @@ def mutants(here: Path, out: Path, contexts: dict[int, Path]) -> list[dict[str, 
                         **edit,
                         "caught_context": context,
                         "log_sha256": digest(log),
+                        "executable": str(exe),
                         "executable_sha256": digest(exe),
                         "mutated_source_sha256": digest(target),
                     }
@@ -144,8 +154,8 @@ def main() -> None:
         record.update(baseline=before, input_sha256=inputs, source_sha256=sources)
         if any(inputs[str(path)] != INPUT_HASHES[i] for i, path in contexts.items()):
             raise RuntimeError("Saved MEM1 input differs from the recorded context")
-        run(["bash", str(here / "build_windows_actor_ai_dispatch_original_check.sh"), str(out)], out / "build.log")
-        exe = out / "actor-ai-dispatch-original-check.exe"
+        exe = build_checker(here, out)
+        record.update(executable=str(exe), executable_sha256=digest(exe))
         logs = {}
         for context, snapshot in contexts.items():
             traces = []
