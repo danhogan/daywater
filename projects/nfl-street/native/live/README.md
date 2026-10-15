@@ -53,6 +53,12 @@ forwards each one to Aurora's GX as it is issued:
      controller and an NSC1 set catalog), not the game's own selection.
 
   Then the native placement (`800D4A6C`/`800D4B0C`) puts it on the field.
+- **Other players:** with `NFL_LIVE_ANIMDIR` set, every update runs the
+  game's own channel passes for all gameplay actors (`80178290`, `80173D60`)
+  and, for all but the controlled player, the original pose step, twist and
+  skeleton (`actor_channels.md`). Streamed frames come from the bank files.
+  Clip requests and the group/event callbacks are not reconstructed yet, so
+  players whose programs end hold their last pose.
   The camera follows by the player's movement (a host choice).
   `NFL_LIVE_SCRIPT=1` drives right, forward, then left for captures.
 - **Each frame (scene_frame.c):** the field camera, its slots (`801DF8C4`,
@@ -96,6 +102,8 @@ Options:
   (e.g. `W:\Daywater\research-temp\nflstreet-set-playback-20261009\sets-14.bin`)
   turn on the controlled player's animation; without them it keeps the
   saved stance.
+- `NFL_LIVE_ANIMDIR=<unpacked/animdata directory>` animates the other
+  players through the game's channel update.
 - `NFL_LIVE_SCRIPT=1` replaces the stick with a scripted run for captures.
 
 The RAM image is your own saved state on W:. Nothing from the game is in

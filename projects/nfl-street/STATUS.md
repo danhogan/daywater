@@ -41,6 +41,13 @@ faults caught:
   saved frames the clouds come out effectively invisible in the original
   too, so they are verified but not yet wired into the scene.
 
+- **Animation channels:** the game's own per-update channel step `8003A24C`
+  (manager, clip program interpreter, pose list, channel roots) with a
+  stream service that serves frames from the bank files
+  ([actor_channels.md](reconstruction/native_assets/actor_channels.md)). In
+  the live app the other 13 players now animate from their saved channel
+  state; clip requests and the group callbacks are not reconstructed yet.
+
 The scene and the live app now run all of these. Two Codex-written modules
 (camera projection and scaled actors) were checked here before merging.
 

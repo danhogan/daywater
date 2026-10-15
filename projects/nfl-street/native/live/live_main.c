@@ -20,6 +20,7 @@
 #include "live_movement.h"
 #include "live_pose.h"
 #include "actor_skeleton.h"
+#include "actor_channels.h"
 #include "select_rings.h"
 #define RAM_BASE 0x80000000u
 #define RAM_BYTES (24u*1024u*1024u)
@@ -108,6 +109,21 @@ int main(int argc,char *argv[]){
  size_t bank_n=0,sets_n=0;uint8_t *bank=read_file(getenv("NFL_LIVE_ANIMDATA"),&bank_n),*sets=read_file(getenv("NFL_LIVE_SETS"),&sets_n);
  static nflstreet_live_pose pose;const int animated=player&&bank&&sets&&nflstreet_live_pose_open(&pose,bank,bank_n,sets,sets_n);
  if(log_file){fprintf(log_file,"animation %s\n",animated?"on":"off");fflush(log_file);}
+ /* The other players: NFL_LIVE_ANIMDIR = the animdata directory. Their
+    channels advance through the game's own update (8003A24C passes:
+    80178290, 80173D60, then the pose), with streamed frames served from
+    the bank files. Clip requests and the group/event callbacks are not
+    reconstructed, so players whose programs end hold their last pose. */
+ static uint8_t *anim_files[200];static size_t anim_sizes[200];static nflstreet_anim_aram aram;static nflstreet_actor_channels channels;
+ int crowd_anim=0;
+ if(getenv("NFL_LIVE_ANIMDIR")){char path[1024];
+  for(unsigned i=0;i<200;++i){snprintf(path,sizeof path,"%s/%05u.bin",getenv("NFL_LIVE_ANIMDIR"),i);anim_files[i]=read_file(path,anim_sizes+i);}
+  const int banks=nflstreet_anim_aram_map(&aram,span,ram,(const uint8_t *const *)anim_files,anim_sizes,200);
+  memset(&channels,0,sizeof channels);channels.span=span;channels.memory=ram;channels.aram=&aram;crowd_anim=banks>0;
+  if(log_file){fprintf(log_file,"streamed banks mapped: %d\n",banks);fflush(log_file);}}
+ /* The gameplay actor table: *(r13-7C30) holds the array's address (+0) and count (+0A). */
+ const uint32_t actor_table=ram32(ram,R13-0x7c30u),gameplay_actors=ram32(ram,actor_table);
+ const unsigned actor_count=(unsigned)(ram32(ram,actor_table+8)&0xffffu)<14u?(unsigned)(ram32(ram,actor_table+8)&0xffffu):14u;
  const nflstreet_rings_context rings={&scene.draw,R13};
  const double start=seconds();double clock_time=start;
  const uint32_t gx=ram32(ram,R13-0x4c90u);unsigned frames=0;int exiting=0,failed=0;
@@ -134,7 +150,13 @@ int main(int argc,char *argv[]){
      moved[0]+=ramf(ram,player+0x1a8)-x0;moved[1]+=ramf(ram,player+0x1ac)-y0;}
     /* Then the animation update: pose (8015E9C8, 8015EC30, 80053404 from
        the host clip choice) and the compact skeleton (800D51B4/8015F08C). */
-    if(animated&&(!nflstreet_live_pose_step(&pose,span,ram,player,0,1.0)||!nflstreet_actor_skeleton_frame(scene.palettes,ram32(ram,player+4))))failed=1;}
+    if(animated&&(!nflstreet_live_pose_step(&pose,span,ram,player,0,1.0)||!nflstreet_actor_skeleton_frame(scene.palettes,ram32(ram,player+4))))failed=1;
+    if(crowd_anim){ /* the game's passes over every gameplay actor; the controlled one keeps its stick-driven pose */
+     for(unsigned i=0;i<actor_count;++i)if(!nflstreet_actor_channels_manager(&channels,1.0f,gameplay_actors+0x14d4u*i))failed=1;
+     for(unsigned i=0;i<actor_count;++i)if(!nflstreet_actor_channels_step(&channels,1.0f,gameplay_actors+0x14d4u*i))failed=1;
+     for(unsigned i=0;i<actor_count;++i){const uint32_t g=gameplay_actors+0x14d4u*i;if(g==player)continue;
+      if(!nflstreet_actor_channels_pose(&channels,i,g)||!nflstreet_actor_pose_twist(&channels.pose[i],g)||
+         !nflstreet_actor_skeleton_frame(scene.palettes,ram32(ram,g+4)))failed=1;}}}
    nflstreet_render_state unused;memset(&unused,0,sizeof unused);nflstreet_draw d={&scene.draw,&unused};
    if(!nflstreet_matrix_select(&d,&scene.hud.stacks)||!nflstreet_actor_place(&d,&scene.hud.stacks,player,R13-0x7078u))failed=1;}
   steer(ram,orbit,&pads[0],moved[0],moved[1]);
@@ -153,4 +175,4 @@ int main(int argc,char *argv[]){
   if(++frames%120==0&&log_file){const AuroraStats *st=aurora_get_stats();
    fprintf(log_file,"frame %u, %u GX calls so far; draws %u (merged %u), pipelines queued %u created %u, %.0f fps\n",frames,
     nflstreet_gx_aurora_calls(bridge),st->drawCallCount,st->mergedDrawCallCount,st->queuedPipelines,st->createdPipelines,aurora_get_fps());fflush(log_file);}}
- nflstreet_gx_aurora_close(bridge);aurora_shutdown();free(bank);free(sets);free(ram);return 0;}
+ nflstreet_gx_aurora_close(bridge);aurora_shutdown();for(unsigned i=0;i<200;++i)free(anim_files[i]);free(bank);free(sets);free(ram);return 0;}
