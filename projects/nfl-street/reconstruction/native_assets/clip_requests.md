@@ -1,8 +1,10 @@
 # Animation clip requests
 
 **Confidence: candidate, source/disassembly traced and Windows compiled only.**
-Oracle runs, gate results and mutation catches are pending the owner's execution.
-No Windows executable or gate was run in the `codex/clips` worktree.
+The owner reports that context 14's saved case 0 passed, then the initial
+checker rejected replace case 1, actor 0. The generator fix below is compiled;
+its oracle comparison and the remaining gate/mutation results are pending.
+The implementing agent has not run Windows executables or the gate.
 
 Game: NFL Street, GNNE69 revision 0, DOL SHA1
 `46e3de854998a0f66c9be8c72a1164d22cd29eb4`. Sources are the corresponding
@@ -50,6 +52,31 @@ its accesses to following records (`curve+100/+200`) are intentionally
 preserved even at the end of the manager. Float operation order follows
 the disassembly, including fused interpolation and the double fmod result
 entering `80177374`'s first single subtraction.
+
+## Replacement fixture correction
+
+**Confidence: probable (saved-RAM/RNG inspection and disassembly; owner rerun
+pending).** The initial context-14 generator selects actor `803B7320`, channel
+index 4 (`803B79F4`) for mode 0, case 1, requesting bank 11, clip 403, key
+`0073`. That saved slot has state 0 and program pointer `+4C = 0`. The
+preparation forced state 2 and `+66 = FFFF`, so `801741AC..B0` passed the null
+old program to `8017756C`/`801770FC`/`8017724C`; `80177274` dereferences its
+first byte. The native span rejects that null access. This was a malformed
+playing-channel fixture, not an unimplemented clip-selection branch.
+
+Edited replacements now seed previously unused slots' `+4C` from a saved
+playing channel of that actor (context 14 actor 0: `8087D028`, channel 3).
+If no such program is saved, preparation uses the requested loaded catalog
+program. Existing nonnull programs stay as captured. Random slot selection,
+case counts and RNG draws are unchanged. Old rates, times, duration caching
+and all replacement paths remain randomized. State-2 replacement inputs
+require a readable initialized old program; raw null-program scans are not
+modeled or generated. The original does not supply a null fallback.
+
+Rejection diagnostics print all prepared GPR/f1 inputs, named replacement
+arguments, the old channel state/program/duration/rate/time and target catalog
+program. The same diagnostics accompany original-run failures and mismatches;
+they use the prepared copy, before native writes.
 
 ## Providers and limits
 

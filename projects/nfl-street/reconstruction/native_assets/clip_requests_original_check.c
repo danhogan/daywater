@@ -86,6 +86,10 @@ static void prepare(uint8_t *m,uint32_t g,unsigned index,unsigned mode,request *
  const uint32_t mgr=word(m,g+0x318),set=word(m,g+0x31c),ch=word(m,g+0x320);uint32_t current=0xffff;
  for(int i=3;i>=0;--i)if(half(m,mgr+100u*(unsigned)i+6)==3)current=half(m,mgr+100u*(unsigned)i+4);
  unsigned slot=0;for(unsigned i=0;i<half(m,set+4);++i)if(at(m,ch+0x7c*i+1,1)[0]==2){slot=i;break;}
+ /* A replacement may target any slot, but state 2 requires an existing
+    program: 801741AC passes it unconditionally to the duration scan.
+    Retain a saved actor program before choosing/randomizing the target. */
+ const uint32_t saved_program=word(m,ch+0x7c*slot+0x4c);
  uint32_t bank=at(m,ch+0x7c*slot+6,1)[0],clip=half(m,ch+0x7c*slot+2),target=current;
  q->weight=1.0f;q->mode=mode;memset(q->a,0,sizeof q->a);
  if(index){bank=banks[rnd()%nbanks];clip=choose_clip(m,bank);target=index%13==0?0xffff:key();q->weight=index%7==0?0.0f:rndf(0.1f,1.25f);
@@ -96,7 +100,13 @@ static void prepare(uint8_t *m,uint32_t g,unsigned index,unsigned mode,request *
   for(unsigned j=0;j<n;++j){const uint32_t a=ch+0x7c*j;at(m,a+1,1)[0]=(uint8_t)(rnd()%3);p16(m,a+8,rnd()%3?key():0xfffeu-(rnd()%4));
    pf(m,a+0x30,rnd()%3==0?0.0f:rndf(0,1));pf(m,a+0x34,rndf(0,1));p32(m,a+0x38,rnd()%4);pf(m,a+0x48,rndf(0,8));}
   const uint32_t a=ch+0x7c*slot;
-  if(mode==0){at(m,a+1,1)[0]=(uint8_t)(index%5==0?index%3:2);pf(m,a+0x50,rndf(0.25f,3));pf(m,a+0x54,rndf(0,80));p16(m,a+0x66,index%2?0xffff:1+rnd()%40);}
+  if(mode==0){
+   /* Unused saved slots have program=0. Seed a real program rather than
+      manufacture a playing channel that dereferences NULL in 8017756C.
+      If the actor has no saved playing program, use the requested catalog
+      program. No slots/cases are removed and no extra RNG draws are taken. */
+   if(!word(m,a+0x4c))p32(m,a+0x4c,saved_program?saved_program:word(m,word(m,header(m,bank)+12)+4+4*clip));
+   at(m,a+1,1)[0]=(uint8_t)(index%5==0?index%3:2);pf(m,a+0x50,rndf(0.25f,3));pf(m,a+0x54,rndf(0,80));p16(m,a+0x66,index%2?0xffff:1+rnd()%40);}
   if(mode==3&&index%11==0){for(unsigned j=0;j<n;++j){at(m,ch+0x7c*j+1,1)[0]=2;p16(m,ch+0x7c*j+8,index%22==0?key():0xfffe);pf(m,ch+0x7c*j+0x30,0.25f);}++prepared[0];}
   if(index%3==0&&(mode==0||mode==3)){const uint32_t entry=word(m,header(m,bank)+12)+4+4*clip;synthetic(m,SCRATCH+0x400);p32(m,entry,SCRATCH+0x400);++prepared[1];}
   /* Isolated direct 78780 coverage: exact and progressively wildcard rules,
@@ -120,6 +130,20 @@ static void prepare(uint8_t *m,uint32_t g,unsigned index,unsigned mode,request *
  else if(mode==2){q->pc=0x80178780u;q->a[0]=mgr;q->a[1]=set;q->a[2]=ch;q->a[3]=target;if(!index)q->a[4]=current;q->a[5]=2;q->a[6]=g;}
  else{q->pc=0x80173e78u;q->a[0]=set;q->a[1]=ch;q->a[2]=bank;q->a[3]=clip;q->a[4]=target;q->a[5]=g;q->a[6]=index%3?0xffff:target;}
 }
+/* Print the PREPARED inputs: native writes may already have changed the
+   channel by the time an address is rejected. GPRs cover all entry points. */
+static void debug_request(uint8_t *m,const request *q){
+ fprintf(stderr,"request inputs: pc=%08x f1_bits=%08x",q->pc,nflstreet_float_bits(q->weight));
+ for(unsigned i=0;i<7;++i)fprintf(stderr," r%u=%08x",3+i,q->a[i]);fprintf(stderr,"\n");
+ if(q->mode==0){const uint32_t a=q->a[1]+0x7c*q->a[2];const uint8_t *p=at(m,a,0x7c);
+  fprintf(stderr,"replace inputs: set=%08x channels=%08x index=%u bank=%u clip=%u key=%04x actor=%08x\n",
+   q->a[0],q->a[1],q->a[2],q->a[3],q->a[4],q->a[5],q->a[6]);
+  if(p)fprintf(stderr,"channel before: address=%08x state=%u bank=%u clip=%u key=%04x program=%08x duration=%04x rate_bits=%08x time_bits=%08x remaining_bits=%08x\n",
+   a,p[1],p[6],half(m,a+2),half(m,a+8),word(m,a+0x4c),half(m,a+0x66),word(m,a+0x50),word(m,a+0x54),word(m,a+0x58));
+  const uint32_t h=header(m,q->a[3]),clips=word(m,h+12);fprintf(stderr,"target before: header=%08x catalog=%08x clip_count=%u program=%08x\n",
+   h,clips,word(m,clips),word(m,clips+4+4*q->a[4]));
+ }
+}
 static int native_request(uint8_t *m,const request *q,int32_t *ret){nflstreet_clip_requests c;memset(&c,0,sizeof c);c.span=span;c.memory=m;c.event=native_event;c.group=native_group;
  const uint32_t *a=q->a;*ret=0;
  switch(q->mode){case 0:return nflstreet_clip_request_replace(&c,a[0],a[1],a[2],a[3],a[4],a[5],a[6]);
@@ -135,9 +159,9 @@ int main(int argc,char **argv){if(argc!=3)return 2;HMODULE dll=LoadLibraryA(argv
  for(unsigned mode=0;mode<4;++mode)for(unsigned index=0;index<CASES;++index)for(unsigned actor=0;actor<actors;++actor){
   const uint32_t g=base+0x14d4u*actor;memcpy(prepared_ram,saved,RAM_BYTES);request q;prepare(prepared_ram,g,index,mode,&q);
   memcpy(native,prepared_ram,RAM_BYTES);memcpy(oracle,prepared_ram,RAM_BYTES);nn=on=0;memset(native_log,0,sizeof native_log);memset(original_log,0,sizeof original_log);
-  int32_t nr,orr;if(!native_request(native,&q,&nr)){fprintf(stderr,"native rejected mode=%u case=%u actor=%u pc=%08x\n",mode,index,actor,q.pc);return 5;}
-  if(!run_original(&q,&orr)){fprintf(stderr,"oracle failed mode=%u case=%u actor=%u\n",mode,index,actor);return 6;}
-  if(!same(native)||((mode==1||mode==3)&&nr!=orr)){fprintf(stderr,"mismatch mode=%u case=%u actor=%u returns=%d/%d\n",mode,index,actor,orr,nr);return 7;}
+  int32_t nr,orr;if(!native_request(native,&q,&nr)){fprintf(stderr,"native rejected mode=%u case=%u actor=%u pc=%08x\n",mode,index,actor,q.pc);debug_request(prepared_ram,&q);return 5;}
+  if(!run_original(&q,&orr)){fprintf(stderr,"oracle failed mode=%u case=%u actor=%u\n",mode,index,actor);debug_request(prepared_ram,&q);return 6;}
+  if(!same(native)||((mode==1||mode==3)&&nr!=orr)){fprintf(stderr,"mismatch mode=%u case=%u actor=%u returns=%d/%d\n",mode,index,actor,orr,nr);debug_request(prepared_ram,&q);return 7;}
   ++runs[mode];if(mode==3&&nr==-1)++rejected;digest=hash(digest,native+(g-RAM_BASE),0x14d4);digest=hash(digest,native_log,nn*sizeof(call));
  }
  if(!event_calls||!scan_calls||!group_calls||!operands||!rejected)return 8;for(unsigned i=2;i<=6;++i)if(!prepared[i])return 8;
