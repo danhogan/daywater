@@ -1,0 +1,12 @@
+[
+  {"name":"unsigned-assignment","file":"actor_ai.c","old":"(int32_t)(int8_t)p[1+i]","new":"(int32_t)(uint8_t)p[1+i]"},
+  {"name":"entry-marker","file":"actor_ai.c","old":"*p=0;return 1;}","new":"*p=1;return 1;}"},
+  {"name":"wrong-width-side","file":"actor_ai.c","old":"ox>zero?nflstreet_gk_subs(width,x):nflstreet_gk_adds(width,x)","new":"ox>zero?nflstreet_gk_adds(width,x):nflstreet_gk_adds(width,x)"},
+  {"name":"upper-clamp","file":"actor_ai.c","old":"else if(t>one)t=one;","new":"else if(t>one)t=zero;"},
+  {"name":"target-y-sign","file":"actor_ai.c","old":"ty=nflstreet_gk_adds(by,oy)","new":"ty=nflstreet_gk_subs(by,oy)"},
+  {"name":"heading-axes","file":"actor_ai.c","old":"heading(c,dy,dx,&angle)","new":"heading(c,dx,dy,&angle)"},
+  {"name":"close-threshold","file":"actor_ai.c","old":"distance>k[4]?k[5]:k[6]","new":"distance>k[4]?k[6]:k[5]"},
+  {"name":"strength-saturation","file":"actor_ai.c","old":"if(scaled>k[0])scaled=k[0];","new":"if(scaled>k[0])scaled=k[1];"},
+  {"name":"split-fma","file":"actor_ai.c","old":"strength=nflstreet_gk_fmadds(scaled,k[2],k[3]);","new":"strength=nflstreet_gk_adds(nflstreet_gk_muls(scaled,k[2]),k[3]);"},
+  {"name":"cleared-sprint-byte","file":"actor_ai.c","old":"if(strength>k[7])o[0x0f]=1;return 1;}","new":"if(strength>k[7])o[0x0f]=1;else o[0x0f]=0;return 1;}"}
+]
