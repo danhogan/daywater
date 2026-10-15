@@ -1,12 +1,19 @@
 # Animation group and program callbacks (Task K)
 
 **Confidence: candidate; full verification pending.** NFL Street GNNE69 rev 0,
-DOL SHA1 `46e3de854998a0f66c9be8c72a1164d22cd29eb4`. The owner reports context
-14 cases 0–9 passed; case 10 exhausted the native callback budget at
-`801770C4`. The fixture correction below is compiled but awaits an owner rerun.
-No Windows executable, gate or mutation test was run by this agent. The number of actors that keep
-animating is **not measured yet**; each soak prints active channels and poses
-changed during its final 60 updates, out of 14 actors.
+DOL SHA1 `46e3de854998a0f66c9be8c72a1164d22cd29eb4`. The owner's two context-14
+logs now agree: all 401 cases and three 600-update soaks (2,201 updates per
+process) match all RAM and pose locals; 1,111 events, 36,871 groups and 547
+operand entries; digest `833d5720`. All three soaks keep **9/14 actors
+animating** (active channels and changed poses in the final 60 updates).
+The saved-as-is soak has 9 active actors; both edited soaks have 10 active
+actors but only 9 with changed poses. While investigating the build failure,
+both context-15 logs also completed identically, and the first context-16 log
+completed: each matches 2,201 updates; both keep **7/14 actors animating** in
+every soak. Their digests are `34d76965` and `5b09351a` respectively. The second
+context-16 log was still empty when inspected; full gate/hash checks and
+mutations remain pending. No Windows executable, gate or mutation test was run
+by this agent.
 
 `channel_callbacks.c/.h` provide both hooks left by `actor_channels.c`:
 `nflstreet_channel_callbacks_event` implements the `8001532C` entry, including
@@ -65,6 +72,17 @@ PYTHONPATH=projects/nfl-street/reconstruction/menus python3 projects/nfl-street/
 
 Optional context arguments: `14`, `15`, `16`; a subset produces a partial report.
 Private output: `/mnt/w/Daywater/research-temp/nflstreet-clips2-20261015/`.
+Each build now creates `channel-callbacks-build.XXXXXXXX/` inside this output
+directory for its executable and PDB. On success the script prints
+`Channel callbacks executable: <absolute path>`; the gate validates and uses
+that invocation's path, recording it in the report. Build logs also get unique
+`build-*.log` paths, so another build cannot overwrite the path announcement
+before the gate reads it. The older fixed-name
+executable is not overwritten. This addresses the owner's latest build log:
+`lld-link` could not write the existing `.exe` (`Permission denied`), consistent
+with an earlier Windows checker still holding its image open. The new paths
+also avoid concurrent linker/PDB collisions without stopping existing checks.
+For a direct manual check use the executable path printed by the build script.
 The gate checks baseline and input hashes, hashes all compilation sources using
 `native_assets/`-prefixed entries, and requires two identical fresh process runs
 per context. It never treats a rejected native/original case as successful.
@@ -79,7 +97,7 @@ delays/timing, actor visual fields, elapsed time, and install synthetic programs
 containing accepted/rejected events and operands. Both sides use the same
 prepared RAM. Callback entry counts and operand coverage are checked too.
 
-Case 10 correction (source evidence, **probable**, original rerun pending):
+Case 10 correction (source evidence plus the owner's two passing context-14 runs):
 `801770C4` is `cmpwi r26,0` in the already translated frame interpreter;
 `801770C8` branches back to read another word. The rejection was its loop
 exhausting the host basic-block budget, not a missing instruction/span.
@@ -94,8 +112,8 @@ larger arity of the live/default callbacks. The same correction covers
 `C019` (three scan operands), `C01A` and `C022` (one each). Case 10 and all
 event commands remain included; no callback behavior is skipped or budget
 increased. A budget-specific failure diagnostic now distinguishes this
-condition from unsupported instructions or invalid spans. Full comparison
-and mutation results remain pending.
+condition from unsupported instructions or invalid spans. Context 14 now passes
+as reported above; full three-context comparison and mutations remain pending.
 
 `channel_callbacks_mutants.json` contains eight proposed one-line faults. Apply
 each individually to a scratch copy, compile with the same script, and run the

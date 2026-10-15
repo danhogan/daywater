@@ -4,6 +4,7 @@
 import json
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 from verify_controller_checks import BASELINES, PRIVATE, baseline_hashes, digest, private, run, windows
@@ -100,8 +101,27 @@ def main() -> None:
         if not banks:
             raise RuntimeError("No private animation banks")
         inputs = {str(path): digest(path) for path in (*contexts.values(), *banks)}
-        run(["bash", str(here / "build_windows_channel_callbacks_original_check.sh"), str(out)], out / "build.log")
-        exe = out / "channel-callbacks-original-check.exe"
+        # run() reads the log after compilation; a shared build.log could be
+        # overwritten by another build before it reads our executable marker.
+        with tempfile.NamedTemporaryFile(prefix="build-", suffix=".log", dir=out, delete=False) as build_log_file:
+            build_log = Path(build_log_file.name)
+        record["build_log_path"] = str(build_log)
+        build_output = run(
+            ["bash", str(here / "build_windows_channel_callbacks_original_check.sh"), str(out)], build_log
+        )
+        marker = "Channel callbacks executable: "
+        built = [line[len(marker) :] for line in build_output.splitlines() if line.startswith(marker)]
+        if len(built) != 1:
+            raise RuntimeError("Build did not report exactly one callback executable")
+        exe = private(Path(built[0])).resolve()
+        if (
+            exe.parent.parent != out.resolve()
+            or not exe.parent.name.startswith("channel-callbacks-build.")
+            or exe.name != "channel-callbacks-original-check.exe"
+            or not exe.is_file()
+        ):
+            raise RuntimeError(f"Unexpected callback executable path: {exe}")
+        record["executable_path"] = str(exe)
         logs: dict[str, list[str]] = {}
         results: dict[str, object] = {}
         for i in only:
