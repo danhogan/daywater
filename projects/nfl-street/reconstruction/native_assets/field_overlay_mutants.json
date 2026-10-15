@@ -1,0 +1,56 @@
+[
+  {
+    "name": "enable",
+    "file": "field_overlay.c",
+    "old": "if(!*enabled)return 1;",
+    "new": "if(*enabled)return 1;"
+  },
+  {
+    "name": "blend",
+    "file": "field_overlay.c",
+    "old": "GX(d,NFLSTREET_GX_SET_BLEND_MODE,1,4,1,5)",
+    "new": "GX(d,NFLSTREET_GX_SET_BLEND_MODE,1,4,5,5)"
+  },
+  {
+    "name": "depth-comparison",
+    "file": "field_overlay.c",
+    "old": "ok=depth<=sampled",
+    "new": "ok=depth>sampled"
+  },
+  {
+    "name": "alpha-update",
+    "file": "field_overlay.c",
+    "old": "r[0x11]?add(f(d,rec+0x14),f(d,rec+0x38))",
+    "new": "r[0x11]?sub(f(d,rec+0x14),f(d,rec+0x38))"
+  },
+  {
+    "name": "layer-size",
+    "file": "field_overlay.c",
+    "old": "madd(angle,k(d,0x464),k(d,0x468))",
+    "new": "madd(angle,k(d,0x464),k(d,0x464))"
+  },
+  {
+    "name": "vertex-order",
+    "file": "field_overlay.c",
+    "old": "{x1,y0,z,zero,one}",
+    "new": "{x1,y1,z,zero,one}"
+  },
+  {
+    "name": "random-seed",
+    "file": "field_overlay.c",
+    "old": "*0x19660du+0x3c6ef35fu",
+    "new": "*0x19660du+0x3c6ef35eu"
+  },
+  {
+    "name": "projection-restore",
+    "file": "field_overlay.c",
+    "old": "return setv(d,saved)&&",
+    "new": "return setv(d,(uint32_t[7]){0})&&"
+  },
+  {
+    "name": "clip-fade",
+    "file": "field_overlay.c",
+    "old": "sub(*fade,mul(sub(edge,k(d,0x498)),k(d,0x49c)))",
+    "new": "add(*fade,mul(sub(edge,k(d,0x498)),k(d,0x49c)))"
+  }
+]
