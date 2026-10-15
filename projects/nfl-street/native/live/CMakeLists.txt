@@ -7,11 +7,12 @@ if (NOT AURORA_SOURCE_DIR)
   message(FATAL_ERROR "Set AURORA_SOURCE_DIR to an Aurora checkout")
 endif ()
 set(AURORA_ENABLE_RMLUI OFF CACHE BOOL "" FORCE)
+set(AURORA_ENABLE_DVD ON CACHE BOOL "" FORCE)
 add_subdirectory(${AURORA_SOURCE_DIR} aurora EXCLUDE_FROM_ALL)
 # The verified native draws and placement (reconstruction/native_assets) and
 # the verified movement runtime (command_to_movement and the stages it uses),
 # copied under src/reconstruction by build_windows_live.sh, and the GX bridge.
-set(NFLSTREET_DRAWS cloud_draw.c field_overlay.c ball_update.c ball_update_motion.c locomotion_predicates.c scene_frame.c light_rig.c crowd_draw.c actor_palettes.c actor_world.c cluster_palette.c model_view.c scenery_draw.c marks_draw.c
+set(NFLSTREET_DRAWS disc_files.c archive.c lzh1.c cloud_draw.c field_overlay.c ball_update.c ball_update_motion.c locomotion_predicates.c scene_frame.c light_rig.c crowd_draw.c actor_palettes.c actor_world.c cluster_palette.c model_view.c scenery_draw.c marks_draw.c
   ball_draw.c hud_draw.c uis_draw.c matrix_stack.c gx_texobj.c player_draw.c draw_engine.c live_movement.c
   select_rings.c camera_slots.c name_tag_project.c camera_projection.c effects_draw.c actor_scale.c actor_channels.c channel_callbacks.c clip_requests.c anim_stream.c gekko_quaternion/quaternion_kernels.c gekko_quaternion/actor_slerp.c actor_dynamics.c actor_dynamics_math.c actor_pose.c actor_skeleton.c compact_pose.c live_pose.c live_locomotion.c pose.c)
 list(TRANSFORM NFLSTREET_DRAWS PREPEND reconstruction/native_assets/)
@@ -41,7 +42,9 @@ if (MSVC)
 else ()
   target_compile_options(nflstreet_live PRIVATE -ffp-contract=off)
 endif ()
-target_link_libraries(nflstreet_live PRIVATE aurora::core aurora::gx aurora::pad aurora::main aurora::vi)
+# The DVD target exports nod's headers/library; its imported nod target is
+# scoped inside Aurora's subdirectory and cannot be named directly here.
+target_link_libraries(nflstreet_live PRIVATE aurora::core aurora::gx aurora::pad aurora::main aurora::vi aurora::dvd)
 # Runtime DLLs (SDL3, Dawn and its shader compiler) next to the executables.
 foreach (target nflstreet_live)
   add_custom_command(TARGET ${target} POST_BUILD

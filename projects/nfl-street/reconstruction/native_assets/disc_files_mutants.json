@@ -1,0 +1,10 @@
+[
+  {"name":"wrong-entry-index","file":"disc_files.c","old":" nflstreet_archive_entry e;if(!nflstreet_archive_get(&d->archive,index,&e))return 0;","new":" nflstreet_archive_entry e;if(!nflstreet_archive_get(&d->archive,index+1,&e))return 0;"},
+  {"name":"wrong-archive-extension","file":"disc_files.c","old":" *name=0;char archive_path[1024];int written=snprintf(archive_path,sizeof archive_path,\"%s.dat\",normalized);","new":" *name=0;char archive_path[1024];int written=snprintf(archive_path,sizeof archive_path,\"%s.bin\",normalized);"},
+  {"name":"drop-leading-slash-support","file":"disc_files.c","old":" if(!path)return 0;if(*path=='/'||*path=='\\\\')++path;","new":" if(!path)return 0;"},
+  {"name":"drop-backslash-support","file":"disc_files.c","old":"  if(c==':'||(c<32&&c))return 0;out[i]=c=='\\\\'?'/':(char)c;}","new":"  if(c==':'||(c<32&&c))return 0;out[i]=(char)c;}"},
+  {"name":"wrong-fst-length","file":"disc_files.c","old":" nod_free(f);*bytes=b;*size=length;return 1;","new":" nod_free(f);*bytes=b;*size=length+1;return 1;"},
+  {"name":"failure-clobbers-output","file":"disc_files.c","old":" char normalized[1024];if(!d||!bytes||!size||!normalize(path,normalized))return 0;","new":" char normalized[1024];if(!d||!bytes||!size||!normalize(path,normalized)){if(size)*size=0;return 0;}"},
+  {"name":"compressed-payload-unsupported","file":"archive.c","old":"    if(e->codec==5){if(!nflstreet_lzh1_decode(e->bytes,e->size,b,e->decoded_size)){free(b);return 0;}}","new":"    if(e->codec==5){free(b);return 0;}"},
+  {"name":"wrong-archive-count","file":"disc_files.c","old":" *count=d->archive.count;return 1;","new":" *count=d->archive.count+1;return 1;"}
+]

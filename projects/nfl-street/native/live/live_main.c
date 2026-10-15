@@ -24,6 +24,7 @@
 #include "live_clips.h"
 #include "select_rings.h"
 #include "ball_update.h"
+#include "disc_files.h"
 /* Live-only link alias: the optional host catalog selector has the same name. */
 #define nflstreet_locomotion_select nflstreet_live_locomotion_select
 #include "locomotion_predicates.h"
@@ -126,10 +127,16 @@ int main(int argc,char *argv[]){
  /* Explicit host fallback for unreconstructed gameplay events or missing
     bank streaming. Default selection uses the reconstructed predicates. */
  const int host_fallback=getenv("NFL_LIVE_HOST_LOCOMOTION")&&strcmp(getenv("NFL_LIVE_HOST_LOCOMOTION"),"1")==0;
- size_t bank_n=0,sets_n=0;uint8_t *bank=host_fallback?read_file(getenv("NFL_LIVE_ANIMDATA"),&bank_n):NULL,
+ const char *disc_path=getenv("NFL_LIVE_DISC");nflstreet_disc_files *disc=disc_path?nflstreet_disc_open(disc_path):NULL;
+ if(disc_path&&!disc){note("cannot open NFL_LIVE_DISC with nod");return 4;}
+ /* NSC1 is a host-generated inspection catalog, not a disc file. Only the
+    explicit host fallback consumes it; default disc animation needs none. */
+ size_t bank_n=0,sets_n=0;uint8_t *bank=host_fallback&&!disc?read_file(getenv("NFL_LIVE_ANIMDATA"),&bank_n):NULL,
   *sets=host_fallback?read_file(getenv("NFL_LIVE_SETS"),&sets_n):NULL;
+ if(host_fallback&&disc&&!nflstreet_disc_read(disc,"animdata/00111.bin",&bank,&bank_n)){
+  note("cannot read fallback bank animdata/00111.bin from NFL_LIVE_DISC");nflstreet_disc_close(disc);return 4;}
  static nflstreet_live_pose pose;const int animated=host_fallback&&player&&bank&&sets&&nflstreet_live_pose_open(&pose,bank,bank_n,sets,sets_n);
- if(host_fallback&&!animated){note("host locomotion fallback needs a player, NFL_LIVE_ANIMDATA and NFL_LIVE_SETS");return 4;}
+ if(host_fallback&&!animated){note("host locomotion fallback needs a player, NFL_LIVE_DISC or NFL_LIVE_ANIMDATA, and NFL_LIVE_SETS");nflstreet_disc_close(disc);return 4;}
  if(log_file){fprintf(log_file,"host locomotion fallback %s\n",animated?"on":"off");fflush(log_file);}
  /* All players: NFL_LIVE_ANIMDIR = the animdata directory. Their
     channels advance through the game's own update (8003A24C passes:
@@ -139,14 +146,21 @@ int main(int argc,char *argv[]){
  static nflstreet_channel_callbacks callbacks;static nflstreet_live_clips clips;
  int channel_anim=0;
  nflstreet_locomotion_context selector={span,ram,selected_request,gameplay_effect,&clips,0,0};
- if(getenv("NFL_LIVE_ANIMDIR")){char path[1024];
-  for(unsigned i=0;i<200;++i){snprintf(path,sizeof path,"%s/%05u.bin",getenv("NFL_LIVE_ANIMDIR"),i);anim_files[i]=read_file(path,anim_sizes+i);}
+ if(disc||getenv("NFL_LIVE_ANIMDIR")){char path[1024];
+  unsigned count=200;if(disc&&(!nflstreet_disc_entry_count(disc,"animdata.dat",&count)||!count||count>200)){
+   note("NFL_LIVE_DISC animation archive count unsupported");nflstreet_disc_close(disc);return 4;}
+  for(unsigned i=0;i<count;++i){
+   if(disc){snprintf(path,sizeof path,"animdata/%05u.bin",i);
+    if(!nflstreet_disc_read(disc,path,anim_files+i,anim_sizes+i)){
+     note("cannot read animation bank from NFL_LIVE_DISC");nflstreet_disc_close(disc);return 4;}}
+   else{snprintf(path,sizeof path,"%s/%05u.bin",getenv("NFL_LIVE_ANIMDIR"),i);anim_files[i]=read_file(path,anim_sizes+i);}}
   const int banks=nflstreet_anim_aram_map(&aram,span,ram,(const uint8_t *const *)anim_files,anim_sizes,200);
   memset(&channels,0,sizeof channels);channels.span=span;channels.memory=ram;channels.aram=&aram;channel_anim=banks>0;
   nflstreet_channel_callbacks_init(&callbacks);channels.event=nflstreet_channel_callbacks_event;
   channels.group=nflstreet_channel_callbacks_group;channels.user=&callbacks;nflstreet_live_clips_init(&clips,&channels,&callbacks);
   if(log_file){fprintf(log_file,"streamed banks mapped: %d\n",banks);fflush(log_file);}
-  if(!channel_anim){note("no animation banks mapped");return 4;}}
+  if(!channel_anim){note("no animation banks mapped");nflstreet_disc_close(disc);return 4;}}
+ nflstreet_disc_close(disc); /* Banks own their decoded bytes; no DVD state remains. */
  /* The gameplay actor table: *(r13-7C30) holds the array's address (+0) and count (+0A). */
  const uint32_t actor_table=ram32(ram,R13-0x7c30u),gameplay_actors=ram32(ram,actor_table);
  const unsigned actor_count=(unsigned)(ram32(ram,actor_table+8)&0xffffu)<14u?(unsigned)(ram32(ram,actor_table+8)&0xffffu):14u;
