@@ -1,9 +1,11 @@
 # Animation clip requests
 
 **Confidence: candidate, source/disassembly traced and Windows compiled only.**
-The owner reports that context 14's saved case 0 passed, then the initial
-checker rejected replace case 1, actor 0. The generator fix below is compiled;
-its oracle comparison and the remaining gate/mutation results are pending.
+The retained owner-run `original-14-0.log` reports all 16,856 context-14
+comparisons matching, digest `74519829`; the second-run log is empty. The
+latest gate stopped during compilation, with the linker reporting permission
+denied overwriting the previous executable. Builds now use fresh artifact
+directories. Full fresh-run/context/mutation verification remains pending.
 The implementing agent has not run Windows executables or the gate.
 
 Game: NFL Street, GNNE69 revision 0, DOL SHA1
@@ -232,13 +234,14 @@ replace the live movement selector or its callbacks.
 Build only (already exercised, including `-Wall -Wextra -Werror`):
 
 ```bash
-bash projects/nfl-street/reconstruction/native_assets/build_windows_clip_requests_original_check.sh /mnt/w/Daywater/research-temp/nflstreet-clips-20261015/
+build_dir=$(mktemp -d /mnt/w/Daywater/research-temp/nflstreet-clips-20261015/build-XXXXXXXX)
+bash projects/nfl-street/reconstruction/native_assets/build_windows_clip_requests_original_check.sh "$build_dir"
 ```
 
 Owner-run single-context original check (substitute 15/16 as needed):
 
 ```bash
-/mnt/w/Daywater/research-temp/nflstreet-clips-20261015/clip-requests-original-check.exe 'W:\Daywater\research-temp\position-neutral-14.mem1' 'W:\Daywater\research-temp\nflstreet-native-windows-local\gGNNE69_recomp.dll'
+"$build_dir/clip-requests-original-check.exe" 'W:\Daywater\research-temp\position-neutral-14.mem1' 'W:\Daywater\research-temp\nflstreet-native-windows-local\gGNNE69_recomp.dll'
 ```
 
 Owner-run full gate, then mutation validation (the second command repeats
@@ -248,6 +251,14 @@ base validation before mutations):
 PYTHONPATH=projects/nfl-street/reconstruction/menus python3 projects/nfl-street/reconstruction/native_assets/verify_clip_requests.py
 PYTHONPATH=projects/nfl-street/reconstruction/menus python3 projects/nfl-street/reconstruction/native_assets/verify_clip_requests.py --mutants
 ```
+
+Every gate build, including each mutant, links into a new retained `build-*`
+subdirectory under its private output directory and executes that exact path.
+The report records `executable_path`. Existing executables are not overwritten,
+renamed, removed or terminated: a prior Windows process can keep using its
+artifact. This addresses the observed linker permission error without changing
+native behavior, generator inputs or comparison requirements. Build failures
+still fail the gate normally; an old executable is never used as a fallback.
 
 The checker runs saved-as-is requests and 300 randomized preparations for
 all 14 actors for each of replace/group/transition/direct start: 16,856

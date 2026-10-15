@@ -45,6 +45,14 @@ def validate(text: str) -> None:
         raise RuntimeError("Clip request comparison lacks its complete success/coverage record: " + text)
 
 
+def build(here: Path, out: Path, log: Path) -> Path:
+    # Windows may still have an earlier check executable open. Never link over
+    # it: each build gets a new retained directory under the private output.
+    directory = Path(tempfile.mkdtemp(prefix="build-", dir=out))
+    run(["bash", str(here / "build_windows_clip_requests_original_check.sh"), str(directory)], log)
+    return directory / "clip-requests-original-check.exe"
+
+
 def mutants(here: Path, out: Path, sources: dict[str, str], context: Path) -> list[dict[str, object]]:
     results: list[dict[str, object]] = []
     edits = json.loads((here / "clip_requests_mutants.json").read_text())
@@ -67,15 +75,7 @@ def mutants(here: Path, out: Path, sources: dict[str, str], context: Path) -> li
             target.write_text(text.replace(edit["old"], edit["new"]))
             destination = out / "mutants" / edit["name"]
             destination.mkdir(parents=True, exist_ok=True)
-            run(
-                [
-                    "bash",
-                    str(scratch / "native_assets/build_windows_clip_requests_original_check.sh"),
-                    str(destination),
-                ],
-                destination / "build.log",
-            )
-            exe = destination / "clip-requests-original-check.exe"
+            exe = build(scratch / "native_assets", destination, destination / "build.log")
             command = [str(exe), windows(context), windows(BASELINES["original_dll"][0])]
             proc = subprocess.run(command, capture_output=True, text=True, check=False)
             log = destination / "original-14.log"
@@ -87,7 +87,13 @@ def mutants(here: Path, out: Path, sources: dict[str, str], context: Path) -> li
                     f"Mutant {edit['name']} was not caught by a native/original mismatch: {proc.returncode}"
                 )
             results.append(
-                {"name": edit["name"], "status": "caught", "returncode": proc.returncode, "log_sha256": digest(log)}
+                {
+                    "name": edit["name"],
+                    "status": "caught",
+                    "returncode": proc.returncode,
+                    "log_sha256": digest(log),
+                    "executable_path": str(exe),
+                }
             )
     return results
 
@@ -109,8 +115,8 @@ def main() -> None:
         sources = source_hashes(root, entries)
         contexts = {i: private(PRIVATE / f"research-temp/position-neutral-{i}.mem1") for i in (14, 15, 16)}
         inputs = {str(path): digest(path) for path in contexts.values()}
-        run(["bash", str(here / "build_windows_clip_requests_original_check.sh"), str(out)], out / "build.log")
-        exe = out / "clip-requests-original-check.exe"
+        exe = build(here, out, out / "build.log")
+        record["executable_path"] = str(exe)
         logs: dict[str, list[str]] = {}
         summaries: dict[str, str] = {}
         for i, context in contexts.items():
