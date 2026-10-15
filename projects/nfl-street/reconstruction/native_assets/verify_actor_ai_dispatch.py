@@ -73,12 +73,33 @@ def build_checker(here: Path, out: Path) -> Path:
     return build / "actor-ai-dispatch-original-check.exe"
 
 
-def mutants(here: Path, out: Path, contexts: dict[int, Path]) -> list[dict[str, object]]:
+def check_sources(root: Path, expected: dict[str, str], stage: str, record: dict[str, object]) -> None:
+    """Reject concurrent edits before mixing baseline and mutant provenance."""
+    current = source_hashes(root, SOURCES)
+    changes = {
+        name: {"before": expected.get(name), "after": current.get(name)}
+        for name in sorted(expected.keys() | current.keys())
+        if expected.get(name) != current.get(name)
+    }
+    if changes:
+        record.update(source_changes=changes, source_change_stage=stage)
+        raise RuntimeError(f"Sources changed during verification ({stage}): {', '.join(changes)}")
+
+
+def mutants(
+    here: Path,
+    out: Path,
+    contexts: dict[int, Path],
+    sources: dict[str, str],
+    record: dict[str, object],
+) -> list[dict[str, object]]:
     edits = json.loads((here / "actor_ai_dispatch_mutants.json").read_text())
     if len(edits) < 5 or len({edit["name"] for edit in edits}) != len(edits):
         raise RuntimeError("Missing or duplicate mutants")
-    results = []
+    results: list[dict[str, object]] = []
+    record["mutants"] = results
     for edit in edits:
+        check_sources(here.parent, sources, f"before mutant {edit['name']}", record)
         name, filename, old, new = (edit[key] for key in ("name", "file", "old", "new"))
         if (
             not re.fullmatch(r"[a-z0-9-]+", name)
@@ -89,19 +110,22 @@ def mutants(here: Path, out: Path, contexts: dict[int, Path]) -> list[dict[str, 
             raise RuntimeError("Mutants must be named one-line edits to actor_ai_dispatch.c")
         scratch = private(out / "mutants" / name)
         tree = scratch / "source" / "native_assets"
-        hashes = source_hashes(here.parent, SOURCES)
-        for entry in hashes:
+        for entry in sources:
             if entry.startswith("ModernGekko/"):
                 continue
             destination = scratch / "source" / entry
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(here.parent / entry, destination)
+        copied = source_hashes(scratch / "source", SOURCES)
+        if copied != sources:
+            raise RuntimeError(f"Mutant {name} source copy differs from the pinned baseline sources")
         target = tree / filename
         source = target.read_text()
         if source.count(old) != 1:
             raise RuntimeError(f"Mutant {name} does not match exactly once")
         target.write_text(source.replace(old, new))
         exe = build_checker(tree, scratch)
+        check_sources(here.parent, sources, f"after building mutant {name}", record)
         caught = False
         for context, snapshot in contexts.items():
             log = scratch / f"original-{context}.log"
@@ -132,6 +156,7 @@ def mutants(here: Path, out: Path, contexts: dict[int, Path]) -> list[dict[str, 
                 raise RuntimeError(
                     f"Mutant {name} failed without a RAM/return/effect mismatch: exit {result.returncode}"
                 )
+        check_sources(here.parent, sources, f"after mutant {name}", record)
         if not caught:
             raise RuntimeError(f"Mutant {name} escaped all contexts")
     return results
@@ -154,12 +179,16 @@ def main() -> None:
         record.update(baseline=before, input_sha256=inputs, source_sha256=sources)
         if any(inputs[str(path)] != INPUT_HASHES[i] for i, path in contexts.items()):
             raise RuntimeError("Saved MEM1 input differs from the recorded context")
+        check_sources(root, sources, "before baseline build", record)
         exe = build_checker(here, out)
         record.update(executable=str(exe), executable_sha256=digest(exe))
-        logs = {}
+        check_sources(root, sources, "after baseline build", record)
+        logs: dict[str, list[str]] = {}
+        record["original_log_sha256"] = logs
         for context, snapshot in contexts.items():
             traces = []
             for repeat in range(2):
+                check_sources(root, sources, f"before context {context} repeat {repeat}", record)
                 log = out / f"original-{context}-{repeat}.log"
                 summary = run([str(exe), windows(snapshot), windows(BASELINES["original_dll"][0])], log).strip()
                 match = SUMMARY.search(summary)
@@ -167,14 +196,17 @@ def main() -> None:
                     raise RuntimeError(f"Incomplete original actor AI coverage in context {context}: {summary}")
                 traces.append(digest(log))
                 print(match[0], flush=True)
+                # Retain completed comparisons even if a later provenance check fails.
+                logs[str(context)] = traces.copy()
+                check_sources(root, sources, f"after context {context} repeat {repeat}", record)
             if traces[0] != traces[1]:
                 raise RuntimeError(f"Fresh actor AI processes differ in context {context}")
             logs[str(context)] = traces
-        killed = mutants(here, out, contexts)
+        check_sources(root, sources, "before mutants", record)
+        killed = mutants(here, out, contexts, sources, record)
         if before != baseline_hashes() or any(digest(Path(path)) != sha for path, sha in inputs.items()):
             raise RuntimeError("Protected originals or saved inputs changed")
-        if sources != source_hashes(root, entries):
-            raise RuntimeError("Sources changed during verification")
+        check_sources(root, sources, "final acceptance", record)
         record.update(
             status="passed",
             baseline=before,

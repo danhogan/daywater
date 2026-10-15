@@ -3,10 +3,12 @@
 NFL Street, GameCube USA GNNE69 revision 0, DOL SHA1
 `46e3de854998a0f66c9be8c72a1164d22cd29eb4`.
 
-**Confidence: candidate; Windows execution pending.** This author can write and
-compile, but cannot run Windows executables. A successful build does not verify
-original behavior. The external runner must run the gate; read its report before
-promoting any claim below to verified. Dolphin build is not present in the
+**Confidence: candidate pending complete source-pinned gate acceptance.** The
+external runner has now matched all three contexts twice and caught all ten
+mutants, but that run rejected changed gate/document hashes at final acceptance.
+This author can write and compile, but cannot run Windows executables. A
+successful build does not verify original behavior. Read an accepted private
+report before promoting the bounded behaviors below to verified. Dolphin build is not present in the
 capture metadata. Saved contexts are pinned by SHA256 in the gate.
 
 ## Native scope and service boundary
@@ -212,6 +214,20 @@ its hash, including for mutants. This changes build artifact ownership only;
 inputs, coverage requirements, all-RAM comparisons and live integration are
 unchanged. Compilation can be checked without executing the gate or Windows
 programs, as required for this author.
+
+The subsequent external run matched all contexts twice (digests `7df7c94d`,
+`38f9dd8b`, `15e1606d`) and reached the final source guard after all ten mutant
+mismatches. Its initial gate/document hashes are exactly commit `248a115`;
+only those two files changed to `34ca8c7` during that long run, while C sources
+and headers retained their recorded hashes. Final acceptance therefore correctly
+failed. The source-integrity requirement remains strict. The gate now checks
+for edits around builds, each baseline process, and each mutant, listing changed
+filenames with before/after hashes and the failed stage. It retains completed
+baseline log hashes and mutant results in failed reports. Mutant copies must
+match the original pinned source map before the edit is applied, so a run cannot
+silently combine baseline code from one revision with mutants from another.
+A fresh run against unchanged sources is required; this diagnostic improvement
+does not waive provenance, claim the interrupted run passed, or alter gameplay.
 
 ## Exact integration instructions (not applied to shared files)
 
