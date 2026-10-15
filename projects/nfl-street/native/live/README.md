@@ -47,18 +47,43 @@ forwards each one to Aurora's GX as it is issued:
      previous update left, so they trail by one update, as in the game;
   2. the verified movement runtime (`reconstruction/command_to_movement`),
      seeded from that actor's own RAM and written back to its gameplay actor;
-  3. the animation pose (`8015E9C8`, `8015EC30`, `80053404`, decoding
-     `animdata/00111.bin`) and the compact skeleton (`800D51B4`/`8015F08C`).
-     Which clip plays is a host choice (the existing `live_locomotion.c`
-     controller and an NSC1 set catalog), not the game's own selection.
+  3. the movement-state clip-request phase (`8003A1F4`), using the restored
+     movement/input blocks, byte `+20E` as the selector, and the actor's
+     stored manager/set/channel pointers. Supported selectors dispatch
+     changed keys through `nflstreet_clip_request_group` (`80177EF4`);
+     unchanged and suppressed requests leave the group alone;
+  4. the channel manager, program and pose passes for **all 14 actors**,
+     including the controlled player, then twist and the compact skeleton
+     (`80053404`, `800D51B4`/`8015F08C`).
 
   Then the native placement (`800D4A6C`/`800D4B0C`) puts it on the field.
-- **Other players:** with `NFL_LIVE_ANIMDIR` set, every update runs the
-  game's own channel passes for all gameplay actors (`80178290`, `80173D60`)
-  and, for all but the controlled player, the original pose step, twist and
-  skeleton (`actor_channels.md`). Streamed frames come from the bank files.
-  Clip requests and the group/event callbacks are not reconstructed yet, so
-  players whose programs end hold their last pose.
+- **Animation integration (candidate; live smoke verification pending):**
+  with `NFL_LIVE_ANIMDIR` set, streamed frames come from the bank files.
+  The persistent `channel_callbacks` context supplies program events and
+  group callbacks, including follow-on clip starts when programs finish.
+  Every phase checks its retained failure status; failures log the phase,
+  actor, source PC and address, stop updates and return exit code 5.
+  The request adapters also supply those callbacks; request scans use
+  `80015D8C`'s operand rules against the request's private scan storage.
+  See [channel callbacks](../../reconstruction/native_assets/channel_callbacks.md)
+  and [clip requests](../../reconstruction/native_assets/clip_requests.md)
+  for the modules' evidence and remaining verification limits.
+
+  The live selector adapter is a bounded, source-traced integration, not a
+  verified reconstruction of `800150E8`: it covers selectors 0, 4–A and
+  the `actor+3` byte equal to 2 branch of selectors 1/2/3. Other 1/2/3 branches require
+  `8006510C` and `80014750`/`80014898`; suppression paths that need
+  `8004F214` are also unavailable. They log and hold the request without
+  inventing predicate results. **Ordinary stick movement selects 1, so
+  full game-driven locomotion selection remains incomplete.** Existing
+  channel programs and callbacks continue updating while a request is held.
+  `NFL_LIVE_HOST_LOCOMOTION=1` explicitly enables the previous host pose
+  controller for unsupported selectors (or without channel animation),
+  using `NFL_LIVE_ANIMDATA` and `NFL_LIVE_SETS`. With channel animation on,
+  all actors still run every pass before that fallback overwrites the
+  controlled player's pose. Without the fallback, `live_pose.c` does not
+  choose the controlled player's clips.
+
   The camera follows by the player's movement (a host choice).
   `NFL_LIVE_SCRIPT=1` drives right, forward, then left for captures.
 - **Each frame (scene_frame.c):** the field camera, its slots (`801DF8C4`,
@@ -70,9 +95,8 @@ forwards each one to Aurora's GX as it is issued:
   particles (`80158798`), then the HUD.
 - **Camera:** the C-stick turns the field camera (or `NFL_LIVE_ORBIT`, a
   24-bit angle per frame).
-- **Not live yet:** the clip requests that start new animations (the
-  controlled player's clips are a host choice; other players hold their
-  last pose when their programs end), the other players' movement, the
+- **Not live yet:** the remaining movement-selector gameplay predicates,
+  the other players' movement, the
   ball, clouds (verified but invisible in the saved frames) and the HUD
   values.
 
@@ -100,12 +124,18 @@ Options:
 - `NFL_LIVE_ORBIT=1` (or a 24-bit angle per frame) turns the camera.
 - `NFL_LIVE_DEBUG=1` logs Aurora at debug level.
 - `NFL_LIVE_TRACE=<file>` logs every bridged call.
+- `NFL_LIVE_ANIMDIR=<unpacked/animdata directory>` enables channel animation
+  for every actor, native group/event callbacks and the controlled player's
+  supported movement-state clip requests. Without it, channel animation
+  and requests are off; with no host fallback the saved stance remains.
+- `NFL_LIVE_HOST_LOCOMOTION=1` opts into the host controller fallback for
+  unsupported selectors (default: off). Requires both files below; invalid
+  fallback inputs or an animation directory with no mapped banks exit with
+  code 4.
 - `NFL_LIVE_ANIMDATA=<animdata/00111.bin>` and `NFL_LIVE_SETS=<NSC1 catalog>`
   (e.g. `W:\Daywater\research-temp\nflstreet-set-playback-20261009\sets-14.bin`)
-  turn on the controlled player's animation; without them it keeps the
-  saved stance.
-- `NFL_LIVE_ANIMDIR=<unpacked/animdata directory>` animates the other
-  players through the game's channel update.
+  supply the explicit host fallback. They are unused unless
+  `NFL_LIVE_HOST_LOCOMOTION=1`; native channel animation needs no NSC1 catalog.
 - `NFL_LIVE_SCRIPT=1` replaces the stick with a scripted run for captures.
 
 The RAM image is your own saved state on W:. Nothing from the game is in
