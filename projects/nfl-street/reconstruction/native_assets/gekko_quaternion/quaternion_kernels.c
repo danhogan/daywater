@@ -128,6 +128,12 @@ static __attribute__((noinline, noclone)) float ppc_fsubs(float left, float righ
     return (float)difference;
 }
 
+static __attribute__((noinline, noclone)) float ppc_fadds(float left, float right)
+{
+    volatile double sum = (double)left + (double)right;
+    return (float)sum;
+}
+
 static uint64_t msl_bits64(double value)
 {
     uint64_t bits;
@@ -237,6 +243,111 @@ float nflstreet_80215844_acos(float x)
 float nflstreet_802165c8_sqrt(float x)
 {
     return msl_sqrt(x);
+}
+
+/* 80188D98.  The two operands are the PPC f1/f2 lanes, respectively.  Its
+   result has the same signed-24 wrapping as the rlwinm/srawi tail. */
+static int32_t msl_atan2_angle(float y, float x)
+{
+    const float zero = msl_f32(0x00000000u);
+    const float scale = msl_f32(0x4a22f983u);
+    const float coefficients[] = {
+        msl_f32(0x3f7ffff5u), msl_f32(0xbeaaa61cu),
+        msl_f32(0x3e4c40a6u), msl_f32(0xbe0e6c63u),
+        msl_f32(0x3dc577dfu), msl_f32(0xbd6501c4u),
+        msl_f32(0x3cb31652u), msl_f32(0xbb84d7e7u),
+        msl_f32(0x3f490fdbu),
+    };
+    const float ay = msl_f32(msl_bits(y) & 0x7fffffffu);
+    const float ax = msl_f32(msl_bits(x) & 0x7fffffffu);
+    const float sum = ppc_fadds(ay, ax);
+    float t = ppc_fdivs(ppc_fsubs(ay, ax), sum);
+    int32_t base = 0;
+
+    /* These comparisons intentionally use the original signed lanes, not
+       their absolute values.  The four paths are 80188DC4..80188DF0. */
+    if (y >= zero) {
+        /* fcmpu makes an unordered x take the non-"x >= 0" edge. */
+        if (!(x >= zero)) {
+            base = 0x00400000;
+            t = -t;
+        }
+    } else if (x < zero) {
+        base = 0x00800000;
+    } else {
+        base = (int32_t)0xffc00000u;
+        t = -t;
+    }
+    const float t2 = ppc_fmuls(t, t);
+    float power = ppc_fmuls(t, t2);             /* t^3 */
+    float p = ppc_fmadds(t, coefficients[0],
+        ppc_fmuls(power, coefficients[1]));
+    power = ppc_fmuls(power, t2);               /* t^5 */
+    p = ppc_fmadds(power, coefficients[2], p);
+    power = ppc_fmuls(power, t2);
+    p = ppc_fmadds(power, coefficients[3], p);
+    power = ppc_fmuls(power, t2);
+    p = ppc_fmadds(power, coefficients[4], p);
+    power = ppc_fmuls(power, t2);
+    p = ppc_fmadds(power, coefficients[5], p);
+    power = ppc_fmuls(power, t2);
+    p = ppc_fmadds(power, coefficients[6], p);
+    power = ppc_fmuls(power, t2);
+    p = ppc_fmadds(power, coefficients[7], p);
+    p = ppc_fadds(p, coefficients[8]);
+    const float scaled = ppc_fmuls(p, scale);
+    /* fctiwz is truncation toward zero for every finite value reached by
+       the quaternion conversion. */
+    const int32_t converted = (int32_t)scaled;
+    return signed24(converted + base);
+}
+
+/* 80188EF8 after 801A340C's 802165C8 square root. */
+static float msl_inverse_or_one(float x)
+{
+    const float tiny = msl_f32(0x33d6bf95u);
+    const float zero = msl_f32(0x00000000u);
+    const float one = msl_f32(0x3f800000u);
+    return x <= tiny ? zero : ppc_fdivs(one, x);
+}
+
+void nflstreet_801a340c_euler(const float q[4], int32_t result[3])
+{
+    const float x = q[0], y = q[1], z = q[2], w = q[3];
+    const float one = msl_f32(0x3f800000u);
+    const float half = msl_f32(0x3f000000u);
+    const float minus_two = msl_f32(0xc0000000u);
+    const float tiny = msl_f32(0x33d6bf95u);
+    const float yy = ppc_fmuls(y, y);
+    const float zz = ppc_fmuls(z, z);
+    const float xx = ppc_fmuls(x, x);
+    const float pitch_sine = ppc_fmuls(
+        ppc_fmadds(x, z, -ppc_fmuls(w, y)), minus_two);
+    const float root = msl_sqrt(ppc_fsubs(one, ppc_fmuls(pitch_sine, pitch_sine)));
+
+    if (!(msl_f32(msl_bits(root) & 0x7fffffffu) <= tiny)) {
+        const float twice_inverse = ppc_fadds(msl_inverse_or_one(root),
+            msl_inverse_or_one(root));
+        const float first_y = ppc_fmuls(
+            ppc_fmadds(y, z, ppc_fmuls(w, x)), twice_inverse);
+        const float first_x = ppc_fmuls(ppc_fsubs(ppc_fsubs(half, xx), yy),
+            twice_inverse);
+        const float third_y = ppc_fmuls(
+            ppc_fmadds(x, y, ppc_fmuls(w, z)), twice_inverse);
+        const float third_x = ppc_fmuls(ppc_fsubs(ppc_fsubs(half, yy), zz),
+            twice_inverse);
+        result[0] = msl_atan2_angle(first_y, first_x);
+        result[1] = msl_atan2_angle(pitch_sine, root);
+        result[2] = msl_atan2_angle(third_y, third_x);
+    } else {
+        const float first_y = ppc_fmuls(
+            ppc_fsubs(ppc_fmuls(y, z), ppc_fmuls(w, x)), minus_two);
+        const float first_x = ppc_fsubs(one,
+            ppc_fadds(ppc_fsubs(xx, zz), ppc_fsubs(xx, zz)));
+        result[0] = msl_atan2_angle(first_y, first_x);
+        result[1] = msl_atan2_angle(pitch_sine, root);
+        result[2] = msl_atan2_angle(0.0f, one);
+    }
 }
 
 /* 80216EF4, __kernel_sinf(x,y,0), including each fmadds/fmsubs rounding. */

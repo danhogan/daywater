@@ -27,6 +27,10 @@ float nflstreet_802165c8_sqrt(float x);
 void nflstreet_801a36ec_quaternion(int32_t x, int32_t y, int32_t z,
     const float coefficients[8], float result[4]);
 
+/* 801A340C.  Converts X/Y/Z/W quaternion lanes to the three signed 24-bit
+   fixed-point Euler angles consumed by 801A36EC. */
+void nflstreet_801a340c_euler(const float quaternion[4], int32_t result[3]);
+
 /* Candidate transcription of 801A383C.  Its transcendental calls are host
    placeholders until the 80215844/80216B94 kernels are reconstructed. */
 void nflstreet_801a383c_slerp(float t, const float a[4], const float b[4],
