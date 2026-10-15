@@ -2,6 +2,7 @@
 #define NFLSTREET_LIVE_AI_H
 #include <stdio.h>
 #include "actor_ai_dispatch.h"
+#include "ai_policy_transaction.h"
 #include "live_movement.h"
 /* Live integration only. Policies/effects absent from actor_ai_dispatch are
    still missing; this adapter never replaces an actor's saved command queue. */
@@ -13,7 +14,7 @@ typedef struct {
  nflstreet_ai_dispatch dispatch;
  nflstreet_draw_span span;void *memory;FILE *log;
  uint8_t scratch[8];
- uint8_t *rollback;
+ nflstreet_ai_transaction transaction;
  nflstreet_live_ai_actor actors[14];unsigned count,updates,last_moved;
 } nflstreet_live_ai;
 int nflstreet_live_ai_init(nflstreet_live_ai *,nflstreet_draw_span,void *,uint32_t r13,

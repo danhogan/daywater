@@ -27,10 +27,10 @@ def main() -> None:
     table = word(descriptor + 4)
     rows = int.from_bytes(saved[descriptor - 0x80000000 : descriptor - 0x80000000 + 2], "big")
     targets = sorted({word(table + 24 * row + 4 * slot) for row in range(rows) for slot in range(5)} - {0})
-    # These three indirect tables are read by 800150E8, 800F86BC and
-    # 80188628 respectively. Their saved words are actual function targets;
-    # notably the RNG table is not present in the direct call graph.
-    indirect = {"80244d28": 11, "80254500": 11, "80291934": 3}
+    # Source-owned selector/movement/RNG tables and 8005E724's two
+    # admission callbacks at r13-4E18. Actual saved function words supply
+    # these indirect targets, which are absent from the direct call graph.
+    indirect = {"80244d28": 11, "80254500": 11, "80291934": 3, "803a4c28": 2}
     for address, count in indirect.items():
         targets += [word(int(address, 16) + 4 * i) for i in range(count)]
     targets = sorted(set(targets))

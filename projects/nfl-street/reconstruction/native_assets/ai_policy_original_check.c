@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include "moderngekko/module_abi.h"
 #include "ai_policy.h"
+#include "ai_policy_transaction.h"
 #define BASE 0x80000000u
 #define BYTES (24u*1024u*1024u)
 #define R13 0x803a9a40u
@@ -91,10 +92,35 @@ static int one(uint32_t pc,uint32_t a,int dispatch,int compare_return){
 static uint32_t hash(uint32_t h){for(unsigned k=0;k<BYTES;++k)if(k<LO-BASE||k>=HI-BASE)h=(h^native[k])*16777619u;return h;}
 static uint8_t *load(const char *name){FILE *f=fopen(name,"rb");if(!f)return NULL;uint8_t *p=malloc(BYTES);
  if(!p||fread(p,1,BYTES,f)!=BYTES){free(p);fclose(f);return NULL;}fclose(f);return p;}
+/* Host-only journal check: all RAM is checked, without an oracle hook or
+   native stand-in. Cover retained pointers, repeated access to one page,
+   cross-page writes, the last MEM1 byte, commit and a later rollback. */
+static int transaction_check(void){
+ nflstreet_ai_transaction t;memcpy(native,saved,BYTES);memcpy(oracle,saved,BYTES);
+ if(!nflstreet_ai_transaction_init(&t,span,native))return 0;
+ nflstreet_ai_transaction_begin(&t);
+ uint8_t *cross=nflstreet_ai_transaction_span(&t,BASE+4094,8);
+ if(!cross){nflstreet_ai_transaction_close(&t);return 0;}
+ for(unsigned i=0;i<8;++i)cross[i]^=(uint8_t)(0x61u+i);
+ /* Reacquire an already MODIFIED page: its first snapshot must survive. */
+ uint8_t *again=nflstreet_ai_transaction_span(&t,BASE+4095,1);
+ uint8_t *last=nflstreet_ai_transaction_span(&t,BASE+BYTES-1,1);
+ if(!again||!last){nflstreet_ai_transaction_close(&t);return 0;}
+ *again^=0x43;*last^=0xc7;
+ int ok=nflstreet_ai_transaction_end(&t,0)&&!memcmp(native,saved,BYTES);
+ nflstreet_ai_transaction_begin(&t);last=nflstreet_ai_transaction_span(&t,BASE+BYTES-1,1);
+ if(!last){nflstreet_ai_transaction_close(&t);return 0;}*last^=0x69;oracle[BYTES-1]^=0x69;
+ ok=ok&&nflstreet_ai_transaction_end(&t,1)&&!memcmp(native,oracle,BYTES);
+ nflstreet_ai_transaction_begin(&t);last=nflstreet_ai_transaction_span(&t,BASE+BYTES-1,1);
+ cross=nflstreet_ai_transaction_span(&t,BASE+4094,8);
+ if(!last||!cross){nflstreet_ai_transaction_close(&t);return 0;}*last^=0x18;memset(cross,0xa5,8);
+ ok=ok&&nflstreet_ai_transaction_end(&t,0)&&!memcmp(native,oracle,BYTES);
+ nflstreet_ai_transaction_close(&t);if(!ok)fprintf(stderr,"host transaction rollback differs from full RAM snapshot\n");return ok;}
 int main(int argc,char **argv){
  if(argc!=3)return 2;HMODULE h=LoadLibraryA(argv[2]);if(!h)return 3;
  ModernGekkoGetModuleFn get=(ModernGekkoGetModuleFn)GetProcAddress(h,MODERNGEKKO_GET_MODULE_SYMBOL);if(!get||!(module=get()))return 3;
  saved=load(argv[1]);native=malloc(BYTES);oracle=malloc(BYTES);if(!saved||!native||!oracle)return 3;
+ if(!transaction_check())return 9;
  for(unsigned i=0;i<ACTORS;++i)if(r8(saved,actor(saved,i)+8)==255){uint32_t pc=callback(saved,actor(saved,i));
   for(unsigned k=0;k<5;++k)population[k]+=pc==roots[k];}
  for(unsigned k=0;k<5;++k)if(!population[k]){fprintf(stderr,"missing saved service %08x\n",roots[k]);return 4;}

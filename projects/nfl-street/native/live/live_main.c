@@ -212,7 +212,13 @@ int main(int argc,char *argv[]){
      placement (800D4A6C/800D4B0C) of its visual. */
   PADStatus pads[4];PADRead(pads);float moved[2]={0,0};
   int dx,dy;stick(&pads[0],&dx,&dy);if(scripted){const double t=seconds()-start;dx=t<1.5?1:t<3.0?0:t<4.5?-1:0;dy=t>=1.5&&t<3.0?1:0;}
-  for(const double now=seconds();!failed&&clock_time+1.0/60.0<=now;clock_time+=1.0/60.0){
+  /* Host scheduling choice: advance only fixed one-tick updates, but drop
+     excess wall-clock backlog above four ticks. Unbounded catch-up could
+     starve event polling and scene draws when CPU updates miss 60 Hz. This
+     neither increases the game's delta nor skips part of an actor update. */
+  const double update_time=seconds();
+  if(update_time-clock_time>4.0/60.0)clock_time=update_time-4.0/60.0;
+  for(;!failed&&clock_time+1.0/60.0<=update_time;clock_time+=1.0/60.0){
    /* The rings follow the position the previous update left (800E4A24),
       so they trail the player by one update, as in the saved frame. */
    if(!nflstreet_rings_update(&rings)){note("select-ring update failed");failed=1;break;}
@@ -281,10 +287,12 @@ int main(int argc,char *argv[]){
   nflstreet_gx_aurora_flush(bridge);
   aurora_end_frame();
   if(failed)exiting=1;
-  if(seconds()-ai_report_time>=1.0){
+  const int periodic_report=seconds()-ai_report_time>=1.0;
+  if(periodic_report){
    const unsigned moving=nflstreet_live_ai_moving(&ai);ai_report_time=seconds();
    if(log_file){fprintf(log_file,"AI moving: %u\n",moving);fflush(log_file);}}
-  if(++frames%120==0&&log_file){const AuroraStats *st=aurora_get_stats();
+  ++frames;
+  if((periodic_report||frames%120==0)&&log_file){const AuroraStats *st=aurora_get_stats();
    nflstreet_live_ai_report(&ai);
    fprintf(log_file,"frame %u, %u GX calls so far; draws %u (merged %u), pipelines queued %u created %u, %.0f fps\n",frames,
     nflstreet_gx_aurora_calls(bridge),st->drawCallCount,st->mergedDrawCallCount,st->queuedPipelines,st->createdPipelines,aurora_get_fps());fflush(log_file);}}

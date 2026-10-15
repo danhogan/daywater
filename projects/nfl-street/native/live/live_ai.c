@@ -5,13 +5,11 @@
 /* Host scratch token, deliberately OUTSIDE MEM1. It names these eight owned
    bytes through the AI-only span, not a discovered or borrowed game address. */
 #define TARGET_TOKEN 0xfffffff0u
-#define MEM1_BASE 0x80000000u
-#define MEM1_SIZE (24u*1024u*1024u)
 static uint32_t r32(const uint8_t *p){return (uint32_t)p[0]<<24|(uint32_t)p[1]<<16|(uint32_t)p[2]<<8|p[3];}
 static uint8_t *ai_span(void *user,uint32_t a,uint32_t n){
  nflstreet_live_ai *c=user;
  if(a>=TARGET_TOKEN&&(uint64_t)a-TARGET_TOKEN+n<=sizeof c->scratch)return c->scratch+(a-TARGET_TOKEN);
- return c->span(c->memory,a,n);}
+ return nflstreet_ai_transaction_span(&c->transaction,a,n);}
 static int sync_actor(nflstreet_live_ai *c,nflstreet_live_ai_actor *a){
  const uint8_t *p=c->span(c->memory,a->actor,0x14d4);if(!p)return 0;
  for(unsigned j=0;j<12;++j)a->movement.runtime.actor[j]=r32(p+0x200+4*j);
@@ -36,8 +34,7 @@ int nflstreet_live_ai_init(nflstreet_live_ai *c,nflstreet_draw_span span,void *m
   /* Same first-update reset as seed_movement for the controlled actor. */
   a->movement.seed.completed=a->movement.runtime.completed=1;
  }
- if(!span(memory,MEM1_BASE,MEM1_SIZE))return 0;
- c->rollback=malloc(MEM1_SIZE);if(!c->rollback)return 0;
+ if(!nflstreet_ai_transaction_init(&c->transaction,span,memory))return 0;
  if(log){fprintf(log,"AI roster: %u non-controlled actors seeded\n",c->count);fflush(log);}return 1;}
 static void failure(nflstreet_live_ai *c,unsigned frame,uint32_t g,const char *phase,uint32_t pc){
  if(c->log){fprintf(c->log,"frame %u: AI %s unsupported, actor %08x, pc %08x; update stopped\n",frame,phase,g,pc);fflush(c->log);}}
@@ -45,10 +42,9 @@ static void failure(nflstreet_live_ai *c,unsigned frame,uint32_t g,const char *p
    writes before failure; restoring ALL MEM1 prevents that partial result from
    entering the live frame. Native policy services write only RAM and owned
    call temporaries. Never use this around the host clip/event providers. */
-static int service_status(nflstreet_live_ai *c,nflstreet_live_ai_actor *a,uint8_t *ram,
- int ok,unsigned frame,const char *phase){
+static int service_status(nflstreet_live_ai *c,nflstreet_live_ai_actor *a,int ok,unsigned frame,const char *phase){
+ if(!nflstreet_ai_transaction_end(&c->transaction,ok)){failure(c,frame,a->actor,"RAM journal",0);return 0;}
  if(ok)return 1;
- memcpy(ram,c->rollback,MEM1_SIZE);
  if(!c->dispatch.unsupported){failure(c,frame,a->actor,phase,0);return 0;}
  a->held=1;
  if(c->dispatch.service==nflstreet_ai_policy_service){const nflstreet_ai_policy *p=c->dispatch.user;
@@ -67,25 +63,26 @@ static int committed_movement(nflstreet_live_ai *c,nflstreet_live_ai_actor *a){
  if(!c->dispatch.service||!c->dispatch.service(c->dispatch.user,&call,&result)){
   c->dispatch.unsupported=call.pc;return 0;}return sync_actor(c,a);}
 int nflstreet_live_ai_step(nflstreet_live_ai *c,nflstreet_locomotion_context *selector,unsigned frame){
- c->last_moved=0;uint8_t *ram=c->span(c->memory,MEM1_BASE,MEM1_SIZE);if(!ram||!c->rollback)return 0;
+ if(!c||!c->transaction.before)return 0;c->last_moved=0;
  for(unsigned i=0;i<c->count;++i){nflstreet_live_ai_actor *a=c->actors+i;if(a->held)continue;
-  memcpy(c->rollback,ram,MEM1_SIZE);
+  nflstreet_ai_transaction_begin(&c->transaction);
   const int ok=nflstreet_ai_dispatch_step(&c->dispatch,0,a->actor+0xbe4,a->actor,0);
-  if(!service_status(c,a,ram,ok,frame,"dispatch"))return 0;}
+  if(!service_status(c,a,ok,frame,"dispatch"))return 0;}
  (void)selector; /* Keep the public live adapter ABI; native calls share one stack. */
  for(unsigned i=0;i<c->count;++i){nflstreet_live_ai_actor *a=c->actors+i;if(a->held)continue;
-  memcpy(c->rollback,ram,MEM1_SIZE);
+  nflstreet_ai_transaction_begin(&c->transaction);
   const nflstreet_ai_call call={0x800150e8u,{a->actor,0,0,0,0,0}};uint32_t result=0;
   const int ok=c->dispatch.service&&c->dispatch.service(c->dispatch.user,&call,&result);
   if(!ok)c->dispatch.unsupported=call.pc;
-  if(!service_status(c,a,ram,ok,frame,"commit"))return 0;}
+  if(!service_status(c,a,ok,frame,"commit"))return 0;}
  for(unsigned i=0;i<c->count;++i){nflstreet_live_ai_actor *a=c->actors+i;if(a->held)continue;
   const uint8_t *p=c->span(c->memory,a->actor+0x1a8,8);if(!p)return 0;
   const uint32_t x=r32(p),y=r32(p+4);
-  memcpy(c->rollback,ram,MEM1_SIZE);
+  nflstreet_ai_transaction_begin(&c->transaction);
   if(!committed_movement(c,a)){
-   if(!service_status(c,a,ram,0,frame,"movement"))return 0;
+   if(!service_status(c,a,0,frame,"movement"))return 0;
    a->rejected=1;continue;}
+  if(!nflstreet_ai_transaction_end(&c->transaction,1))return 0;
   if(x!=r32(p)||y!=r32(p+4)){a->moved=a->moved_second=1;++c->last_moved;}}
  ++c->updates;return 1;}
 int nflstreet_live_ai_sync(nflstreet_live_ai *c){
@@ -101,4 +98,4 @@ void nflstreet_live_ai_report(const nflstreet_live_ai *c){
     Actual movement failures still emit their once-per-actor diagnostic. */
  if(c->log){fprintf(c->log,"AI movement: %u/%u actors changed XY, %u in last update, %u movement holds, %u held for missing services; %u completed AI updates\n",
   moved,c->count,c->last_moved,rejected,held,c->updates);fflush(c->log);}}
-void nflstreet_live_ai_close(nflstreet_live_ai *c){if(c){free(c->rollback);c->rollback=NULL;}}
+void nflstreet_live_ai_close(nflstreet_live_ai *c){if(c)nflstreet_ai_transaction_close(&c->transaction);}
