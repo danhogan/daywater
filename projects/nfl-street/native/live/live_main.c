@@ -24,6 +24,8 @@
 #include "live_clips.h"
 #include "select_rings.h"
 #include "ball_update.h"
+#include "ball_handoff.h"
+#include "hud_values.h"
 /* Live-only link alias: the optional host catalog selector has the same name. */
 #define nflstreet_locomotion_select nflstreet_live_locomotion_select
 #include "locomotion_predicates.h"
@@ -114,7 +116,8 @@ int main(int argc,char *argv[]){
  if(!bridge){note("cannot allocate GX bridge");return 4;}
  scene_fixture(ram,&scene,span,nflstreet_gx_aurora_emit,bridge);
  scene.field_overlay.depth=nflstreet_gx_aurora_depth;scene.field_overlay.depth_user=bridge;
- const nflstreet_ball_update_context ball_step={&scene.draw,scene.hud.stacks,R13};
+ const nflstreet_ball_update_context ownership={&scene.draw,scene.hud.stacks,R13};
+ const nflstreet_hud_values hud_values={span,ram,R13,0};
  /* Optional third argument: the parts to draw (1 venue, 2 players, 4 HUD). */
  const unsigned parts=argc>3?(unsigned)strtoul(argv[3],NULL,0):7u;
  /* NFL_LIVE_ORBIT: per-frame turn (24-bit angle; 1 means 0x2000, about 10 degrees a second at 60 fps). */
@@ -209,8 +212,12 @@ int main(int argc,char *argv[]){
     const uint32_t pool=ram32(ram,R13-0x73d0u);const uint8_t *count=ram_at(ram,pool,1);
     if(!count){note("ball pool unavailable");failed=1;}
     for(unsigned i=0;!failed&&i<*count;++i){const uint32_t record=pool+8+0xf4u*i;
-     if(!nflstreet_ball_update(&ball_step,record,1.0)||!nflstreet_ball_update_visual(&ball_step,record)||
-        !nflstreet_ball_update_matrix(&ball_step,ram32(ram,record))){note("ball update failed (unsupported state or memory)");failed=1;}}}
+     if(!nflstreet_ball_update(&ownership,record,1.0)||!nflstreet_ball_update_visual(&ownership,record)||
+        !nflstreet_ball_update_matrix(&ownership,ram32(ram,record))){note("ball update failed (unsupported state or memory)");failed=1;}}}
+   /* The handoff module consumes decoded ownership events. This live loop has
+      no original event decoder, so it must not synthesize one per tick. */
+   if(!failed){nflstreet_hud_values c=hud_values;
+    if(!nflstreet_hud_turbo_update(&c)){if(log_file){fprintf(log_file,"frame %u: HUD turbo update rejected address %08x\n",frames,c.rejected_address);fflush(log_file);}failed=1;}}
   }
 
   steer(ram,orbit,&pads[0],moved[0],moved[1]);

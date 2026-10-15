@@ -11,7 +11,7 @@ add_subdirectory(${AURORA_SOURCE_DIR} aurora EXCLUDE_FROM_ALL)
 # The verified native draws and placement (reconstruction/native_assets) and
 # the verified movement runtime (command_to_movement and the stages it uses),
 # copied under src/reconstruction by build_windows_live.sh, and the GX bridge.
-set(NFLSTREET_DRAWS cloud_draw.c field_overlay.c ball_update.c ball_update_motion.c locomotion_predicates.c scene_frame.c light_rig.c crowd_draw.c actor_palettes.c actor_world.c cluster_palette.c model_view.c scenery_draw.c marks_draw.c
+set(NFLSTREET_DRAWS cloud_draw.c field_overlay.c ball_update.c ball_update_motion.c ball_handoff.c hud_values.c locomotion_predicates.c scene_frame.c light_rig.c crowd_draw.c actor_palettes.c actor_world.c cluster_palette.c model_view.c scenery_draw.c marks_draw.c
   ball_draw.c hud_draw.c uis_draw.c matrix_stack.c gx_texobj.c player_draw.c draw_engine.c live_movement.c
   select_rings.c camera_slots.c name_tag_project.c camera_projection.c effects_draw.c actor_scale.c actor_channels.c channel_callbacks.c clip_requests.c anim_stream.c gekko_quaternion/quaternion_kernels.c gekko_quaternion/actor_slerp.c actor_dynamics.c actor_dynamics_math.c actor_pose.c actor_skeleton.c compact_pose.c live_pose.c live_locomotion.c pose.c)
 list(TRANSFORM NFLSTREET_DRAWS PREPEND reconstruction/native_assets/)
@@ -28,7 +28,8 @@ set(NFLSTREET_MOVEMENT command_to_movement/actor_runtime.c command_to_movement/a
 list(TRANSFORM NFLSTREET_MOVEMENT PREPEND reconstruction/)
 add_executable(nflstreet_live live_main.c live_clips.c gx_aurora.c ${NFLSTREET_DRAWS} ${NFLSTREET_MOVEMENT}
   reconstruction/ball/ball_frame.c reconstruction/ball/ball_attachment.c
-  reconstruction/ball/ball_orientation.c reconstruction/ball/ball_state.c)
+  reconstruction/ball/ball_orientation.c reconstruction/ball/ball_state.c
+  reconstruction/ball/ball_ownership.c reconstruction/ball/ball_lifecycle.c)
 target_include_directories(nflstreet_live PRIVATE reconstruction/native_assets)
 target_compile_definitions(nflstreet_live PRIVATE NFLSTREET_ACTOR_UPDATE_NO_MAIN NFLSTREET_PREPARATION_NO_MAIN
   NFLSTREET_COMMAND_NO_MAIN NFLSTREET_KINEMATICS_NO_MAIN NFLSTREET_RESET_NO_MAIN NFLSTREET_INPUT_TRANSLATION_NO_MAIN

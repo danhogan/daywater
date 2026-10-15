@@ -41,6 +41,18 @@ forwards each one to Aurora's GX as it is issued:
 
 ## Status
 
+- **Ball handoff module (probable; original events are not dispatched live):**
+  the live target links `ball_handoff.c` and its ownership/lifecycle kernels.
+  It shares the ball update context and the fixed update's matrix-stack
+  selection. The handoff APIs consume already-decoded snap, assignment,
+  release and event callbacks; this loop has no original event decoder, so it
+  does not synthesize ownership changes each tick. Automatic possession is
+  not implemented.
+- **HUD values (partial producer slice):** `hud_values.c` runs its turbo
+  producer once per fixed 60 Hz update and stops the update if it rejects RAM.
+  Score publication, UIS scripts and meter geometry are not implemented by
+  this module, so this does not claim a complete scoreboard or meter refresh.
+
 - **Matches the software render:** on saved context 15, the rendered frame
   matches the verified software render of the same state (sky, field,
   lines, ring, players, ball and HUD). It runs at about 105–125 fps with
