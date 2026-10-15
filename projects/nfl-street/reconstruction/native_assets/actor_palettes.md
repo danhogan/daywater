@@ -36,8 +36,11 @@ builds the world matrix `800D4B0C`: a pushed identity, then translate,
 turn about z by the heading plus a quarter turn, about x by a quarter turn,
 and the `0x2000` offset, stored at `+3AC`.
 
-**Not modeled:**
-- Flag `0x4000` (the slerped body, `801CA900`) is rejected natively.
+**Limits:**
+- Flag `0x4000` now routes through the compiled `801EAD98`/`801CA900`
+  reconstruction in [gekko_quaternion/actor_slerp.c](gekko_quaternion/actor_slerp.c).
+  This new route awaits the main checkout's original-module comparison;
+  its procedure and limits are in [actor_slerp.md](gekko_quaternion/actor_slerp.md).
 - The head and hand secondary dynamics (`8004C268`/`8004BF1C`) are modeled
   only in their disabled form (clearing the state's `+02` byte). When
   enabled they are skipped and their state stays as stored.

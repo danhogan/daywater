@@ -20,8 +20,9 @@ typedef struct {
 /* 80162760(actor, scale, world, 0, 0, -, items, lod): scale is an optional
    x/y/z vector (800DFB34), world the address of the actor's 4x4 matrix
    (+3AC), items the address of the two held-item models.
-   Not modeled (returns 0 before any write): the slerped body palettes of
-   actors with flag 0x4000 (801CA900). The secondary head and hand dynamics
+   Flag 0x4000 selects gekko_quaternion/actor_slerp.c (801EAD98/801CA900),
+   verified against the original with the rest of this routine.
+   The secondary head and hand dynamics
    8004C268/8004BF1C are modeled only for their disabled form (they clear
    the state's +02 byte); when enabled they are skipped, leaving their state
    as stored. */

@@ -1,0 +1,38 @@
+[
+  {
+    "name": "invert_bone_enable",
+    "file": "projects/nfl-street/reconstruction/native_assets/gekko_quaternion/actor_slerp.c",
+    "old": "        if (!compact || !enabled[bone]) continue;",
+    "new": "        if (!compact || enabled[bone]) continue;"
+  },
+  {
+    "name": "halve_slerp_weight",
+    "file": "projects/nfl-street/reconstruction/native_assets/gekko_quaternion/actor_slerp.c",
+    "old": "        const float t = (float)weight * 0x1p-12f;",
+    "new": "        const float t = (float)weight * 0x1p-13f;"
+  },
+  {
+    "name": "reverse_pose_rest_weights",
+    "file": "projects/nfl-street/reconstruction/native_assets/gekko_quaternion/actor_slerp.c",
+    "old": "        nflstreet_801a383c_slerp(t, a, b, blended);",
+    "new": "        nflstreet_801a383c_slerp(t, b, a, blended);"
+  },
+  {
+    "name": "wrong_euler_reduction",
+    "file": "projects/nfl-street/reconstruction/native_assets/gekko_quaternion/actor_slerp.c",
+    "old": "            angles[axis] >>= 8; /* 801CAA74/7C/80: srawi */",
+    "new": "            angles[axis] >>= 7; /* 801CAA74/7C/80: srawi */"
+  },
+  {
+    "name": "concat_from_root",
+    "file": "projects/nfl-street/reconstruction/native_assets/gekko_quaternion/actor_slerp.c",
+    "old": "        const unsigned bone = row[0], parent = row[1];",
+    "new": "        const unsigned bone = row[0], parent = 0;"
+  },
+  {
+    "name": "omit_final_dma",
+    "file": "projects/nfl-street/reconstruction/native_assets/gekko_quaternion/actor_slerp.c",
+    "old": "    return copy_palette(c, out, scratch, count);",
+    "new": "    return 1;"
+  }
+]

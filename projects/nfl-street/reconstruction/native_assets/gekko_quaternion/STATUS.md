@@ -12,6 +12,7 @@ locally generated GNNE69 recompiled module.  Neither is part of this tree.
 | `80215844` | verified (slerp cosine domain) | The two non-negative `acosf` paths and their stored-DOL coefficients pass 500,000 randomized calls in `[0,1]`. |
 | `801A383C` | verified | It uses reconstructed MSL sine, acos and square-root helpers, with PPC `fdivs`, `fmuls`, and tie-corrected single FMA rounding points made explicit.  The former `t=3e5978d9` sine discrepancy and the later case-109 final-weight discrepancy are covered.  500,000 all-RAM randomized quaternion/Slerp vectors match the original module bit-for-bit. |
 | `801A340C` | verified | `80188D98` atan2 polynomial, 24-bit conversion and the `80188EF8` singular branch are transcribed; 500,000 quaternion cases from exact `801A36EC` results match the original module. |
+| `801EAD98` / `801CA900` | probable; compiled, comparison pending | Extracted into `actor_slerp.c`; `actor_palettes.c` routes flag `0x4000` through it. The checker has an optional `slerp` mode with 401 cases over all 14 actors, edited compact poses, weights and enable bytes. See `actor_slerp.md` for the operator's command and limits. |
 
 The checker's `80216B94` probe includes the former `t=3e5978d9` path.  Its
 all-RAM Slerp probe includes case 109 (`t=3ef2d8f3`), where the final weight

@@ -2,6 +2,12 @@
 
 #include <string.h>
 
+#ifdef __clang__
+#define PPC_NOINLINE __attribute__((noinline))
+#else
+#define PPC_NOINLINE __attribute__((noinline, noclone))
+#endif
+
 static float ppc_fmadds(float left, float right, float addend);
 
 typedef struct {
@@ -106,7 +112,7 @@ static uint32_t msl_bits(float value)
 /* ppc_fdivs first divides the (double-extended) FPR operands, then writes a
    single-precision result.  A native float division is permitted to perform
    a different intermediate operation, so retain the explicit rounding point. */
-static __attribute__((noinline, noclone)) float ppc_fdivs(float numerator, float denominator)
+static PPC_NOINLINE float ppc_fdivs(float numerator, float denominator)
 {
     volatile double quotient = (double)numerator / (double)denominator;
     return (float)quotient;
@@ -116,19 +122,19 @@ static __attribute__((noinline, noclone)) float ppc_fdivs(float numerator, float
    result to single precision.  Spell out the FPR operation: native float
    multiplication selects a different last bit on this host for a real tie
    reached by 801A383C's first Slerp weight. */
-static __attribute__((noinline, noclone)) float ppc_fmuls(float left, float right)
+static PPC_NOINLINE float ppc_fmuls(float left, float right)
 {
     volatile double product = (double)left * (double)right;
     return (float)product;
 }
 
-static __attribute__((noinline, noclone)) float ppc_fsubs(float left, float right)
+static PPC_NOINLINE float ppc_fsubs(float left, float right)
 {
     volatile double difference = (double)left - (double)right;
     return (float)difference;
 }
 
-static __attribute__((noinline, noclone)) float ppc_fadds(float left, float right)
+static PPC_NOINLINE float ppc_fadds(float left, float right)
 {
     volatile double sum = (double)left + (double)right;
     return (float)sum;
@@ -152,7 +158,7 @@ static double msl_f64(uint64_t bits)
    to the finite normal values reached by the quaternion routines.  Gekko
    single FMAs select the adjacent IEEE value for an exact halfway result in
    cases where a host FMA's usual tie-to-even choice does not. */
-static __attribute__((noinline, noclone)) float ppc_fmadds(float left, float right, float addend)
+static PPC_NOINLINE float ppc_fmadds(float left, float right, float addend)
 {
     /* A product of two binary32 values is exact in binary64 (at most 48
        significant bits).  The following binary64 add therefore supplies the
@@ -347,6 +353,59 @@ void nflstreet_801a340c_euler(const float q[4], int32_t result[3])
         result[0] = msl_atan2_angle(first_y, first_x);
         result[1] = msl_atan2_angle(pitch_sine, root);
         result[2] = msl_atan2_angle(0.0f, one);
+    }
+}
+
+void nflstreet_801ca900_local_matrix(const int32_t angles[3],
+    const float coefficients[6], const float translation[3], float result[12])
+{
+    float x[2], y[2], z[2];
+    nflstreet_80188bb0_pair((uint16_t)angles[0], coefficients, x);
+    nflstreet_80188bb0_pair((uint16_t)angles[1], coefficients, y);
+    nflstreet_80188bb0_pair((uint16_t)angles[2], coefficients, z);
+    const float sx = x[0], cx = x[1], sy = y[0], cy = y[1];
+    const float sz = z[0], cz = z[1];
+    const float sxsy = ppc_fmuls(sx, sy);
+    const float sz_sxsy = ppc_fmuls(sz, sxsy);
+    const float cz_sxsy = ppc_fmuls(cz, sxsy);
+    const float cxsy = ppc_fmuls(cx, sy);
+    const float sz_cxsy = ppc_fmuls(sz, cxsy);
+    const float cz_cxsy = ppc_fmuls(cz, cxsy);
+    result[0] = ppc_fmuls(cz, cy);
+    result[1] = ppc_fmadds(-sz, cx, cz_sxsy);
+    result[2] = ppc_fmadds(sz, sx, cz_cxsy);
+    result[3] = translation[0];
+    result[4] = ppc_fmuls(sz, cy);
+    result[5] = ppc_fmadds(cz, cx, sz_sxsy);
+    result[6] = ppc_fmadds(-cz, sx, sz_cxsy);
+    result[7] = translation[1];
+    result[8] = -sy;
+    result[9] = ppc_fmuls(cy, sx);
+    result[10] = ppc_fmuls(cy, cx);
+    result[11] = translation[2];
+}
+
+void nflstreet_801ffdf0_concat(const float parent[12], const float local[12],
+    float result[12])
+{
+    /* 801FFDF0 computes the 3x4 affine product one PPC single FMA at a
+       time.  Keep a separate output array: callers may alias neither input,
+       but this also documents its actual non-aliasing call shape. */
+    for (unsigned row = 0; row < 3; ++row) {
+        const float a0 = parent[row * 4], a1 = parent[row * 4 + 1];
+        const float a2 = parent[row * 4 + 2], a3 = parent[row * 4 + 3];
+        for (unsigned column = 0; column < 3; ++column) {
+            float v = ppc_fmuls(a0, local[column]);
+            v = ppc_fmadds(a1, local[4 + column], v);
+            v = ppc_fmadds(a2, local[8 + column], v);
+            /* The low lane of f31 is zero (803A3958); the ps_madds1
+               instruction also adds 0*a3 to column 2. */
+            result[row * 4 + column] = column == 2 ? ppc_fmadds(0.0f, a3, v) : v;
+        }
+        float v = ppc_fmuls(a0, local[3]);
+        v = ppc_fmadds(a1, local[7], v);
+        v = ppc_fmadds(a2, local[11], v);
+        result[row * 4 + 3] = ppc_fmadds(1.0f, a3, v);
     }
 }
 

@@ -31,8 +31,15 @@ void nflstreet_801a36ec_quaternion(int32_t x, int32_t y, int32_t z,
    fixed-point Euler angles consumed by 801A36EC. */
 void nflstreet_801a340c_euler(const float quaternion[4], int32_t result[3]);
 
-/* Candidate transcription of 801A383C.  Its transcendental calls are host
-   placeholders until the 80215844/80216B94 kernels are reconstructed. */
+/* The 801CA900 tail: 80188BB0 for three signed-16 angle words (the caller
+   has already shifted 801A340C's 24-bit angles by eight), the local 3x4
+   rotation/translation store, then 801FFDF0's affine concat. */
+void nflstreet_801ca900_local_matrix(const int32_t angles[3],
+    const float coefficients[6], const float translation[3], float result[12]);
+void nflstreet_801ffdf0_concat(const float parent[12], const float local[12],
+    float result[12]);
+
+/* 801A383C, with reconstructed bounded MSL transcendental helpers. */
 void nflstreet_801a383c_slerp(float t, const float a[4], const float b[4],
     float result[4]);
 
