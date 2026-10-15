@@ -30,6 +30,7 @@
 /* Live-only link alias: the optional host catalog selector has the same name. */
 #define nflstreet_locomotion_select nflstreet_live_locomotion_select
 #include "locomotion_predicates.h"
+#include "live_ai.h"
 #undef nflstreet_locomotion_select
 #define RAM_BASE 0x80000000u
 #define RAM_BYTES (24u*1024u*1024u)
@@ -55,6 +56,7 @@ static int channel_status(int ok,const nflstreet_channel_callbacks *callbacks,un
   frame,phase,actor,callbacks->failure_pc,callbacks->failure_address,callbacks->failure_budget_exhausted);fflush(log_file);}return 0;}
 static int selected_request(void *user,const nflstreet_locomotion_request *r){
  nflstreet_live_clips *clips=user;
+ if(!clips->channels||!clips->callbacks)return 0;
  return nflstreet_clip_request_group(&clips->requests,r->weight,r->manager,r->set,r->channels,r->key,r->actor)&&clips->callbacks->ok;}
 /* The downstream gameplay event systems are not reconstructed. Diagnose and
    reject before an event executes; never claim its effects were supplied. */
@@ -167,6 +169,9 @@ int main(int argc,char *argv[]){
  /* The gameplay actor table: *(r13-7C30) holds the array's address (+0) and count (+0A). */
  const uint32_t actor_table=ram32(ram,R13-0x7c30u),gameplay_actors=ram32(ram,actor_table);
  const unsigned actor_count=(unsigned)(ram32(ram,actor_table+8)&0xffffu)<14u?(unsigned)(ram32(ram,actor_table+8)&0xffffu):14u;
+ nflstreet_live_ai ai;
+ if(!nflstreet_live_ai_init(&ai,span,ram,R13,gameplay_actors,actor_count,player,log_file)){
+  note("cannot seed AI movement from gameplay roster");return 4;}
  const nflstreet_rings_context rings={&scene.draw,R13};
  const double start=seconds();double clock_time=start;
  const uint32_t gx=ram32(ram,R13-0x4c90u);unsigned frames=0;int exiting=0,failed=0;
@@ -185,6 +190,7 @@ int main(int argc,char *argv[]){
    /* The rings follow the position the previous update left (800E4A24),
       so they trail the player by one update, as in the saved frame. */
    if(!nflstreet_rings_update(&rings)){note("select-ring update failed");failed=1;break;}
+   if(!nflstreet_live_ai_step(&ai,&selector,frames)){failed=1;break;}
    int host_pose=animated; /* explicit fallback bypasses predicates with unreconstructed event services */
    if(player){const float x0=ramf(ram,player+0x1a8),y0=ramf(ram,player+0x1ac);nflstreet_live_motion mo;
     const int r=nflstreet_live_movement_step(&movement,dx,dy,&mo);
@@ -217,6 +223,7 @@ int main(int argc,char *argv[]){
       when the movement runtime starts the next update. */
    if(player&&channel_anim){for(unsigned i=0;i<12;++i)movement.runtime.actor[i]=ram32(ram,player+0x200+4*i);
     for(unsigned i=0;i<21;++i)movement.runtime.state[i]=ram32(ram,player+0x1a8+4*i);}
+   if(!failed&&!nflstreet_live_ai_sync(&ai))failed=1;
    /* Current roots/poses precede ball motion (8002E198). Place all live
       actors so any saved carrier association sees this update's transform. */
    if(!failed){nflstreet_render_state unused={0};nflstreet_draw d={&scene.draw,&unused};
@@ -249,6 +256,9 @@ int main(int argc,char *argv[]){
   aurora_end_frame();
   if(failed)exiting=1;
   if(++frames%120==0&&log_file){const AuroraStats *st=aurora_get_stats();
+   nflstreet_live_ai_report(&ai);
    fprintf(log_file,"frame %u, %u GX calls so far; draws %u (merged %u), pipelines queued %u created %u, %.0f fps\n",frames,
     nflstreet_gx_aurora_calls(bridge),st->drawCallCount,st->mergedDrawCallCount,st->queuedPipelines,st->createdPipelines,aurora_get_fps());fflush(log_file);}}
+ nflstreet_live_ai_report(&ai);
+ nflstreet_live_ai_close(&ai);
  nflstreet_gx_aurora_close(bridge);aurora_shutdown();for(unsigned i=0;i<200;++i)free(anim_files[i]);free(bank);free(sets);free(ram);return failed?5:0;}
