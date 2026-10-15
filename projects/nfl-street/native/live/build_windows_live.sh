@@ -14,6 +14,7 @@ cp "$here"/CMakeLists.txt "$here"/*.c "$here"/*.h "$work/src/"
 for d in native_assets command_to_movement kinematics input_translation actor_target_input; do
  mkdir -p "$work/src/reconstruction/$d"; cp "$here"/../../reconstruction/$d/*.[ch] "$work/src/reconstruction/$d/"
 done
+cp "$here"/../../reconstruction/native_assets/channel_callbacks_native.inc "$work/src/reconstruction/native_assets/"
 mkdir -p "$work/src/reconstruction/native_assets/gekko_quaternion"
 cp "$here"/../../reconstruction/native_assets/gekko_quaternion/*.[ch] "$work/src/reconstruction/native_assets/gekko_quaternion/"
 win=$(wslpath -w "$work")

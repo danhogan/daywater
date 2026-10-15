@@ -13,7 +13,7 @@ add_subdirectory(${AURORA_SOURCE_DIR} aurora EXCLUDE_FROM_ALL)
 # copied under src/reconstruction by build_windows_live.sh, and the GX bridge.
 set(NFLSTREET_DRAWS scene_frame.c light_rig.c crowd_draw.c actor_palettes.c actor_world.c cluster_palette.c model_view.c scenery_draw.c marks_draw.c
   ball_draw.c hud_draw.c uis_draw.c matrix_stack.c gx_texobj.c player_draw.c draw_engine.c live_movement.c
-  select_rings.c camera_slots.c name_tag_project.c camera_projection.c effects_draw.c actor_scale.c actor_channels.c anim_stream.c gekko_quaternion/quaternion_kernels.c gekko_quaternion/actor_slerp.c actor_dynamics.c actor_dynamics_math.c actor_pose.c actor_skeleton.c compact_pose.c live_pose.c live_locomotion.c pose.c)
+  select_rings.c camera_slots.c name_tag_project.c camera_projection.c effects_draw.c actor_scale.c actor_channels.c channel_callbacks.c clip_requests.c anim_stream.c gekko_quaternion/quaternion_kernels.c gekko_quaternion/actor_slerp.c actor_dynamics.c actor_dynamics_math.c actor_pose.c actor_skeleton.c compact_pose.c live_pose.c live_locomotion.c pose.c)
 list(TRANSFORM NFLSTREET_DRAWS PREPEND reconstruction/native_assets/)
 set(NFLSTREET_MOVEMENT command_to_movement/actor_runtime.c command_to_movement/actor_update_replay.c
   command_to_movement/preparation_replay.c command_to_movement/command_to_movement_replay.c
@@ -22,7 +22,7 @@ set(NFLSTREET_MOVEMENT command_to_movement/actor_runtime.c command_to_movement/a
   actor_target_input/event_signals.c kinematics/kinematics_replay.c actor_target_input/locomotion_selection.c
   actor_target_input/asset_loader.c actor_target_input/animation_channels.c)
 list(TRANSFORM NFLSTREET_MOVEMENT PREPEND reconstruction/)
-add_executable(nflstreet_live live_main.c gx_aurora.c ${NFLSTREET_DRAWS} ${NFLSTREET_MOVEMENT})
+add_executable(nflstreet_live live_main.c live_clips.c gx_aurora.c ${NFLSTREET_DRAWS} ${NFLSTREET_MOVEMENT})
 target_include_directories(nflstreet_live PRIVATE reconstruction/native_assets)
 target_compile_definitions(nflstreet_live PRIVATE NFLSTREET_ACTOR_UPDATE_NO_MAIN NFLSTREET_PREPARATION_NO_MAIN
   NFLSTREET_COMMAND_NO_MAIN NFLSTREET_KINEMATICS_NO_MAIN NFLSTREET_RESET_NO_MAIN NFLSTREET_INPUT_TRANSLATION_NO_MAIN
@@ -30,6 +30,10 @@ target_compile_definitions(nflstreet_live PRIVATE NFLSTREET_ACTOR_UPDATE_NO_MAIN
 # The original's single-precision arithmetic: no contraction into fused multiply-adds.
 if (MSVC)
   target_compile_options(nflstreet_live PRIVATE /fp:precise)
+  set_source_files_properties(reconstruction/native_assets/channel_callbacks.c PROPERTIES
+    COMPILE_OPTIONS "/FI${CMAKE_CURRENT_SOURCE_DIR}/channel_callbacks_msvc.h;/bigobj")
+else ()
+  target_compile_options(nflstreet_live PRIVATE -ffp-contract=off)
 endif ()
 target_link_libraries(nflstreet_live PRIVATE aurora::core aurora::gx aurora::pad aurora::main aurora::vi)
 # Runtime DLLs (SDL3, Dawn and its shader compiler) next to the executables.
