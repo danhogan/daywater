@@ -1,0 +1,62 @@
+[
+  {
+    "name": "replace-active-guard",
+    "file": "projects/nfl-street/reconstruction/native_assets/clip_requests.c",
+    "old": "if(r8(c,a+1)!=2)return c->ok;",
+    "new": "if(r8(c,a+1)==2)return c->ok;"
+  },
+  {
+    "name": "new-file-id",
+    "file": "projects/nfl-street/reconstruction/native_assets/clip_requests.c",
+    "old": "w16(c,a+4,r16(c,bank_header(c,bank)+2));",
+    "new": "w16(c,a+4,r16(c,bank_header(c,bank)));"
+  },
+  {
+    "name": "temporary-key-origin",
+    "file": "projects/nfl-street/reconstruction/native_assets/clip_requests.c",
+    "old": "for(uint32_t k=0xfffe;c->ok;",
+    "new": "for(uint32_t k=0xfffd;c->ok;"
+  },
+  {
+    "name": "rekey-active-filter",
+    "file": "projects/nfl-street/reconstruction/native_assets/clip_requests.c",
+    "old": "if(r8(c,ch+0x7c*i+1)==2&&r16(c,ch+0x7c*i+8)==old)",
+    "new": "if(r8(c,ch+0x7c*i+1)!=2&&r16(c,ch+0x7c*i+8)==old)"
+  },
+  {
+    "name": "new-manager-state",
+    "file": "projects/nfl-street/reconstruction/native_assets/clip_requests.c",
+    "old": "w16(c,a+6,3);w16(c,a+4,key);",
+    "new": "w16(c,a+6,1);w16(c,a+4,key);"
+  },
+  {
+    "name": "transition-last-match",
+    "file": "projects/nfl-street/reconstruction/native_assets/clip_requests.c",
+    "old": "result=r32(c,row+16);",
+    "new": "if(!result)result=r32(c,row+16);"
+  },
+  {
+    "name": "fallback-duration",
+    "file": "projects/nfl-street/reconstruction/native_assets/clip_requests.c",
+    "old": "if(fallback)linear(c,b,rf(c,0x802611b0u),rf(c,0x80261194u),10);",
+    "new": "if(fallback)linear(c,b,rf(c,0x802611b0u),rf(c,0x80261194u),9);"
+  },
+  {
+    "name": "priority-protection",
+    "file": "projects/nfl-street/reconstruction/native_assets/clip_requests.c",
+    "old": "if((r16(c,a+8)&0x8000u)&&rf(c,a+0x30)<=weight)",
+    "new": "if(!(r16(c,a+8)&0x8000u)&&rf(c,a+0x30)<=weight)"
+  },
+  {
+    "name": "initialize-second-frame",
+    "file": "projects/nfl-street/reconstruction/native_assets/clip_requests.c",
+    "old": "w16(c,s+0x12,f==0xffff?r16(c,s+0x10):f);",
+    "new": "w16(c,s+0x12,r16(c,s+0x10));"
+  },
+  {
+    "name": "replacement-rate",
+    "file": "projects/nfl-street/reconstruction/native_assets/clip_requests.c",
+    "old": "const float rate=nflstreet_gk_divs(length,nflstreet_gk_convert(n,rd(c,0x802610d8u))),old=rf(c,a+0x50);",
+    "new": "const float rate=1.0f,old=rf(c,a+0x50);"
+  }
+]
