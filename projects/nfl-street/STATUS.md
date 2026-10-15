@@ -25,7 +25,26 @@ assignments and LOD are explicit fixture inputs; fresh actor instances, natural
 head roots/pose selection and matrix token publication remain open. See
 [owned attachment palettes](reconstruction/native_assets/match_attachment_palettes.md).
 
-**Latest rendering: the controlled player runs animated, and the frame gains the crowd, live lights and following markers.**
+**Latest rendering: the frame gains fans, strips and particles, live camera projection and the scaled-actor path.**
+Each matches the original module on all RAM (and every GX call and pipe
+write where there are any) in all three saved contexts, with planted
+faults caught:
+- **Effects:** the actor fans `801646CC`, actor strips `801649C4`/`801590F4`
+  and particles `80158798`
+  ([effects_draw.md](reconstruction/native_assets/effects_draw.md)).
+- **Camera slots 1 and 2:** the screen mapping `801DF8C4` and projection
+  `801DF938` ([camera_projection.md](reconstruction/native_assets/camera_projection.md)).
+- **Scaled actors:** `800DFBA8`/`800DFB34`, feeding the palette step
+  ([actor_scale.md](reconstruction/native_assets/actor_scale.md)).
+- **Sky node and clouds:** `800E398C` with the cloud draw
+  ([cloud_draw.md](reconstruction/native_assets/cloud_draw.md)). In all three
+  saved frames the clouds come out effectively invisible in the original
+  too, so they are verified but not yet wired into the scene.
+
+The scene and the live app now run all of these. Two Codex-written modules
+(camera projection and scaled actors) were checked here before merging.
+
+**Earlier rendering: the controlled player runs animated, and the frame gains the crowd, live lights and following markers.**
 Six pieces landed in parallel, each matching the original module on all
 RAM (and every GX call where there are any) in all three saved contexts,
 with planted faults caught:

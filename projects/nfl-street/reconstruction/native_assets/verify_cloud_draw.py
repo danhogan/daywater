@@ -14,24 +14,30 @@ ORACLE = (
 )
 EXPECTED = {14: ORACLE.format("d621b617"), 15: ORACLE.format("1893cf17"), 16: ORACLE.format("c2c9bdf8")}
 RENDERED = {
-    14: "Scene with the sky alone: 6421 venue GX calls and writes, 19938 in all; 752 display lists, 10033 primitives, "
-    "30644 triangles (10991 culled, 3101 clipped), 1286524 shaded pixels; digest 65ef5976.\nScene with the sky node: "
-    "15528 venue GX calls and writes, 29045 in all; 752 display lists, 10113 primitives, 31206 triangles ("
-    "10991 culled, 3579 clipped), 1286969 shaded pixels; digest 65ef5976.",
-    15: "Scene with the sky alone: 6416 venue GX calls and writes, 19929 in all; 752 display lists, 10034 primitives, "
-    "30646 triangles (10987 culled, 3096 clipped), 1289055 shaded pixels; digest c8817024.\nScene with the sky node: "
-    "15523 venue GX calls and writes, 29036 in all; 752 display lists, 10114 primitives, 31208 triangles ("
-    "10987 culled, 3574 clipped), 1289500 shaded pixels; digest c8817024.",
-    16: "Scene with the sky alone: 6471 venue GX calls and writes, 19980 in all; 752 display lists, 10011 primitives, "
-    "30589 triangles (10961 culled, 3097 clipped), 1285091 shaded pixels; digest 2e5381c6.\nScene with the sky node: "
-    "15578 venue GX calls and writes, 29087 in all; 752 display lists, 10091 primitives, 31151 triangles ("
-    "10961 culled, 3571 clipped), 1285535 shaded pixels; digest 2e5381c6.",
+    14: "Scene with the sky alone: 6444 venue GX calls and writes, 23807 in all; 752 display lists, 10059 primitives, "
+    "30894 triangles (11003 culled, 3119 clipped), 1289042 shaded pixels; digest e538d9f5.\nScene with the sky "
+    "node: 15528 venue GX calls and writes, 32891 in all; 752 display lists, 10139 primitives, 31456 triangles "
+    "(11003 culled, 3597 clipped), 1289487 shaded pixels; digest e538d9f5.",
+    15: "Scene with the sky alone: 6441 venue GX calls and writes, 22416 in all; 752 display lists, 10050 primitives, "
+    "30790 triangles (10991 culled, 3114 clipped), 1291127 shaded pixels; digest 1b0276af.\nScene with the sky "
+    "node: 15523 venue GX calls and writes, 31498 in all; 752 display lists, 10130 primitives, 31352 triangles "
+    "(10991 culled, 3592 clipped), 1291572 shaded pixels; digest 1b0276af.",
+    16: "Scene with the sky alone: 6494 venue GX calls and writes, 23244 in all; 752 display lists, 10037 primitives, "
+    "30823 triangles (10977 culled, 3115 clipped), 1287793 shaded pixels; digest 3d82697f.\nScene with the sky "
+    "node: 15578 venue GX calls and writes, 32328 in all; 752 display lists, 10117 primitives, 31385 triangles "
+    "(10977 culled, 3589 clipped), 1288237 shaded pixels; digest 3d82697f.",
 }
 SOURCES = (
     "cloud_draw.c",
     "cloud_draw.h",
     "cloud_draw_original_check.c",
     "cloud_render_check.c",
+    "camera_projection.c",
+    "camera_projection.h",
+    "effects_draw.c",
+    "effects_draw.h",
+    "actor_scale.c",
+    "actor_scale.h",
     "scenery_draw.c",
     "marks_draw.c",
     "matrix_stack.c",

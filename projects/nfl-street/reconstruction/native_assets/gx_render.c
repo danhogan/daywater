@@ -363,9 +363,11 @@ int nflstreet_gx_run(nflstreet_gx_machine *m,const nflstreet_gx_call *calls,unsi
   case NFLSTREET_GX_SET_NUM_IND_STAGES:if(a[0])return 0;break;
   case NFLSTREET_GX_SET_TEV_DIRECT:break;
   /* GXBegin then the vertex bytes the game writes to the pipe. */
-  case NFLSTREET_GX_BEGIN:{if(m->imm_need||a[1]||(a[0]&0xf8)!=a[0])return 0;size_t v=vertex_bytes(m),need=3+v*(a[2]&0xffff);if(!v)return 0;
+  /* GXBegin writes type | format as one command byte; some callers pass
+     them swapped (801590F4: GXBegin(0, 0x98, n)), with the same effect. */
+  case NFLSTREET_GX_BEGIN:{const uint32_t cmd=a[0]|a[1];if(m->imm_need||cmd>0xffu||(cmd&7u))return 0;size_t v=vertex_bytes(m),need=3+v*(a[2]&0xffff);if(!v)return 0;
    if(need>m->imm_capacity){uint8_t *b=realloc(m->imm,need);if(!b)return 0;m->imm=b;m->imm_capacity=need;}
-   m->imm[0]=(uint8_t)a[0];m->imm[1]=(uint8_t)(a[2]>>8);m->imm[2]=(uint8_t)a[2];m->imm_size=3;m->imm_need=need;
+   m->imm[0]=(uint8_t)cmd;m->imm[1]=(uint8_t)(a[2]>>8);m->imm[2]=(uint8_t)a[2];m->imm_size=3;m->imm_need=need;
    if(!immediate_flush(m))return 0;break;}
   case NFLSTREET_GX_WRITE:{unsigned bytes=a[0];if(!m->imm_need||(bytes!=1&&bytes!=2&&bytes!=4)||m->imm_size+bytes>m->imm_need)return 0;
    for(unsigned k=0;k<bytes;++k)m->imm[m->imm_size++]=(uint8_t)(a[1]>>(8*(bytes-1-k)));

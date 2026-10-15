@@ -35,5 +35,13 @@ static inline void scene_fixture(uint8_t *ram,nflstreet_scene *sc,nflstreet_draw
  /* the camera slots and name-tag projection (player_markers.md) */
  static nflstreet_view_context view;memset(&view,0,sizeof view);view.x=x;view.stacks=venue_stacks(ram);view.r13=R13;view.slots=0x80331ec0u;
  sc->view=&view;sc->camera_node_word=R13-0x4eecu;
+ /* the actor fans, strips and particles (effects_draw.md) and the scaled-actor byte */
+ sc->effects=1;sc->r13=R13;sc->fans.byte_scale=ramf(ram,0x80260b88u);sc->fans.depth[0]=ramf(ram,0x80260b8cu);sc->fans.depth[1]=ramf(ram,0x80260b90u);
+ nflstreet_strips_context *st=&sc->strips;st->actors=ram32(ram,R13-0x7bbcu);st->actor_count=R13-0x7bb8u;st->gate=R13-0x72c0u;st->scaled_gate=R13-0x7238u;
+ st->history=0x80270ca4u;st->byte_scale=ramf(ram,0x80260438u);
+ nflstreet_particles_context *pt=&sc->particles;pt->enable=R13-0x7304u;pt->count=R13-0x7310u;pt->list=ram32(ram,R13-0x730cu);
+ pt->gate_72fc=R13-0x72fcu;pt->gate_58bc=R13-0x58bcu;pt->shader_flat=ram32(ram,R13-0x68f8u);pt->shader_textured=ram32(ram,R13-0x68fcu);pt->corners=0x802898c0u;
+ pt->color_unit=ramf(ram,0x802603d8u);pt->zero=ramf(ram,0x802603dcu);pt->one=ramf(ram,0x802603e0u);pt->angle_scale=ramf(ram,0x802603e4u);
+ pt->byte_scale=ramf(ram,0x802603e8u);pt->cell[0]=ramf(ram,0x80261218u);pt->cell[1]=ramf(ram,0x8026121cu);pt->fade_one=ramf(ram,0x8026323cu);
  nflstreet_scene_link(sc);}
 #endif

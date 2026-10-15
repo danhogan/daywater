@@ -55,16 +55,18 @@ forwards each one to Aurora's GX as it is issued:
   Then the native placement (`800D4A6C`/`800D4B0C`) puts it on the field.
   The camera follows by the player's movement (a host choice).
   `NFL_LIVE_SCRIPT=1` drives right, forward, then left for captures.
-- **Each frame (scene_frame.c):** the field camera, its derived slots
-  (`801DFAB0`) and the light update (`801ED3A0`), then the venue, the crowd
-  and street props (`800D2F20`), the ball, then per player its name tag
-  projection (`800DB0E4`), skinning palettes (`80162760`) and draw, then
-  the HUD.
+- **Each frame (scene_frame.c):** the field camera, its slots (`801DF8C4`,
+  `801DF938` and `801DFAB0`'s tail) and the light update (`801ED3A0`), then
+  the venue, the crowd and street props (`800D2F20`), the actor fans
+  (`801646CC`), the ball, then per player its name tag projection
+  (`800DB0E4`), skinning palettes (`80162760`, with the scaled form when
+  `r13-7238` is set) and draw, then the actor strips (`801649C4`) and
+  particles (`80158798`), then the HUD.
 - **Camera:** the C-stick turns the field camera (or `NFL_LIVE_ORBIT`, a
   24-bit angle per frame).
 - **Not live yet:** the game's own clip selection, the head and hand
   secondary motion (skipped when enabled), the slerped body form (flag
-  0x4000), other players, the ball, clouds, particles and the HUD values.
+  0x4000), other players, the ball, clouds (verified but invisible in the saved frames) and the HUD values.
 
 ## Build and run
 

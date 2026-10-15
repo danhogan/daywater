@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 
 from verify_controller_checks import BASELINES, PRIVATE, baseline_hashes, digest, private, run, windows
+from verify_player_startup import source_hashes
 
 SOURCES = (
     "actor_scale.c",
@@ -75,7 +76,8 @@ def main() -> None:
     report.write_text(json.dumps(record, indent=2) + "\n")
     try:
         before = baseline_hashes()
-        sources = {name: digest(here / name) for name in SOURCES}
+        entries = tuple("native_assets/" + name for name in SOURCES)
+        sources = source_hashes(here.parent, entries)
         contexts = {i: PRIVATE / f"research-temp/position-neutral-{i}.mem1" for i in (14, 15, 16)}
         inputs = {str(path): digest(path) for path in contexts.values()}
         exe = build(here, out)
@@ -132,7 +134,7 @@ def main() -> None:
                 mutants[name] = {"caught_in_contexts": caught}
         if before != baseline_hashes() or any(digest(Path(path)) != sha for path, sha in inputs.items()):
             raise RuntimeError("Protected originals or private inputs changed")
-        if sources != {name: digest(here / name) for name in SOURCES}:
+        if sources != source_hashes(here.parent, entries):
             raise RuntimeError("Source changed during verification")
         record.update(
             status="compiled-not-run" if args.build_only else "passed",

@@ -9,8 +9,9 @@
    optionally rebuilding its skinning palettes first, 80162760 as called
    from 80164000, after projecting its name tag when view is set), then the
    HUD camera, name tags and in-match screens.
-   Clouds, per-actor strips (801649C4), 800D1118 and particles are not
-   drawn (crowd_draw.md lists them). */
+   With effects set, also the actor fans before the ball and the actor
+   strips and particles after the players (effects_draw.md). The clouds
+   (cloud_draw.c, invisible in the saved frames) and 800D1118 are not drawn. */
 #include "scenery_draw.h"
 #include "hud_draw.h"
 #include "marks_draw.h"
@@ -21,6 +22,9 @@
 #include "light_rig.h"
 #include "crowd_draw.h"
 #include "name_tag_project.h"
+#include "camera_projection.h"
+#include "effects_draw.h"
+#include "actor_scale.h"
 typedef struct {
  nflstreet_player_draw_context draw; /* span, memory and emit set by the caller */
  nflstreet_scenery_context venue;
@@ -52,6 +56,13 @@ typedef struct {
     with the camera node word (r13-4EEC) naming the field camera meanwhile. */
  const nflstreet_view_context *view;
  uint32_t camera_node_word;
+ /* When effects is set: the actor fans (801646CC) before the ball, and
+    after the players the actor strips (801649C4) and particles (80158798). */
+ int effects;
+ nflstreet_fans_context fans;
+ nflstreet_strips_context strips;
+ nflstreet_particles_context particles;
+ uint32_t r13; /* small-data base: the scaled-actor byte r13-7238 (800DFBA8/800DFB34) */
 } nflstreet_scene;
 /* Links the contexts to each other and to scene->draw; call once the
    struct is at its final address. */

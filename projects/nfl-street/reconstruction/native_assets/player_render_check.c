@@ -172,7 +172,7 @@ int main(int argc,char **argv){
  if(!nflstreet_scene_hud(&sc,&s))return 12;const unsigned hud_calls=streamed.count-venue_calls-player_calls;
  nflstreet_gx_close(m);
  image.bgra=bgra;if(!nflstreet_texture_bmp(&image,argv[3]))return 7;
- printf("Scene render: field camera, light update, sky, EARS field passes with ground marks and ball shadows, shadows, lines, rings, main field, crowd and ball (%u GX calls) then 14 actors (%u GX calls) and the HUD (%u GX calls); %u display lists, %u triangles "
+ printf("Scene render: field camera, light update, sky, EARS field passes with ground marks and ball shadows, shadows, lines, rings, main field, crowd, fans and ball (%u GX calls) then 14 actors, strips and particles (%u GX calls) and the HUD (%u GX calls); %u display lists, %u triangles "
   "(%u culled, %u clipped), %u decoded textures, %zu shaded pixels; digest %08x.\n",venue_calls,player_calls,hud_calls,scene.display_lists,
   scene.triangles,scene.culled,scene.clipped,scene.textures,scene.pixels,fnv(2166136261u,bgra,WIDTH*HEIGHT*4));
  memcpy(ram,pristine,RAM_BYTES);

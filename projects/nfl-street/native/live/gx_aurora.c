@@ -203,8 +203,9 @@ int nflstreet_gx_aurora_emit(void *sink,const nflstreet_gx_call *c){
  case NFLSTREET_GX_SET_Z_MODE:GXSetZMode((GXBool)a[0],(GXCompare)a[1],(GXBool)a[2]);break;
  case NFLSTREET_GX_SET_Z_COMP_LOC:GXSetZCompLoc((GXBool)a[0]);break;
  case NFLSTREET_GX_SET_FOG:GXSetFog((GXFogType)a[0],word_float(c->data[1]),word_float(c->data[2]),word_float(c->data[3]),word_float(c->data[4]),color(c->data[0]));break;
- case NFLSTREET_GX_BEGIN:{const uint32_t v=vertex_bytes(b,a[1]&7),n=a[2]&0xffff;if(!v||!n)return 0;
-  b->in_begin=1;b->begin_left=v*n;b->begin_args[0]=a[0];b->begin_args[1]=a[1];b->begin_args[2]=a[2];b->write_count=b->byte_count=0;break;}
+ case NFLSTREET_GX_BEGIN:{const uint32_t v=vertex_bytes(b,(a[0]|a[1])&7),n=a[2]&0xffff;if(!v||!n)return 0;
+  b->in_begin=1;b->begin_left=v*n;/* type | format is one command byte; callers may pass them swapped */
+  b->begin_args[0]=(a[0]|a[1])&0xf8u;b->begin_args[1]=(a[0]|a[1])&7u;b->begin_args[2]=a[2];b->write_count=b->byte_count=0;break;}
  case NFLSTREET_GX_SET_TEV_OP:GXSetTevOp((GXTevStageID)a[0],(GXTevMode)a[1]);break;
  case NFLSTREET_GX_SET_NUM_IND_STAGES:GXSetNumIndStages((u8)a[0]);break;
  case NFLSTREET_GX_SET_TEV_DIRECT:GXSetTevDirect((GXTevStageID)a[0]);break;
