@@ -1,0 +1,9 @@
+[
+  {"name": "actor-byte", "old": "actor+0x1361u", "new": "actor+0x1362u"},
+  {"name": "owner-branch", "old": "if(owner!=actor)*index+=7u;", "new": "if(owner==actor)*index+=7u;"},
+  {"name": "second-bank", "old": "if(owner!=actor)*index+=7u;", "new": "if(owner!=actor)*index+=6u;"},
+  {"name": "marker-value", "old": " *p=1;", "new": " *p=0;"},
+  {"name": "scale-offset", "old": "address=global+0x49cu+4u*index;", "new": "address=global+0x498u+4u*index;"},
+  {"name": "y-sign", "old": " memcpy(out+1,&word,4);", "new": " word^=0x80000000u;memcpy(out+1,&word,4);"},
+  {"name": "disabled-constant", "old": "uint32_t address=0x80252d24u;", "new": "uint32_t address=0x80252d28u;"}
+]
