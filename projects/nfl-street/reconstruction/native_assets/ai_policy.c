@@ -10,7 +10,12 @@
 #else
 #define AI_NOINLINE __attribute__((noinline))
 #endif
-typedef struct {nflstreet_ai_policy *out;uint32_t r[32],lr,ctr,cr,ca,pc;
+/* MSR is call-local architectural state, shared by nested native functions.
+   Initial 0x2000 matches ai_policy_original_check.c's CPUState boundary.
+   Reads/writes match DolRecomp emitter.c PPC_OP_MFMSR/PPC_OP_MTMSR.
+   Thus 801F20A8/BC/D0 preserve the original interrupt save/restore path;
+   they do not change host interrupts or bypass the guarded RAM work. */
+typedef struct {nflstreet_ai_policy *out;uint32_t r[32],lr,ctr,cr,ca,pc,msr;
  double f[32],ps[32];unsigned budget,depth;} cb_machine;
 static void cb_fail(cb_machine *s,uint32_t address){
  if(s->out->ok){s->out->failure_pc=s->pc;s->out->failure_address=address;}
@@ -234157,18 +234162,18 @@ if(!cb_tick(s,0x801f13e0u))return;
 /* 801f13fc */ s->pc=0x801f13fcu;{uint32_t t=(s->r[3]+0x0000019cu);s->r[6]=cb_load(s,t,4);}
 /* 801f1400 */ s->r[6]=s->r[6]|(0x00002000u);
 /* 801f1404 */ s->pc=0x801f1404u;{uint32_t t=(s->r[3]+0x0000019cu);cb_store(s,t,s->r[6],4);}
-/* 801f1408 */ s->pc=0x801f1408u;s->out->unsupported=0x801f1408u;cb_fail(s,0x801f1408u);return; /* unsupported mfmsr */
+/* 801f1408 */ s->r[6]=s->msr;
 /* 801f140c */ s->r[6]=s->r[6]|(0x00000002u);
-/* 801f1410 */ s->pc=0x801f1410u;s->out->unsupported=0x801f1410u;cb_fail(s,0x801f1410u);return; /* unsupported mtmsr */
+/* 801f1410 */ s->msr=s->r[6];
 /* 801f1414 */ return;
 L801f1418: if(!cb_tick(s,0x801f1418u))return;
 /* 801f1418 */ s->pc=0x801f1418u;{uint32_t t=(s->r[3]+0x0000019cu);s->r[6]=cb_load(s,t,4);}
 /* 801f141c */ s->r[6]=(cb_rot(s->r[6],0)&cb_mask(19,17));
 /* 801f1420 */ s->pc=0x801f1420u;{uint32_t t=(s->r[3]+0x0000019cu);cb_store(s,t,s->r[6],4);}
-/* 801f1424 */ s->pc=0x801f1424u;s->out->unsupported=0x801f1424u;cb_fail(s,0x801f1424u);return; /* unsupported mfmsr */
+/* 801f1424 */ s->r[6]=s->msr;
 /* 801f1428 */ s->r[6]=(cb_rot(s->r[6],0)&cb_mask(19,17));
 /* 801f142c */ s->r[6]=s->r[6]|(0x00000002u);
-/* 801f1430 */ s->pc=0x801f1430u;s->out->unsupported=0x801f1430u;cb_fail(s,0x801f1430u);return; /* unsupported mtmsr */
+/* 801f1430 */ s->msr=s->r[6];
 /* 801f1434 */ (void)s; /* cache ordering has no effect on the RAM span */
 /* 801f1438 */ return;
 }
@@ -234200,7 +234205,7 @@ if(!cb_tick(s,0x801f1448u))return;
 /* 801f148c */ s->r[0]=s->lr;
 /* 801f1490 */ s->pc=0x801f1490u;{uint32_t t=(s->r[3]+0x00000084u);cb_store(s,t,s->r[0],4);}
 /* 801f1494 */ s->pc=0x801f1494u;{uint32_t t=(s->r[3]+0x00000198u);cb_store(s,t,s->r[0],4);}
-/* 801f1498 */ s->pc=0x801f1498u;s->out->unsupported=0x801f1498u;cb_fail(s,0x801f1498u);return; /* unsupported mfmsr */
+/* 801f1498 */ s->r[0]=s->msr;
 /* 801f149c */ s->pc=0x801f149cu;{uint32_t t=(s->r[3]+0x0000019cu);cb_store(s,t,s->r[0],4);}
 /* 801f14a0 */ s->r[0]=s->ctr;
 /* 801f14a4 */ s->pc=0x801f14a4u;{uint32_t t=(s->r[3]+0x00000088u);cb_store(s,t,s->r[0],4);}
@@ -234261,10 +234266,10 @@ L801f151c: if(!cb_tick(s,0x801f151cu))return;
 /* 801f1568 */ s->ctr=s->r[4];
 /* 801f156c */ s->pc=0x801f156cu;{uint32_t t=(s->r[3]+0x0000008cu);s->r[4]=cb_load(s,t,4);}
 /* 801f1570 */ s->ca=(s->r[4]>>29)&1u;
-/* 801f1574 */ s->pc=0x801f1574u;s->out->unsupported=0x801f1574u;cb_fail(s,0x801f1574u);return; /* unsupported mfmsr */
+/* 801f1574 */ s->r[4]=s->msr;
 /* 801f1578 */ s->r[4]=(cb_rot(s->r[4],0)&cb_mask(17,15));
 /* 801f157c */ s->r[4]=(cb_rot(s->r[4],0)&cb_mask(31,29));
-/* 801f1580 */ s->pc=0x801f1580u;s->out->unsupported=0x801f1580u;cb_fail(s,0x801f1580u);return; /* unsupported mtmsr */
+/* 801f1580 */ s->msr=s->r[4];
 /* 801f1584 */ s->pc=0x801f1584u;{uint32_t t=(s->r[3]+0x00000198u);s->r[4]=cb_load(s,t,4);}
 /* 801f1588 */ s->pc=0x801f1588u;s->out->unsupported=0x801f1588u;cb_fail(s,0x801f1588u);return; /* unsupported mtspr */
 /* 801f158c */ s->pc=0x801f158cu;{uint32_t t=(s->r[3]+0x0000019cu);s->r[4]=cb_load(s,t,4);}
@@ -234411,31 +234416,31 @@ L801f1b84: if(!cb_tick(s,0x801f1b84u))return;
 }
 static AI_NOINLINE void cb_801f20a8(cb_machine *s){
 if(!cb_tick(s,0x801f20a8u))return;
-/* 801f20a8 */ s->pc=0x801f20a8u;s->out->unsupported=0x801f20a8u;cb_fail(s,0x801f20a8u);return; /* unsupported mfmsr */
+/* 801f20a8 */ s->r[3]=s->msr;
 /* 801f20ac */ s->r[4]=(cb_rot(s->r[3],0)&cb_mask(17,15));
-/* 801f20b0 */ s->pc=0x801f20b0u;s->out->unsupported=0x801f20b0u;cb_fail(s,0x801f20b0u);return; /* unsupported mtmsr */
+/* 801f20b0 */ s->msr=s->r[4];
 /* 801f20b4 */ s->r[3]=(cb_rot(s->r[3],17)&cb_mask(31,31));
 /* 801f20b8 */ return;
 }
 static AI_NOINLINE void cb_801f20bc(cb_machine *s){
 if(!cb_tick(s,0x801f20bcu))return;
-/* 801f20bc */ s->pc=0x801f20bcu;s->out->unsupported=0x801f20bcu;cb_fail(s,0x801f20bcu);return; /* unsupported mfmsr */
+/* 801f20bc */ s->r[3]=s->msr;
 /* 801f20c0 */ s->r[4]=s->r[3]|(0x00008000u);
-/* 801f20c4 */ s->pc=0x801f20c4u;s->out->unsupported=0x801f20c4u;cb_fail(s,0x801f20c4u);return; /* unsupported mtmsr */
+/* 801f20c4 */ s->msr=s->r[4];
 /* 801f20c8 */ s->r[3]=(cb_rot(s->r[3],17)&cb_mask(31,31));
 /* 801f20cc */ return;
 }
 static AI_NOINLINE void cb_801f20d0(cb_machine *s){
 if(!cb_tick(s,0x801f20d0u))return;
 /* 801f20d0 */ cb_cmp(s,0,(int32_t)s->r[3],(int32_t)0x00000000u);
-/* 801f20d4 */ s->pc=0x801f20d4u;s->out->unsupported=0x801f20d4u;cb_fail(s,0x801f20d4u);return; /* unsupported mfmsr */
+/* 801f20d4 */ s->r[4]=s->msr;
 /* 801f20d8 */ if(cb_bit(s,2)){goto L801f20e4;}
 /* 801f20dc */ s->r[5]=s->r[4]|(0x00008000u);
 /* 801f20e0 */ goto L801f20e8;
 L801f20e4: if(!cb_tick(s,0x801f20e4u))return;
 /* 801f20e4 */ s->r[5]=(cb_rot(s->r[4],0)&cb_mask(17,15));
 L801f20e8: if(!cb_tick(s,0x801f20e8u))return;
-/* 801f20e8 */ s->pc=0x801f20e8u;s->out->unsupported=0x801f20e8u;cb_fail(s,0x801f20e8u);return; /* unsupported mtmsr */
+/* 801f20e8 */ s->msr=s->r[5];
 /* 801f20ec */ s->r[3]=(cb_rot(s->r[4],17)&cb_mask(31,31));
 /* 801f20f0 */ return;
 }
@@ -273074,7 +273079,7 @@ int nflstreet_ai_policy_call(nflstreet_ai_policy *c,const nflstreet_ai_call *cal
  if(!c||!call||!result||!c->ram.span)return 0;
  c->ok=1;c->failure_pc=c->failure_address=c->unsupported=0;c->failure_budget_exhausted=0;
  cb_machine s;memset(&s,0,sizeof s);s.out=c;s.r[1]=NFLSTREET_AI_POLICY_STACK_HI-0x40u;
- s.r[2]=0x803b9a40u;s.r[13]=c->ram.r13;s.f[1]=weight;s.budget=5000000u;
+ s.r[2]=0x803b9a40u;s.r[13]=c->ram.r13;s.msr=0x2000u;s.f[1]=weight;s.budget=5000000u;
  for(unsigned k=0;k<6;++k)s.r[3+k]=call->args[k];++c->calls;
  static const uint32_t roots[]={0x800aac08u,0x800afc88u,0x800a0d10u,0x8006e2e4u,0x8007c180u};
  for(unsigned k=0;k<5;++k)c->entries[k]+=call->pc==roots[k];

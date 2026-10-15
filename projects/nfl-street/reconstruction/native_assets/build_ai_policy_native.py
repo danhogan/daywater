@@ -194,7 +194,12 @@ def main() -> None:
         "#else",
         "#define AI_NOINLINE __attribute__((noinline))",
         "#endif",
-        "typedef struct {nflstreet_ai_policy *out;uint32_t r[32],lr,ctr,cr,ca,pc;",
+        "/* MSR is call-local architectural state, shared by nested native functions.",
+        "   Initial 0x2000 matches ai_policy_original_check.c's CPUState boundary.",
+        "   Reads/writes match DolRecomp emitter.c PPC_OP_MFMSR/PPC_OP_MTMSR.",
+        "   Thus 801F20A8/BC/D0 preserve the original interrupt save/restore path;",
+        "   they do not change host interrupts or bypass the guarded RAM work. */",
+        "typedef struct {nflstreet_ai_policy *out;uint32_t r[32],lr,ctr,cr,ca,pc,msr;",
         " double f[32],ps[32];unsigned budget,depth;} cb_machine;",
         helpers,
     ]
@@ -220,6 +225,10 @@ def main() -> None:
                 out.append(f"L{pc:08x}: if(!cb_tick(s,0x{pc:08x}u))return;")
             if op == "bctrl":
                 code = f"{{uint32_t target=s->ctr;s->lr=0x{pc + 4:08x}u;cb_dispatch(s,target);if(!s->out->ok)return;}}"
+            elif op == "mfmsr":
+                code = f"{transcription.reg(args[0])}=s->msr;"
+            elif op == "mtmsr":
+                code = f"s->msr={transcription.reg(args[0])};"
             elif op == "fnabs":
                 code = f"{transcription.fp(args[0])}=-fabs({transcription.fp(args[1])});"
             elif op == "fcmpo":
@@ -273,7 +282,7 @@ def main() -> None:
         " if(!c||!call||!result||!c->ram.span)return 0;",
         " c->ok=1;c->failure_pc=c->failure_address=c->unsupported=0;c->failure_budget_exhausted=0;",
         " cb_machine s;memset(&s,0,sizeof s);s.out=c;s.r[1]=NFLSTREET_AI_POLICY_STACK_HI-0x40u;",
-        " s.r[2]=0x803b9a40u;s.r[13]=c->ram.r13;s.f[1]=weight;s.budget=5000000u;",
+        " s.r[2]=0x803b9a40u;s.r[13]=c->ram.r13;s.msr=0x2000u;s.f[1]=weight;s.budget=5000000u;",
         " for(unsigned k=0;k<6;++k)s.r[3+k]=call->args[k];++c->calls;",
         " static const uint32_t roots[]={0x800aac08u,0x800afc88u,0x800a0d10u,0x8006e2e4u,0x8007c180u};",
         " for(unsigned k=0;k<5;++k)c->entries[k]+=call->pc==roots[k];",
