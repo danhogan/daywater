@@ -1,0 +1,12 @@
+[
+  {"name":"wrong-history-owner","file":"ball_handoff.c","old":"put(r+0xcc,nflstreet_rd32(r+0xb4));","new":"put(r+0xcc,0);"},
+  {"name":"wrong-clock-direction","file":"ball_handoff.c","old":"word(d,p+4)-word(d,p)","new":"word(d,p)-word(d,p+4)"},
+  {"name":"release-retains-carrier","file":"ball_handoff.c","old":"put(r+0xb4,0);return 1;}","new":"put(r+0xb4,nflstreet_rd32(r+0xb8));return 1;}"},
+  {"name":"release-keeps-force","file":"ball_handoff.c","old":"put(r+0x7c+4*i,zero);","new":"put(r+0x7c+4*i,nflstreet_rd32(r+0x7c+4*i));"},
+  {"name":"release-loses-velocity","file":"ball_handoff.c","old":"if(!keep)for(unsigned i=0;i<3;++i)","new":"if(1)for(unsigned i=0;i<3;++i)"},
+  {"name":"snap-wrong-target-y","file":"ball_handoff.c","old":"nflstreet_gk_subs(real(&d,field+16),real(&d,0x80250504u))","new":"nflstreet_gk_adds(real(&d,field+16),real(&d,0x80250504u))"},
+  {"name":"snap-stat-boundary","file":"ball_handoff.c","old":"nflstreet_rd16(a+0xbbc)<150","new":"nflstreet_rd16(a+0xbbc)<=150"},
+  {"name":"snap-retains-byte","file":"ball_handoff.c","old":"a[0x180]=0;return 1;}","new":"a[0x180]=1;return 1;}"},
+  {"name":"event-retains-counter","file":"ball_handoff.c","old":"put(at(&d,ball+0xc4,4),0);","new":"put(at(&d,ball+0xc4,4),1);"},
+  {"name":"assignment-retains-actor-flag","file":"../ball/ball_ownership.c","old":"*flags&=~0x08000000u;","new":"*flags|=0x08000000u;"}
+]
