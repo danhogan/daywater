@@ -33,6 +33,50 @@ def main() -> None:
     indirect = {"80244d28": 11, "80254500": 11, "80291934": 3, "803a4c28": 2}
     for address, count in indirect.items():
         targets += [word(int(address, 16) + 4 * i) for i in range(count)]
+    # 801EF208/2A0/33C own this event-manager registry; 801EF484 calls
+    # every non-null function in each record's +10 array, bounded by +0C.
+    # Those registered targets are not direct callgraph edges. Read all
+    # three original captures, retaining the actual lists as provenance.
+    registered_callbacks = {}
+    driver_callbacks = {}
+    for context in (14, 15, 16):
+        capture = (
+            saved
+            if context == 14
+            else Path(f"/mnt/w/Daywater/research-temp/position-neutral-{context}.mem1").read_bytes()
+        )
+
+        def event_word(address: int) -> int:
+            offset = address - 0x80000000
+            if offset < 0 or offset + 4 > len(capture):
+                raise RuntimeError(f"Invalid event registry span {address:08x} in context {context}")
+            return int.from_bytes(capture[offset : offset + 4], "big")
+
+        managers, capacity = event_word(0x80350F1C), event_word(0x80350F20)
+        if managers > capacity or capacity > len(capture) // 4:
+            raise RuntimeError(f"Invalid event registry capacity in context {context}")
+        registry = event_word(0x80350F24)
+        records = {}
+        for manager in range(managers):
+            record = event_word(registry + 4 * manager)
+            if not record:
+                continue
+            count = event_word(record + 12)
+            if count > len(capture) // 4:
+                raise RuntimeError(f"Invalid event callback count in context {context}")
+            entries = [event_word(record + 16 + 4 * slot) for slot in range(count)]
+            records[str(manager)] = [f"{target:08x}" for target in entries]
+            targets += [target for target in entries if target]
+        registered_callbacks[str(context)] = records
+        # These callback globals are consumed by 80170D1C, 80171C30,
+        # 80170C00/80171B2C, 8017199C and their filter helper. Preserve NULL
+        # bindings; only actual saved non-null targets extend native code.
+        bindings = {
+            f"{address:08x}": event_word(address)
+            for address in (0x8032B9F0, 0x8032B9F4, 0x8032B9F8, 0x8032B9FC, 0x8032BA00)
+        }
+        driver_callbacks[str(context)] = {address: f"{target:08x}" for address, target in bindings.items()}
+        targets += [target for target in bindings.values() if target]
     targets = sorted(set(targets))
     graph = json.loads((CACHE / "callgraph.json").read_text())
     todo = ROOTS + [f"{pc:08x}" for pc in targets] + transcription.ROOTS
@@ -174,7 +218,9 @@ def main() -> None:
         for pc, op, args in ops:
             if pc in labels:
                 out.append(f"L{pc:08x}: if(!cb_tick(s,0x{pc:08x}u))return;")
-            if op == "fnabs":
+            if op == "bctrl":
+                code = f"{{uint32_t target=s->ctr;s->lr=0x{pc + 4:08x}u;cb_dispatch(s,target);if(!s->out->ok)return;}}"
+            elif op == "fnabs":
                 code = f"{transcription.fp(args[0])}=-fabs({transcription.fp(args[1])});"
             elif op == "fcmpo":
                 code = transcription.instruction(pc, "fcmpu", args.copy(), local)
@@ -240,6 +286,8 @@ def main() -> None:
         json.dumps(
             {
                 "roots": ROOTS,
+                "registered_callbacks": registered_callbacks,
+                "driver_callbacks": driver_callbacks,
                 "state_callbacks": targets,
                 "disassembly_sha256": hashes,
                 "captured_functions": captured,

@@ -64,7 +64,16 @@ static void prepare(unsigned index,uint32_t a,uint32_t pc){
  /* 800150E8's actual eleven-entry selector indexes this byte. An arbitrary
     dirty 0xA5 was INVALID when a policy preserves its previous request.
     Dirty all legal selector values instead; keep arbitrary heading outputs. */
- w8(native,a+0x20e,index%11);w8(native,a+0x20f,0);w32(native,a+0x204,rnd());w32(native,a+0x208,rnd());
+ /* 800F6BD8 (selector/active status 5) unconditionally resolves +40C
+    with 80020944, then reads the returned actor's +1A8 in 801DE5B8.
+    Injecting 5 without an actor-kind handle fabricates a NULL dereference
+    (context 14, actor 7, edited sequence 16). Exclude ONLY that invalid
+    dirty-input combination. Saved inputs and policy-generated requests are
+    unchanged; original paired movement is still native and tested whenever
+    the saved actor supplies a real partner. No partner handle is invented. */
+ unsigned selector=index%11;
+ if(selector==5&&(r32(native,a+0x40c)&255u)!=1)selector=0;
+ w8(native,a+0x20e,selector);w8(native,a+0x20f,0);w32(native,a+0x204,rnd());w32(native,a+0x208,rnd());
  for(unsigned k=0;k<10;++k)w16(native,a+0xbb4+2*k,32+rnd()%224);
  /* Independent completion/gate combinations without changing unrelated
     actor flags. No policy path is replaced or hooked to keep these valid. */
