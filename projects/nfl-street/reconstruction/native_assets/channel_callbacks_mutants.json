@@ -1,0 +1,50 @@
+[
+  {
+    "name": "event_c000_destination",
+    "file": "native_assets/channel_callbacks_native.inc",
+    "old": "/* 800157dc */ {uint32_t t=(s->r[31]+0x00000009u);cb_store(s,t,s->r[3],1);}",
+    "new": "/* 800157dc */ {uint32_t t=(s->r[31]+0x0000000au);cb_store(s,t,s->r[3],1);}"
+  },
+  {
+    "name": "event_c001_flag",
+    "file": "native_assets/channel_callbacks_native.inc",
+    "old": "/* 800156b8 */ s->r[0]=s->r[0]|(0x00000800u);",
+    "new": "/* 800156b8 */ s->r[0]=s->r[0]|(0x00000400u);"
+  },
+  {
+    "name": "event_c002_clear_mask",
+    "file": "native_assets/channel_callbacks_native.inc",
+    "old": "/* 800156d0 */ s->r[0]=(cb_rot(s->r[0],0)&cb_mask(16,14));",
+    "new": "/* 800156d0 */ s->r[0]=(cb_rot(s->r[0],0)&cb_mask(16,15));"
+  },
+  {
+    "name": "event_c014_destination",
+    "file": "native_assets/channel_callbacks_native.inc",
+    "old": "/* 800157a8 */ {uint32_t t=(s->r[31]+0x000004d7u);cb_store(s,t,s->r[3],1);}",
+    "new": "/* 800157a8 */ {uint32_t t=(s->r[31]+0x000004d6u);cb_store(s,t,s->r[3],1);}"
+  },
+  {
+    "name": "event_d001_destination",
+    "file": "native_assets/channel_callbacks_native.inc",
+    "old": "/* 80015b50 */ {uint32_t t=(s->r[31]+0x0000082cu);cb_store(s,t,s->r[3],4);}",
+    "new": "/* 80015b50 */ {uint32_t t=(s->r[31]+0x00000828u);cb_store(s,t,s->r[3],4);}"
+  },
+  {
+    "name": "operand_cursor_increment",
+    "file": "native_assets/channel_callbacks_native.inc",
+    "old": "/* 80176ddc */ s->r[10]=s->r[9]+(0x00000001u);",
+    "new": "/* 80176ddc */ s->r[10]=s->r[9]+(0x00000002u);"
+  },
+  {
+    "name": "group_retirement_flag",
+    "file": "native_assets/channel_callbacks_native.inc",
+    "old": "/* 800692bc */ s->r[0]=(cb_rot(s->r[0],0)&cb_mask(23,21));",
+    "new": "/* 800692bc */ s->r[0]=(cb_rot(s->r[0],0)&cb_mask(23,22));"
+  },
+  {
+    "name": "group_blend_countdown",
+    "file": "native_assets/channel_callbacks_native.inc",
+    "old": "/* 80063d68 */ {uint32_t t=(s->r[31]+0x0000003bu);cb_store(s,t,s->r[7],1);}",
+    "new": "/* 80063d68 */ {uint32_t t=(s->r[31]+0x0000003bu);cb_store(s,t,0,1);}"
+  }
+]
