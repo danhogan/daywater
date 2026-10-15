@@ -52,5 +52,17 @@
     "file": "field_overlay.c",
     "old": "sub(*fade,mul(sub(edge,k(d,0x498)),k(d,0x49c)))",
     "new": "add(*fade,mul(sub(edge,k(d,0x498)),k(d,0x49c)))"
+  },
+  {
+    "name": "clipped-depth",
+    "file": "field_overlay.c",
+    "old": "if(mode==1){float z=",
+    "new": "if(mode==1&&fade>k(d,0x4a8)){float z="
+  },
+  {
+    "name": "retained-coordinates",
+    "file": "field_overlay.c",
+    "old": "float fade;if(!project(d,c,rec+0x18,q,&fade)",
+    "new": "q[0]=q[1]=q[2]=0;float fade;if(!project(d,c,rec+0x18,q,&fade)"
   }
 ]

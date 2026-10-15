@@ -10,8 +10,10 @@ asserted gameplay semantics.
 
 Evidence level: probable, reconstructed from GNNE69 revision 0 DOL SHA1
 `46e3de854998a0f66c9be8c72a1164d22cd29eb4` disassembly. Cross-compilation
-passes. Original-module execution and mutation detection are pending the
-external Windows runner; no emulator or pixel verification is claimed.
+passes. The first external original-module run failed on an omitted depth
+read in the saved case; the retained-coordinate correction described below
+awaits rerun. Mutation detection also awaits the external Windows runner;
+no emulator or pixel verification is claimed.
 Read `verification.json` in the private evidence directory for the latest
 gate status and exact per-context summaries. Dolphin build metadata is not
 available here; saved contexts 14/15/16 were supplied by the owner.
@@ -53,14 +55,17 @@ PYTHONPATH=projects/nfl-street/reconstruction/menus \
 
 The gate builds the executable, runs 601 cases twice in fresh processes for
 each context, compares all RAM except the oracle stack and every ordered GX
-call/pipe write, then builds all nine one-line mutations in
+call/pipe write, then builds all eleven one-line mutations in
 `field_overlay_mutants.json` and requires each to fail a GX/RAM comparison
 in all three contexts. Case zero selects the viewport stack and forces the
 entry enable byte on; all other saved RAM remains supplied. Edited cases
 cover active/inactive records, modes 0/1/2/other, alpha bounds, layers,
 texture changes and TLUTs, matrix/projection changes, fog, replay override
-and random-stream advancement. Controlled slot-4 identity matrices make
-visible and clipped cases reproducible; depth hardware responses are zero,
+and random-stream advancement. The first three edited cases exercise a
+clipped first record, a valid point followed by clipped records, and
+repeated aspect correction of retained y coordinates. Random mode-1
+positions may clip too; no clipping constraint is applied. Controlled
+slot-4 identity matrices make visible and clipped cases reproducible; depth hardware responses are zero,
 maximum, midpoint and a coordinate-dependent pattern. Input, baseline,
 source, executable and trace hashes are recorded. Compilation failures or
 crashes do not count as caught mutants.
@@ -72,13 +77,22 @@ No private RAM or game data is committed.
 Not modeled: record creation and lifecycle, EFB storage/readback itself,
 other random generator kinds, configuration-query machinery behind
 `8014E29C(7)` (the field reads its table result, which is also selected in
-mode 6). The original `80159BB4` leaves output locals unwritten when a
-point clips; `80159E88` nevertheless reads them in mode 1 before clearing
-visibility. The native clipped mode-1 path clears visibility without using
-undefined stack contents. Edited mode-1 points stay in the written-output
-region; this boundary is not a general equivalence claim for arbitrary
-stack residue, nonfinite inputs or malformed records. The module does not
-render pixels or update SDK projection shadow state. No live integration
+mode 6). Nonfinite inputs and malformed records are not claimed.
+
+`80159BB4` leaves its caller's output locals unchanged when a point clips;
+`80159E88` nevertheless reads them in mode 1 before clearing visibility.
+For this exact entry, the residue has an evidenced origin: with A the
+`800D1118` stack pointer, `8015A084` stores identity at A-0x40 and the
+`80159E88` output xyz is at A-0x38/-0x34/-0x30 (identity words 2/3/4,
+all zero). Callees use lower stack frames, leaving these locals intact.
+The native entry seeds xyz with zero and retains it across records,
+including the aspect correction's y store. It therefore issues the depth
+read before clearing a clipped record, just like the original. No
+arbitrary initial stack content is supplied or invented for this path.
+The first external gate exposed the omitted saved-case GXPeekZ at
+(320,224); its diagnostic is retained as
+`failure-before-clipped-depth-fix.log` in private evidence. The module does
+not render pixels or update SDK projection shadow state. No live integration
 has been run.
 
 ## Exact integration changes for the owner

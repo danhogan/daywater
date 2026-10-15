@@ -44,8 +44,9 @@ BOUNDARY = (
     "800E5CA0 -> 800D1118(0): projection and matrix/fog bracketing, active-record visibility and textured quads. "
     "All original game routines execute; SDK setters recorded and compared, GXGetProjectionv and C_MTXOrtho "
     "execute, GXPeekZ receives a supplied hardware response. All RAM outside the oracle stack compared. "
-    "Saved state with enable forced on plus 600 controlled edits per context. No live GPU/pixel claim; "
-    "clipped mode-1 output locals and configuration-query side effects are outside the modeled contract."
+    "Saved state with enable forced on plus 600 controlled edits per context, including depth reads after "
+    "clipping with caller-local coordinates retained from the bracket identity or preceding records. "
+    "No live GPU/pixel claim; configuration-query side effects are outside the modeled contract."
 )
 
 

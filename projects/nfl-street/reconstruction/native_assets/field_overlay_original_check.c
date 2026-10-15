@@ -18,19 +18,25 @@ static void identity(uint8_t *ram,uint32_t a){for(unsigned i=0;i<16;++i)putf(ram
 static void prepare(uint8_t *ram,unsigned index){
  nflstreet_matrix_stacks k=venue_stacks(ram);wr32(ram_at(ram,R13-0x65e8u,4),k.table+12u*ram_at(ram,R13-0x4ee8u,1)[0]);ram_at(ram,R13-0x71c0u,1)[0]=1;
  if(!index)return;
- /* Controlled matrices make projected boundary conditions reproducible and
-    avoid mode-1 reads of undefined output after 80159BB4 rejects a point. */
+ /* Controlled matrices make projected boundary conditions reproducible.
+    Clipped mode-1 points must still test the retained caller-local coords. */
  identity(ram,0x80331fc0u);identity(ram,0x80331f80u);
  if(index%11==0)for(unsigned i=0;i<12;++i)putf(ram,0x80331f80u+4*i,rndf(-1.5f,1.5f));
- uint32_t n=1+rnd()%4;wr32(ram_at(ram,0x802aa440u,4),n);wr32(ram_at(ram,0x802aa448u,4),RECORDS);
+ uint32_t n=index<=3?3:1+rnd()%4;wr32(ram_at(ram,0x802aa440u,4),n);wr32(ram_at(ram,0x802aa448u,4),RECORDS);
  memset(ram_at(ram,RECORDS,0xc4*4),0,0xc4*4);memset(ram_at(ram,DESCS,24*20),0,24*20);
  for(unsigned i=0;i<n;++i){uint32_t rec=RECORDS+0xc4*i;uint8_t *r=ram_at(ram,rec,0xc4);unsigned layers=rnd()%5;
   wr32(r,DESCS+24*5*i);wr32(r+4,rnd()%2);wr32(r+8,rnd()%2);unsigned mode=rnd()%5;wr32(r+0xc,mode);
   r[0x10]=index%17==0?0:(uint8_t)(rnd()|1);r[0x11]=(uint8_t)(rnd()%2);
   putf(ram,rec+0x14,(float[]){0,1,rndf(0.0f,1.0f),-0.1f,1.1f}[rnd()%5]);
   float x=(float[]){-1,1,0,-0.5f,0.5f,-1.3f,1.3f,-2.5f,2.5f,rndf(-2.4f,2.4f)}[rnd()%10];
-  float y=rndf(-2.4f,2.4f),z=rndf(-0.9f,1.0f);if(mode==1){x=rndf(-1.1f,1.1f);y=rndf(-1.1f,1.1f);}
-  if(index%19==0&&mode!=1)z=-1.01f;
+  float y=rndf(-2.4f,2.4f),z=rndf(-0.9f,1.0f);
+  if(mode==1&&index%3){x=rndf(-1.1f,1.1f);y=rndf(-1.1f,1.1f);}
+  if(index%19==0)z=-1.01f;
+  /* First clipped record reads the identity's zeros. Later clipped records
+     retain the most recent projected xy/z, including repeated y correction. */
+  if(index<=3){wr32(r+0xc,1);x=i==0&&index==1?3.0f:i>0?3.0f:0.2f;y=0.3f;z=0.2f;
+   if(index==1&&i==1)x=0.2f;}
+
   putf(ram,rec+0x18,x);putf(ram,rec+0x1c,y);putf(ram,rec+0x20,z);
   for(unsigned j=0;j<3;++j)putf(ram,rec+0x24+4*j,rndf(-2,2));putf(ram,rec+0x30,rndf(0,0.9f));
   r[0x34]=(uint8_t)(index%3?0:1+rnd()%5);r[0x35]=(uint8_t)(rnd()%7);r[0x36]=(uint8_t)layers;

@@ -30,7 +30,7 @@ static int transform(nflstreet_draw *d,const nflstreet_matrix_stacks *s,const fl
  return 1;}
 static int slot(nflstreet_draw *d,const nflstreet_field_overlay_context *c,unsigned n){
  return nflstreet_matrix_select(d,c->stacks)&&nflstreet_matrix_push(d,c->stacks)&&nflstreet_matrix_load(d,c->stacks,0x80331ec0u+64*n);}
-/* 80159BB4: clipped outputs are deliberately not used by the caller. */
+/* 80159BB4: clipping leaves the caller's projected coordinates unchanged. */
 static int project(nflstreet_draw *d,const nflstreet_field_overlay_context *c,uint32_t pos,float q[3],float *fade){
  float v[3],o[4];for(unsigned i=0;i<3;++i)v[i]=f(d,pos+4*i);
  if(!slot(d,c,4)||!transform(d,c->stacks,v,k(d,0x48c),0,o))return 0;
@@ -42,11 +42,9 @@ static int project(nflstreet_draw *d,const nflstreet_field_overlay_context *c,ui
 static uint32_t uint_depth(double v,double split){return v>=split?(uint32_t)nflstreet_gk_fctiwz(v-split)^0x80000000u:(uint32_t)nflstreet_gk_fctiwz(v);}
 static int visible(nflstreet_draw *d,const nflstreet_field_overlay_context *c,uint32_t rec,float q[3],float fade){
  uint8_t *r=at(d,rec,0xc4);if(!r)return 0;uint32_t mode=rd32(r+0xc);
- /* When projection clipped, q is undefined in the original stack. Its final
-    visibility is nevertheless unconditionally zero; no defined GX read can
-    be inferred from those uninitialized locals. Controlled tests keep mode 1
-    points within 80159BB4's written-output region. */
- if(mode==1&&fade<=k(d,0x4a8)){r[0x11]=0;return 1;}
+ /* 80159E88 tests depth before its final fade check, including clipped
+    points. q retains the exact caller-local residue seeded by 8015A084's
+    identity and then by preceding records (including the aspect y store). */
  if(mode==1){float z=add(q[2],k(d,0x4a4));if(z<k(d,0x4a8))z=k(d,0x4a8);else if(!(z<=k(d,0x4a4)))z=k(d,0x4a4);
   uint32_t depth=uint_depth(mul(z,k(d,0x4ac)),df(d,0x802604b0u));int ok=0;
   if(!(q[0]<=k(d,0x4b8)||q[0]>=k(d,0x4a4)||q[1]<=k(d,0x4b8)||q[1]>=k(d,0x4a4))){
@@ -131,8 +129,14 @@ int nflstreet_field_overlay_draw(const nflstreet_field_overlay_context *c,nflstr
  uint32_t saved[7];if(!projection(d,c,saved))return 0;uint8_t *p=at(d,0x8030bdd4u,28);if(!p)return 0;for(unsigned i=0;i<7;++i)nflstreet_wr32(p+4*i,saved[i]);
  uint32_t previous;uint8_t *fog=at(d,c->r13-0x592cu,1);if(!fog||!nflstreet_scenery_fog_switch(d,c->scene,0,&previous))return 0;*fog=(uint8_t)previous;
  uint32_t count=word(d,0x802aa440u),records=word(d,0x802aa448u);if(count>65535u)return 0;
+ /* With A = 800D1118's stack pointer, 8015A084 writes its identity at
+    A-0x40. 80159E88's output locals are A-0x38/-0x34/-0x30: matrix words
+    2/3/4, all zero. Its nested callees do not overwrite those caller locals.
+    A clipped projection therefore reuses the previous record's coordinates,
+    or these zeros on the first record; no incoming stack bytes are needed. */
+ float q[3]={0};
  for(unsigned i=0;i<count;++i){uint32_t rec=records+0xc4u*i;uint8_t *r=at(d,rec,0xc4);if(!r)return 0;if(!r[0x10])continue;
-  float q[3]={0},fade;if(!project(d,c,rec+0x18,q,&fade)||!visible(d,c,rec,q,fade))return 0;
+  float fade;if(!project(d,c,rec+0x18,q,&fade)||!visible(d,c,rec,q,fade))return 0;
   if(!(fade<=k(d,0x4a8))&&!quad(d,c,rec))return 0;}
  if(!nflstreet_matrix_pop(d,c->stacks)||!nflstreet_matrix_load_top(d,c->stacks)||!GX(d,NFLSTREET_GX_SET_BLEND_MODE,0,0,0,5))return 0;
  p=at(d,0x8030bdd4u,28);if(!p)return 0;for(unsigned i=0;i<7;++i)saved[i]=rd32(p+4*i);
