@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+out=${1:?private output required}
+case "$out" in /mnt/w/Daywater/*) ;; *) exit 2 ;; esac
+mkdir -p "$out"
+export ZIG_GLOBAL_CACHE_DIR=${ZIG_GLOBAL_CACHE_DIR:-/tmp/daywater-zig-cache}
+zig=${DAYWATER_ZIG:-/mnt/w/Daywater/tools/zig-x86_64-linux-0.16.0/zig}
+# CLOUD_DRAW_SOURCE substitutes the native source (mutation tests on a scratch copy).
+src=${CLOUD_DRAW_SOURCE:-$root/cloud_draw.c}
+"$zig" cc -target x86_64-windows-gnu -std=c11 -O2 -Wall -Wextra -Werror -Wno-misleading-indentation -ffp-contract=off -Wno-unused-function -I /mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/include -I "$root" \
+ "$root/cloud_draw_original_check.c" "$src" "$root/scenery_draw.c" "$root/marks_draw.c" "$root/matrix_stack.c" "$root/draw_engine.c" \
+ -o "$out/cloud-draw-original-check.exe"
