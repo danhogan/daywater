@@ -80,17 +80,21 @@ static void table_fixture(uint8_t *p,unsigned index,uint32_t a){
     invented callback semantics. Preserve queue argument bytes, exercise
     unequal capacities and dead bytes. Slot zero's entry always returns 0. */
  const uint32_t root=SCRATCH,desc=root+0x40,table=root+0x80;
- w32(p,R13-0x7860u,root);w32(p,root,desc);w16(p,desc,8);w16(p,desc+2,3+index%8);w32(p,desc+4,table);
- for(unsigned k=0;k<8;++k){w32(p,table+24*k,k&&k%3==0?0x8007ea18u:0x8007ea10u);
-  w32(p,table+24*k+4,index%3?0x8007ea18u:0x8007ea10u);
-  w32(p,table+24*k+8,k%2?0x8008d988u:0x8007ea18u);
-  w32(p,table+24*k+12,k%2?0x8007ea18u:0x8008d988u);
+ w32(p,R13-0x7860u,root);w32(p,root,desc);w16(p,desc,0x45);w16(p,desc+2,3+index%8);w32(p,desc+4,table);
+ /* Eligibility can enter 21; 8009E590 can push 44. Give every row through
+    44 valid ORIGINAL leaves; extended rows retain the command at entry.
+    An empty queue must accept exit, matching the saved empty-state row. */
+ for(unsigned k=0;k<0x45;++k){w32(p,table+24*k,k&&k<8&&k%3==0?0x8007ea18u:0x8007ea10u);
+  w32(p,table+24*k+4,k==0||k>=8||index%3?0x8007ea18u:0x8007ea10u);
+  w32(p,table+24*k+8,k>=8?0x8007ea10u:k%2?0x8008d988u:0x8007ea18u);
+  w32(p,table+24*k+12,k>=8?0x8007ea10u:k%2?0x8007ea18u:0x8008d988u);
   w32(p,table+24*k+16,0x8007ea20u);w32(p,table+24*k+20,0);}
  const uint32_t q=a+0xbe4;
  for(unsigned k=0;k<10;++k)w32(p,q+4*k,((1+(index+k)%7)<<24)|(rnd()&0xffffffu));
  w8(p,q+4*(2+index%8),0);w32(p,a+0x310,q);
- /* Force no-selected branch for simple dispatch cases; +150 is initialized
-    below for follow suites. 8009AD80 rejects natively in phase 3. */
+ /* Most edited queues use no-selected; index%6==2 exercises a resolved
+    actor. Real follow entry initializes its union before dispatch below.
+    8009AD80 rejects natively in phase 3. */
  const uint32_t balls=SCRATCH+0x1000;w32(p,R13-0x73d0u,balls);memset(at(p,balls,0x200),0,0x200);
  if(index%6==2)w32(p,balls+0xbc,r32(p,a));
  w32(p,r32(p,R13-0x7cf8u),3);w32(p,R13-0x7cf4u,rnd());
@@ -140,10 +144,24 @@ static int one(uint8_t *ram,unsigned mode,unsigned index,unsigned i,unsigned ste
   weight=index?random_float(-1,2):1;ok=nflstreet_ai_face(&c,a,args[1],weight,args[2],args[3]);++face_hits;}
  if(mode==7){pc=0x800f8214u;args[0]=a;ok=nflstreet_ai_input_finish(&c,a);}
  if(mode==6){pc=0x80021ef0u;args[0]=a;args[1]=b;ok=nflstreet_ai_interact(&c,a,b,&nv);++interact_hits;}
- if(!ok){fprintf(stderr,"native rejected mode %u case %u actor %u step %u unsupported %08x\n",mode,index,i,step,c.unsupported);return 0;}
+ if(!ok){fprintf(stderr,"native rejected mode %u case %u actor %u step %u unsupported %08x offset %08x/%08x\n",mode,index,i,step,c.unsupported,r32(ram,a+0x154),r32(ram,a+0x158));return 0;}
  if(!original(oracle,&original_trace,pc,args,weight,&ov))return 0;
  if(!same(ram,mode,index,i,step))return 0;
  if((mode==3||mode==4||mode==6)&&nv!=ov){fprintf(stderr,"return mismatch mode %u case %u actor %u %u/%u\n",mode,index,i,ov,nv);return 0;}
+ return 1;
+}
+/* Edited tables install FOLLOW update callbacks on actors whose saved
+   +154/+158 unions belong to unrelated states. Initialize through the actual
+   state entry on BOTH copies, once before the batch/sequence. Do not skip a
+   selected-actor branch or auto-enter on every update. Saved dispatch stays
+   untouched. Compare each entry too, rather than assuming the fixture writes. */
+static int follow_entries(uint8_t *ram,unsigned mode,unsigned index){
+ reset_traces();
+ for(unsigned i=0;i<ACTORS;++i){
+  nflstreet_actor_ai leaf={at,ram,R13};uint32_t args[6]={actor(ram,i),0,0,0,0,0},v;
+  if(!nflstreet_actor_ai_enter(&leaf,args[0])||!original(oracle,&original_trace,0x8008d954u,args,0,&v))return 0;
+  if(!same(ram,mode,index,i,0))return 0;
+ }
  return 1;
 }
 static uint8_t *load(const char *name){FILE *f=fopen(name,"rb");if(!f)return NULL;uint8_t *p=malloc(BYTES);
@@ -157,12 +175,10 @@ int main(int argc,char **argv){
   memcpy(ram,saved,BYTES);
   for(unsigned i=0;i<ACTORS;++i)prepare(ram,index,mode,actor(ram,i),i);
   memcpy(oracle,ram,BYTES);
-  /* The saved +154 is a state union. FOLLOW requires state entry once;
-     other saved suites preserve all inputs. Every actor comparison is
-     against the same persistent batch on both sides, not final-RAM only. */
-  if(mode==3)for(unsigned i=0;i<ACTORS;++i){
-   nflstreet_actor_ai leaf={at,ram,R13};uint32_t args[6]={actor(ram,i),0,0,0,0,0},v;
-   if(!nflstreet_actor_ai_enter(&leaf,args[0])||!original(oracle,&original_trace,0x8008d954u,args,0,&v))return 6;}
+  /* Standalone FOLLOW and edited tables that install its callback require
+     real entry to initialize +150/+154/+158. Saved dispatcher/transition
+     inputs remain as-is. Compare after each entry and each actor operation. */
+  if((mode==3||(index&&(mode==0||mode==1)))&&!follow_entries(ram,mode,index))return 7;
   for(unsigned i=0;i<ACTORS;++i){
    if(!index){fprintf(stderr,"saved mode %u actor %u\n",mode,i);fflush(stderr);}
    if(!one(ram,mode,index,i,0))return 7;++runs[mode];}
@@ -170,6 +186,7 @@ int main(int argc,char **argv){
  unsigned updates=0;
  for(unsigned sequence=0;sequence<SEQUENCES;++sequence){
   memcpy(ram,saved,BYTES);for(unsigned i=0;i<ACTORS;++i)prepare(ram,sequence+1,0,actor(ram,i),i);memcpy(oracle,ram,BYTES);
+  if(!follow_entries(ram,8,sequence+1))return 7;
   for(unsigned step=0;step<UPDATES;++step){for(unsigned i=0;i<ACTORS;++i){
     if(!one(ram,0,sequence+1,i,step)||!one(ram,2,sequence+1,i,step)||!one(ram,7,sequence+1,i,step))return 7;++updates;}
    if(!same(ram,8,sequence,0,step))return 7;

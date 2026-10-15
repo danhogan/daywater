@@ -50,7 +50,9 @@ BOUNDARY = (
     "with argument traces compared, never native stand-ins in the oracle. All other originals unhooked. "
     "All RAM outside 80F38000..80F46FFF compared after every actor call/update. "
     "Edited queues/tables use actual original leaf callbacks; no generated emulated instructions. "
-    "Standalone follow case zero enters its state before invoking the callback because +154 is a union. "
+    "Standalone follow and edited dispatcher/transition tables enter follow once before their batch; "
+    "persistent sequences do so once before updates, because saved +154/+158 belong to other state unions. "
+    "Every entry is compared too. Saved dispatcher/transition cases preserve their original state. "
     "No complete autonomous policies, football physics or original movement simulation claimed."
 )
 

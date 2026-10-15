@@ -126,6 +126,25 @@ The `omit-finished-requested-strength` mutant restores the missing-store fault.
 A fresh Windows gate result is still required; this is disassembly evidence
 and a compile-checked correction, not a claimed successful execution.
 
+The next external attempt reached context 14, edited dispatch case 2, actor 2,
+then rejected nonfinite follow offsets. Its captured +154 word is `FFBBB4D5`
+(NaN as f32), belonging to saved state 5C's union. The edited table had installed
+`8008D988` without `8008D954` entry. Edited dispatcher/transition batches now
+run native/original `8008D954` once on every actor before invoking the edited
+table; persistent sequences do the same once before their first update. Each
+entry is itself compared on all RAM. This supplies the actual state's required
+initialization rather than discarding the resolved-target branch or allowing
+nonfinite offsets. Saved-as-is dispatcher/transition cases remain untouched.
+Standalone follow retains its existing real-entry setup. Production dispatch
+still never initializes the union implicitly on each update. The edited table
+also now contains valid original-leaf rows through command 44: eligibility
+transitions to 21 and `8009E590` pushes 44, so an eight-row table was invalid
+for these reached paths. Its empty-state exit accepts replacement, matching
+the saved table, while nonempty rows still exercise exit rejection/enqueue.
+These are edited interpreter fixtures, not reconstructed policies for those
+states. Windows rerun is pending; native callback code and the finite-input
+contract are unchanged.
+
 ## Gate and private evidence
 
 Windows-capable runner, from the worktree root:
@@ -144,9 +163,11 @@ source hashes over `native_assets/`-prefixed SOURCES. It runs two fresh processe
 for each saved context 14/15/16 and requires identical logs. Each process checks
 401 cases (saved plus 400 edits), eight modes, all 14 actors; then 24 sequences of
 32 updates over 14 actors, state dispatch, selector commit and final input normalization, comparing after each call.
-No final-frame-only comparison is substituted. Saved follow enters its state
-first because saved +154 is an unrelated state union in some actors. Other
-saved suites start from unedited saved input. Edited dispatcher tables use real
+No final-frame-only comparison is substituted. Standalone follow enters its state
+first because saved +154/+158 are unrelated state unions in some actors.
+Edited dispatcher/transition batches and persistent sequences also enter follow
+once before dispatch, since their edited tables install its callback. All entry
+writes are compared. Other saved suites start from unedited saved input. Edited dispatcher tables use real
 original callbacks; no synthetic PPC is injected.
 
 **Explicit mixed boundary:** unknown state callbacks are executed by the
