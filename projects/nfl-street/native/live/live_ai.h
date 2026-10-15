@@ -7,7 +7,7 @@
    still missing; this adapter never replaces an actor's saved command queue. */
 typedef struct {
  uint32_t actor;nflstreet_live_movement movement;
- int rejected,moved,held;
+ int rejected,moved,held,moved_second;
 } nflstreet_live_ai_actor;
 typedef struct {
  nflstreet_ai_dispatch dispatch;
@@ -18,11 +18,13 @@ typedef struct {
 } nflstreet_live_ai;
 int nflstreet_live_ai_init(nflstreet_live_ai *,nflstreet_draw_span,void *,uint32_t r13,
  uint32_t roster,unsigned count,uint32_t controlled,FILE *);
-/* Dispatch all, commit all, finish all, then movement. Missing AI services
-   roll back their RAM writes and hold that actor. Clip/event failures stop
-   the update because their providers also retain state outside MEM1. */
+/* Dispatch all, commit all, then original 800F86BC per actor (reset, input
+   finish and complete movement). Policy/selector/movement native failures
+   roll back all their MEM1 writes and hold that actor with exact diagnostics.
+   Native policy calls share owned temporaries and have no external effects. */
 int nflstreet_live_ai_step(nflstreet_live_ai *,nflstreet_locomotion_context *,unsigned frame);
 int nflstreet_live_ai_sync(nflstreet_live_ai *);
+unsigned nflstreet_live_ai_moving(nflstreet_live_ai *);
 void nflstreet_live_ai_report(const nflstreet_live_ai *);
 void nflstreet_live_ai_close(nflstreet_live_ai *);
 #endif
