@@ -94,6 +94,17 @@ faults caught:
   controller). Written by Codex; checked and integrated through the
   automated write/check loop.
 
+- **The other players move:** the AI target slice (`8008D5DC`/`954`/`764`/`864`),
+  the per-update dispatch and input commit, and the policy services
+  `800AAC08`, `800AFC88`, `800A0D10`, `8006E2E4`, `8007C180` are native
+  ([actor_ai.md](reconstruction/native_assets/actor_ai.md),
+  [actor_ai_dispatch.md](reconstruction/native_assets/actor_ai_dispatch.md),
+  [ai_policy.md](reconstruction/native_assets/ai_policy.md)). In the live app
+  all 13 AI players now move through the verified movement runtime. Also
+  native: ball handoffs, live HUD values and reading game files from the
+  owner's disc image (`NFL_LIVE_DISC`). Play selection is not yet
+  reconstructed: the AI follows the saved play.
+
 The scene and the live app now run all of these. Two Codex-written modules
 (camera projection and scaled actors) were checked here before merging.
 
