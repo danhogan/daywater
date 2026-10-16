@@ -51,7 +51,7 @@ SUMMARY = re.compile(
     r"Original down cycle: 401 saved/edited cases, 24 x 96 persistent updates; "
     r"(\d+) updates, (\d+) leaves; whistles contact (\d+) bounds (\d+) touchdown (\d+) incompletion (\d+); "
     r"commits (\d+) snaps (\d+); all RAM outside oracle stack and defined returns match; "
-    r"no original hooks; digest [0-9a-f]{8}\."
+    r"audio/disc entry returns only; digest [0-9a-f]{8}\."
 )
 BOUNDARY = (
     "GNNE69 r0 source-owned down rules: active carrier check 800F9C50, real end events and whistle "
@@ -60,10 +60,39 @@ BOUNDARY = (
     "Explicit host schedule replaces replay/menu waits: phase 4 runs 8004EBF0 then transitions to 5; "
     "phase 5 chooses/positions through original routines and requests phase 2; host requests snap. "
     "401 saved/edited cases and 24 persistent sequences per context. Every MEM1 byte outside private "
-    "80F38000..80F46FFF compared after every call/update against UNHOOKED original calls with identical "
-    "host SDK scopes. No native stand-ins or manufactured event-log records. "
+    "80F38000..80F46FFF compared after every call/update against original calls with identical "
+    "host SDK scopes and the nine documented audio/disc entry returns. No gameplay hooks, native "
+    "stand-ins or manufactured event-log records. Device accesses fail; no MMIO/DMA simulation. "
     "The author cannot execute Windows binaries; live smoke verification belongs to the outer gate."
 )
+
+
+def check_service_boundaries(here: Path) -> dict[str, object]:
+    """Reject differing native/original service lists before an oracle run."""
+    manifest = json.loads((here / "down_cycle_sources.json").read_text())
+    expected = {int(pc, 16): entry["return"] for pc, entry in manifest["audio_disc_services"].items()}
+    original = (
+        (here / "down_cycle_original_check.c").read_text().split("audio_disc_services[]={", 1)[1].split("};", 1)[0]
+    )
+    entries = re.findall(r'\{0x([0-9a-f]+)u,(0x[0-9a-f]+|0)u?,(0|1),"[^"\n]+"\}', original)
+    observed = {
+        int(pc, 16): int(result, 0) if returns == "1" else "preserve incoming GPRs (void)"
+        for pc, result, returns in entries
+    }
+    if len(entries) != 9 or observed != expected:
+        raise RuntimeError("Original audio/disc entry list differs from the pinned native boundary")
+    native = (here / "down_cycle_native.inc").read_text()
+    for pc, result in expected.items():
+        description = manifest["audio_disc_services"][f"{pc:08x}"]["description"]
+        block = (
+            f"static AI_NOINLINE void cb_{pc:08x}(cb_machine *s){{\n"
+            f"if(!cb_tick(s,0x{pc:08x}u))return;\n"
+            f"/* Not modeled: audio/disc service {pc:08x}: {description}. */\n"
+            + (f"s->r[3]={result}u;return;}}" if isinstance(result, int) else "return;}")
+        )
+        if native.count(block) != 1:
+            raise RuntimeError(f"Native audio/disc entry {pc:08x} differs from its declared return")
+    return manifest["audio_disc_services"]
 
 
 def build_checker(here: Path, out: Path) -> Path:
@@ -177,6 +206,7 @@ def main() -> None:
     record: dict[str, object] = {"status": "running", "boundary": BOUNDARY}
     report.write_text(json.dumps(record, indent=2) + "\n")
     try:
+        record["audio_disc_services"] = check_service_boundaries(here)
         before = baseline_hashes()
         sources = source_hashes(root, entries)
         record["live_sha256"] = live_hashes(root)

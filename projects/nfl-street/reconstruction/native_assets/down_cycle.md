@@ -66,7 +66,8 @@ check, avoiding a second AI/physics update. Phase 4 advances the original
 `8004EBF0` callback queue (including the delayed result commit), then requests
 original phase 5 when the queue drains. Replay, celebration, audio and menu
 wait scheduling from the full phase-4 update is not modeled. Original reached
-entry/exit/event functions themselves are transcribed, never silently skipped.
+entry/exit/event functions remain transcribed. The nine named audio/disc service
+entries below return early on both sides; no gameplay routine is skipped.
 A reached unsupported instruction, function or memory span stops the update.
 
 The caller selects/installs actual plays, then calls
@@ -84,34 +85,83 @@ Interrupts, audio hardware, disc streaming and original OS threads are not
 simulated. Private call temporaries occupy owned context storage corresponding
 to `80F38000..80F46FFF`; production never borrows gameplay RAM as scratch.
 
-### Outstanding ARAM completion wait
+### Audio/disc service boundary (source audited, execution pending)
 
-The owner's failed context-14 run reaches case 401, stage 570 and exhausts
-the native instruction budget at `80213CB4`. That address is inside the
-original signed 64-bit division helper `80213C18`. **Probable cause from
-source:** synchronous ARAM wrappers `8017BA98` and `8017BB78` call that helper
-while polling time and `*(r13-5788)` after submitting an ARQ request through
-`801FF290`. With fixed time and discarded DMA register writes, neither a
-transfer nor its completion occurs. Raising the budget cannot complete this
-wait. This report does not yet identify which wrapper/caller the failed run
-reaches, or whether it requests a read or a write.
+The project manager explicitly directed the hardware and sound/streaming layer
+to remain outside this module. Earlier context-14 case 401/stage 570 exhausted
+the budget inside the ARAM client's synchronous completion wait. This revision
+cuts at audio requests, above their generic resource, OS and device calls.
+It removes the earlier DVD/ARAM zero-read/discard-write fallback. Native device
+addresses now fail the span check, and the original checker rejects external
+reads/writes. There is no DMA, completion interrupt, audio clock or disc model.
 
-`801FF154` is the original ARQ completion service, registered through the
-ARAM interrupt callback at `*(r13-5408)` in the saved contexts. It calls the
-queued callback and advances the original queues. A future hardware boundary
-must preserve that path and supply actual transfer data; simply changing the
-completion counter would falsely acknowledge work. The MEM1 inputs do not
-include ARAM. No zero-filled ARAM, forced counter change, skipped game
-function, reduced case set, timer edit or increased budget is introduced.
+The original checker lists exactly these nine original entry addresses. It
+returns to guest LR before executing each listed routine, without calling
+native code or writing guest RAM. The native function returns at the same
+entry. Void entries preserve incoming registers. The sound-cue start returns
+`7FFFFFFF`, its own disabled-audio return in `8013D8A4`; this means no voice
+handle, rather than an invented successful request.
 
-On budget exhaustion the checker now logs the current active/pending ARQ
-request words and candidate source stack backchains from its owned PPC stack.
-These are failure-only observations: the request may live on that stack,
-and the low-priority driver may already have advanced its addresses/count.
-The backchain candidates are explicitly diagnostic, since older stack frames
-can survive a call. The next owner run is needed to identify the actual
-transfer and caller before selecting a data/completion model. The transfer
-wait remains unresolved; all-RAM, mutant and live gate success is not claimed.
+- **not modeled: audio/disc service (`8013D4D4`, sound-bank load request).**
+  Called by the sound-bank manager. Its publication writes a bank pointer to
+  `*(8030A334) + slot*4`; its `801AB224` callee allocates/loads an audio bank
+  through `801AAAF8`. The slot array belongs to audio initialization `8013D2EC`.
+- **not modeled: audio/disc service (`8013D8A4`, sound-cue start request).**
+  Writes the cue's last time/voice handle at `*(8030A31C)+cue*18+10/+14`,
+  voice/mixer state through `801AB4B8`, and replay audio history through
+  `80142CB0/80142BE8` in `*(r13-6A80)`. Positions are input copies for spatial
+  audio; the actor/ball position is not written.
+- **not modeled: audio/disc service (`8013D9C0`, sound-cue stop request).**
+  Reads that audio cue's handle, then `801AB598 -> 8022ABD8` updates voice state
+  under the audio lock pair. It does not clear a gameplay actor or event.
+- **not modeled: audio/disc service (`8013DAD4`, streamed sound-bank load).**
+  Publishes only the stream descriptor at `*(8030A338)+slot*4`; `801AB77C`
+  allocates the audio stream record and loads its bank data through the shared
+  resource reader. That reader remains available for non-audio assets.
+- **not modeled: audio/disc service (`8013FFF8`, ambient bank transition/wait).**
+  Owns the bank handoff wait and writes audio state `r13-6AC8`, sound choices
+  `r13-6B04/-6B03`, audio bank request records and the audio RNG handle
+  `*(r13-4FDC)`. It has no calls into the game-code address area.
+- **not modeled: audio/disc service (`801405B8`, replay sound-cue request).**
+  Requests the cue above and advances only the audio cursor `r13-6AD0`.
+  Its two game-code callees read replay/mirror flags; neither contains a store.
+- **not modeled: audio/disc service (`8014164C`, music/stream control request).**
+  Resolves an audio descriptor in `803877F8` and supplies audio control values
+  through `801ABA64 -> 8022A7B4`. Writes are audio channel/command state.
+- **not modeled: audio/disc service (`8014368C`, announcer bank prefetch).**
+  The wrapper calls `801AD66C`: audio's `chatdata.dat` bank manager supplies
+  the resource/index, then the loaded bank is passed to `801728F8`. Its writes
+  are resource-cache/request, heap/OS, and speech-engine state.
+- **not modeled: audio/disc service (`801ABA64`, streamed sound control).**
+  This is also called directly by ambient stream controls `80137B84/80137C08`.
+  It checks audio flags `8034859C`, takes `802292C0/80229300`'s audio lock and
+  calls `8022A7B4` to change audio channel state. No game object is supplied.
+
+The write audit follows each entry's disassembly/decompilation and direct
+callee closure, then checks ownership at the audio initialization and request
+callers. Generic allocation, resource containers and OS synchronization below
+these APIs serve their audio objects. Their direct closures contain only two
+leaves below `80130000`: replay predicate `8000C360` and field mirror predicate
+`80103E64`. Both consist exclusively of loads/register operations/branches,
+with no stores, calls or indirect branches. The builder enforces that property
+and records closure hashes and those leaves in `down_cycle_sources.json`.
+This source audit is not a substitute for an executed original-module check.
+
+The broad event queue `80136F08/801EF484`, announcer decisions `80145724`,
+sound event consumers `8013DE50/801433C4`, generic file/resource readers and
+all phase entry/exit callbacks remain native/original calls. In particular,
+`8002E4F8` publishes a phase-read cache, `8010B60C` can publish a config cache,
+and `8005C284` can drive game/menu work: none is hidden by a broad audio hook.
+All down, distance, possession, score, spot, snap, actor and ball writes remain
+in the full-RAM comparison. Audio RAM is also compared; there is no new RAM
+exclusion. The gate checks that the independent original list and generated
+native early returns agree before building/running the checker, and reports
+per-entry call counts in successful original logs.
+
+Only compilation and static audits have been performed by this author.
+Original all-RAM agreement, mutant kills and the 40-second live run require
+the owner's automatic gate on this exact revision. No case or retained queue
+completion window has been removed, and the budget and timers are unchanged.
 
 ## Check and integration
 
@@ -136,7 +186,7 @@ the saved frame are constructed by editing actual fields, never by injecting
 event-log records. There are 24 retained 96-update sequences crossing whistle,
 queued commit, next-play lineup and snap. Separate dirty-destination and
 threshold cases exercise result/down/distance writers. Every call/update
-compares all 24 MiB outside the oracle stack. The original has no hooks and
+compares all 24 MiB outside the oracle stack. The original has only the nine documented audio/disc entry returns and
 never invokes native implementations. The original-side host schedule is
 independent of the native wrapper. These are required checks, not executed
 results in this author's environment.

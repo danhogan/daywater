@@ -1,4 +1,5 @@
-/* GNNE69 r0 down cycle vs UNHOOKED original. Candidate pending external gate. */
+/* GNNE69 r0 down cycle vs original, with named audio/disc service entry
+   returns only. All football calls remain original. External gate pending. */
 #include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +17,29 @@ static uint8_t *native,*oracle,*saved;
 static nflstreet_down_cycle policy;
 static uint32_t seed=0x646f776eu;
 static unsigned case_index,side,stage;
+/* Not modeled: audio/disc service. Source/write audit is in down_cycle.md.
+   These are original FUNCTION ENTRIES, not register-write instructions.
+   8013D8A4 returns its own audio-disabled handle. Void entries preserve every
+   GPR. Never invoke native code from this oracle boundary or skip general
+   event/resource functions. The list is independent of the native builder. */
+static const struct {uint32_t pc,result;int returns;const char *purpose;} audio_disc_services[]={
+ {0x8013d4d4u,0,0,"sound-bank load request"},
+ {0x8013d8a4u,0x7fffffffu,1,"sound-cue start request"},
+ {0x8013d9c0u,0,0,"sound-cue stop request"},
+ {0x8013dad4u,0,0,"streamed sound-bank load request"},
+ {0x8013fff8u,0,0,"ambient bank transition / streaming wait"},
+ {0x801405b8u,0,0,"replay sound cue"},
+ {0x8014164cu,0,0,"music/stream control"},
+ {0x8014368cu,0,0,"announcer/speech bank prefetch"},
+ {0x801aba64u,0,0,"streamed sound control"},
+};
+static unsigned audio_disc_calls[sizeof audio_disc_services/sizeof *audio_disc_services];
+static int original_audio_disc_entry(CPUState *c){
+ for(unsigned i=0;i<sizeof audio_disc_services/sizeof *audio_disc_services;++i){
+  if(c->pc!=audio_disc_services[i].pc)continue;
+  if(audio_disc_services[i].returns)c->gpr[3]=audio_disc_services[i].result;
+  c->pc=c->lr;++audio_disc_calls[i];return 1;}
+ return 0;}
 static uint32_t rnd(void){seed=seed*1664525u+1013904223u;return seed;}
 static uint8_t *span(void *p,uint32_t a,uint32_t n){return a>=BASE&&(uint64_t)a-BASE+n<=BYTES?(uint8_t *)p+a-BASE:NULL;}
 static uint32_t r32(void *p,uint32_t a){const uint8_t *q=span(p,a,4);if(!q){fprintf(stderr,"bad fixture %08x\n",a);exit(4);}return(uint32_t)q[0]<<24|(uint32_t)q[1]<<16|(uint32_t)q[2]<<8|q[3];}
@@ -43,13 +67,21 @@ static void original_cpu_instruction(CPUState *c,uint32_t instruction,uint32_t p
  if(!c->cache_control&&(cache==0x7c00006cu||cache==0x7c0000acu||cache==0x7c0007acu||
     (cache==0x7c0003acu&&!(c->msr&0x4000u)))){c->pc=pc+4u;return;}
  fprintf(stderr,"unsupported oracle CPU instruction %08x at %08x\n",instruction,pc);exit(6);}
+/* Reaching hardware means the named high-level service list is incomplete.
+   Do not silently acknowledge an unmodeled DVD/DSP/ARAM operation. */
+static uint64_t original_device_read(CPUState *c,uint32_t address,uint8_t size){
+ fprintf(stderr,"unmodeled original device read %08x width %u pc %08x lr %08x\n",address,size,c->pc,c->lr);exit(6);}
+static void original_device_write(CPUState *c,uint32_t address,uint64_t value,uint8_t size){
+ (void)value;fprintf(stderr,"unmodeled original device write %08x width %u pc %08x lr %08x\n",address,size,c->pc,c->lr);exit(6);}
 static int original_raw(uint32_t pc,const uint32_t *args,uint32_t *result){
  uint32_t decrementer=0;CPUState c;memset(&c,0,sizeof c);c.ram=oracle;c.ram_size=BYTES;c.msr=0x2000;c.hid2=0xe0000000u;
  c.instruction_fallback=original_cpu_instruction;c.external_user_data=&decrementer;
+ c.external_read=original_device_read;c.external_write=original_device_write;
  c.fpr[1]=1.0;c.gpr[1]=HI-0x40u;c.gpr[2]=0x803b9a40u;c.gpr[13]=R13;
  for(unsigned k=0;k<6;++k)c.gpr[3+k]=args[k];c.pc=pc;
  for(unsigned step=0;c.pc;++step){
   if(step>5000000u){fprintf(stderr,"original timeout %08x at %08x lr %08x\n",pc,c.pc,c.lr);return 0;}
+  if(original_audio_disc_entry(&c))continue;
   c.downcount=-1000000000;module->dispatch(&c,c.pc);
   if(c.exception){fprintf(stderr,"original exception %08x at %08x lr %08x\n",pc,c.pc,c.lr);return 0;}}
  *result=c.gpr[3];return 1;}
@@ -122,7 +154,8 @@ static void rejected_aram(void){
   fprintf(stderr,"source stack candidate %u sp %08x parent %08x return %08x\n",i,best,parent,lr);best=parent;}
 }
 static int rejected(void){
- if(policy.native.failure_budget_exhausted)rejected_aram();
+ if(policy.native.failure_budget_exhausted||
+    (policy.native.failure_address>=0xcc000000u&&policy.native.failure_address<0xcc010000u))rejected_aram();
  fprintf(stderr,"native rejected case %u team %u stage %u pc %08x address %08x target %08x budget %d\n",
  case_index,side,stage,policy.native.failure_pc,policy.native.failure_address,policy.native.unsupported,policy.native.failure_budget_exhausted);return 5;}
 #define RESULT 0x80f37000u
@@ -268,6 +301,8 @@ int main(int argc,char **argv){
   leaves+=6;hash=digest(hash,native,LO-BASE);hash=digest(hash,native+HI-BASE,BYTES-(HI-BASE));
  }
  if(!whistles[0]||!whistles[1]||!whistles[2]||!whistles[3]||!commits||!selections||!snaps){fprintf(stderr,"incomplete cycle coverage: contact %u OOB %u TD %u incomplete %u commits %u selections %u snaps %u tail updates %u\n",whistles[0],whistles[1],whistles[2],whistles[3],commits,selections,snaps,tail_updates);return 9;}
- printf("Original down cycle: 401 saved/edited cases, 24 x 96 persistent updates; %u updates, %u leaves; whistles contact %u bounds %u touchdown %u incompletion %u; commits %u snaps %u; all RAM outside oracle stack and defined returns match; no original hooks; digest %08x.\n",updates,leaves,whistles[0],whistles[1],whistles[2],whistles[3],commits,snaps,hash);
+ printf("Original down cycle: 401 saved/edited cases, 24 x 96 persistent updates; %u updates, %u leaves; whistles contact %u bounds %u touchdown %u incompletion %u; commits %u snaps %u; all RAM outside oracle stack and defined returns match; audio/disc entry returns only; digest %08x.\n",updates,leaves,whistles[0],whistles[1],whistles[2],whistles[3],commits,snaps,hash);
+ for(unsigned i=0;i<sizeof audio_disc_services/sizeof *audio_disc_services;++i)
+  printf("Audio/disc service %08x (%s): %u original entry returns.\n",audio_disc_services[i].pc,audio_disc_services[i].purpose,audio_disc_calls[i]);
  printf("Persistent queue completion: %u additional checked tail updates beyond the 24 x 96 windows; %u selections; commits observed at the original +151 publication.\n",tail_updates,selections);
  return 0;}

@@ -9,9 +9,6 @@ from typing import Any
 import build_ai_policy_native as builder
 
 HERE = Path(__file__).resolve().parent
-RUNTIME_MEMORY = Path(
-    "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/vendor/dolphin/GXRuntime/include/core/cpu.h"
-)
 CPU_REGISTERS = Path(
     "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/"
     "vendor/dolphin/Source/Core/Core/PowerPC/Interpreter/Interpreter_SystemRegisters.cpp"
@@ -20,9 +17,25 @@ RUNTIME_CACHE = Path(
     "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/"
     "vendor/dolphin/GXRuntime/src/core/cpu_interpreter_integer.c"
 )
-DSP_REGISTERS = Path(
-    "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/vendor/dolphin/Source/Core/Core/HW/DSP.cpp"
-)
+# Audio-only entry points, rather than DI/DSP/ARAM registers or shared
+# resource/event services. None of their direct source closures calls a
+# football writer. 801405B8 reads replay/mirror flags but writes only its
+# sound-history records. Preserve general event delivery and gameplay
+# getters (including their cache writes) above these service requests.
+# Numeric returns are the routines' own audio-disabled result;
+# None denotes a void early return, preserving the incoming GPRs.
+AUDIO_DISC_SERVICES = {
+    0x8013D4D4: (None, "sound-bank load request and audio bank-slot publication"),
+    0x8013D8A4: (0x7FFFFFFF, "sound-cue start request; original audio-disabled handle"),
+    0x8013D9C0: (None, "sound-cue stop request"),
+    0x8013DAD4: (None, "streamed sound-bank load and audio stream-slot publication"),
+    0x8013FFF8: (None, "ambient sound-bank transition and synchronous streaming wait"),
+    0x801405B8: (None, "replay sound-cue request and audio history"),
+    0x8014164C: (None, "music/stream channel control request"),
+    0x8014368C: (None, "announcer/speech bank prefetch request"),
+    0x801ABA64: (None, "streamed sound channel control request"),
+}
+
 # Actual writers/readers and their parents, not assumed football rules.
 ROOTS = (
     "8002e3c8 8002e45c 800f9c50 800f946c 800815b4 800262b0 800263ec "
@@ -32,10 +45,56 @@ ROOTS = (
 ).split()
 
 
+def audio_disc_write_audit() -> dict[str, Any]:
+    """Pin the reviewed service closures and their two read-only game leaves."""
+    graph = json.loads((builder.CACHE / "callgraph.json").read_text())
+    readonly = {"8000c360", "80103e64"}
+    audit = {}
+    for address in AUDIO_DISC_SERVICES:
+        seen: set[str] = set()
+        todo = [f"{address:08x}"]
+        while todo:
+            current = todo.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            todo += [edge["addr"] for edge in graph.get(current, {}).get("callees", [])]
+        game_leaves = {entry for entry in seen if int(entry, 16) < 0x80130000}
+        if game_leaves - readonly:
+            raise RuntimeError(f"Unreviewed game entry in audio/disc closure {address:08x}: {game_leaves}")
+        # Neither leaf contains stores, calls or indirect branches. Keep
+        # phase/config getters that publish caches ABOVE the boundary.
+        for entry in game_leaves:
+            instructions = (builder.CACHE / "disassembly" / f"{entry}.txt").read_text().splitlines()
+            for instruction in instructions:
+                op = instruction.split(": ", 1)[1].split()[0]
+                if op.startswith("st") or op in ("bl", "blrl", "bctrl", "bctr"):
+                    raise RuntimeError(f"Read-only game leaf changed: {entry}: {instruction}")
+        audit[f"{address:08x}"] = {
+            "direct_closure_functions": len(seen),
+            "direct_closure_sha256": hashlib.sha256("\n".join(sorted(seen)).encode()).hexdigest(),
+            "read_only_game_leaves": sorted(game_leaves),
+            "write_scope": "audio banks/voices/history, audio resource requests, heap/OS/device state only",
+            "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
+        }
+    return audit
+
+
 def main() -> None:
+    service_audit = audio_disc_write_audit()
     source = Path(builder.__file__).read_text()
     source = source.replace('"ai_policy.c"', '"down_cycle_native.inc"')
     source = source.replace('"ai_policy_sources.json"', '"down_cycle_sources.json"')
+    entry = '        out.append(f"if(!cb_tick(s,0x{function_addr:08x}u))return;")'
+    source = source.replace(
+        entry,
+        entry
+        + "\n        if function_addr in AUDIO_DISC_SERVICES:"
+        + "\n            result, description = AUDIO_DISC_SERVICES[function_addr]"
+        + '\n            out.append(f"/* Not modeled: audio/disc service {function_addr:08x}: {description}. */")'
+        + '\n            out.append("return;}" if result is None else f"s->r[3]={result}u;return;}}")'
+        + "\n            continue",
+    )
     direct = '        todo += [v["addr"] for v in graph.get(addr, {}).get("callees", [])]'
     source = source.replace(
         direct,
@@ -109,33 +168,9 @@ def main() -> None:
         '                "captured_functions": captured,\n'
         '                "fallthrough": {f"{a:08x}": f"{b:08x}" for a, b in fallthrough.items()},',
     )
-    # 801F73D4/801F94D8/801F9348 submit a real DVD request after the
-    # touchdown whistle. Their CC006000..24 word accesses are external
-    # memory, not invalid MEM1 pointers. The oracle has no external_read /
-    # external_write callbacks: GXRuntime cpu.h mem_read32 returns zero
-    # and mem_write32 discards the write. Preserve every source instruction
-    # and all request/queue/alarm RAM work with that same explicit boundary.
-    # The same boundary applies to 801FD628's six ARAM DMA halfwords
-    # CC005020..2A and 801FD7E4's DSP control halfword CC00500A.
-    # GXRuntime mem_read16/mem_write16 have the same unset-callback behavior
-    # as their word counterparts. Preserve the original 801FF050/154/290
-    # request queue writes; do not invent transfers or completion callbacks.
-    # This does not simulate a disc, ARAM, DMA completion or interrupts;
-    # other out-of-span addresses and unsupported widths still fail closed.
-    source = source.replace(
-        "    out = [",
-        '    helpers = helpers.replace("static uint32_t cb_load(cb_machine *s,uint32_t a,unsigned n){",\n'
-        '        "static uint32_t cb_load(cb_machine *s,uint32_t a,unsigned n){"\n'
-        '        "if((n==4&&a>=0xcc006000u&&a<=0xcc006024u&&!(a&3u))"\n'
-        '        "||(n==2&&(a==0xcc00500au||(a>=0xcc005020u&&a<=0xcc00502au&&!(a&1u)))))return 0;")\n'
-        '    helpers = helpers.replace("static void cb_store(cb_machine *s,uint32_t a,uint32_t v,unsigned n){",\n'
-        '        "static void cb_store(cb_machine *s,uint32_t a,uint32_t v,unsigned n){"\n'
-        '        "if((n==4&&a>=0xcc006000u&&a<=0xcc006024u&&!(a&3u))"\n'
-        '        "||(n==2&&(a==0xcc00500au||(a>=0xcc005020u&&a<=0xcc00502au&&!(a&1u)))))return;")\n'
-        '    helpers = ("/* DVD words / ARAM DMA and DSP control halfwords: zero reads and discarded\\n"\n'
-        '        "   writes match the oracle with unset device callbacks. No transfers or IRQs. */\\n" + helpers)\n'
-        "    out = [",
-    )
+    # Audio/disc services return above their hardware layer. Keep ordinary
+    # cb_mem failure for every out-of-span device access: this module does
+    # not supply register values, DMA data, completion IRQs or device timing.
     for name in ("init", "host_call", "call", "service"):
         source = source.replace(f"nflstreet_ai_policy_{name}", f"nflstreet_down_native_{name}")
     scope: dict[str, Any] = {"__file__": str(__file__), "__name__": "down_builder"}
@@ -308,6 +343,7 @@ def main() -> None:
             "rows_count": count,
             "lists": lists,
         }
+    scope["AUDIO_DISC_SERVICES"] = AUDIO_DISC_SERVICES
     scope["ROOTS"] = list(dict.fromkeys(scope["ROOTS"] + ROOTS + sorted(set(targets))))
     scope["main"]()
     manifest = HERE / "down_cycle_sources.json"
@@ -318,27 +354,24 @@ def main() -> None:
     provenance["allocator_vtables"] = allocator_vtables
     provenance["callback_registry_803569b8"] = callbacks_803569b8
     provenance["container_comparators"] = container_comparators
-    provenance["disc_interface_boundary"] = {
-        "registers": "cc006000..cc006024, aligned u32 only",
-        "read": "zero, matching mem_read32 with external_read unset",
-        "write": "discard, matching mem_write32 with external_write unset",
-        "source": str(RUNTIME_MEMORY),
-        "source_sha256": hashlib.sha256(RUNTIME_MEMORY.read_bytes()).hexdigest(),
-        "scope": "synchronous host boundary only; no device, DMA completion or interrupt simulation",
-        "confidence": "candidate until original-module gate passes",
+    provenance["audio_disc_services"] = {
+        f"{address:08x}": {
+            "description": description,
+            "return": "preserve incoming GPRs (void)" if result is None else result,
+            "native": "early return from the statically named source function",
+            "oracle": "listed original entry returns to LR; no native implementation is invoked",
+            "disassembly_sha256": hashlib.sha256(
+                (builder.CACHE / "disassembly" / f"{address:08x}.txt").read_bytes()
+            ).hexdigest(),
+            "confidence": "source-audited service boundary; original-module gate pending",
+        }
+        for address, (result, description) in AUDIO_DISC_SERVICES.items()
     }
-    provenance["aram_register_boundary"] = {
-        "registers": "cc005020..cc00502a aligned u16; cc00500a u16",
-        "read": "zero, matching mem_read16 with external_read unset",
-        "write": "discard, matching mem_write16 with external_write unset",
-        "readers_writers": ["801fd628 DMA programming", "801fd7e4 DSP control acknowledgement"],
-        "queue_callers": ["801ff050", "801ff154", "801ff290"],
-        "source": str(RUNTIME_MEMORY),
-        "source_sha256": hashlib.sha256(RUNTIME_MEMORY.read_bytes()).hexdigest(),
-        "register_map_source": str(DSP_REGISTERS),
-        "register_map_sha256": hashlib.sha256(DSP_REGISTERS.read_bytes()).hexdigest(),
-        "scope": "no ARAM transfer, interrupt delivery or completion callbacks; preserve original pending-request RAM",
-        "confidence": "candidate until original-module gate passes",
+    provenance["audio_disc_write_audit"] = service_audit
+    provenance["device_boundary"] = {
+        "native": "all external device addresses fail the MEM1 span check",
+        "scope": "no DVD/DSP/ARAM/audio register emulation, DMA completion, interrupts or streaming",
+        "preserved": "shared game/menu event delivery, general asset readers, phase callbacks and all football writes",
     }
     provenance["decrementer_boundary"] = {
         "instruction": "801ef620: mtspr DEC,r3; SPR_DEC = 22",
