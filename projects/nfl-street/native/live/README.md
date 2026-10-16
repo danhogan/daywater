@@ -223,6 +223,9 @@ Run it from Windows:
 nflstreet_live.exe <saved RAM image> [log file] [parts: 1 venue, 2 players, 4 HUD]
 ```
 
+Pass `--help` or `-h` as the first argument to print usage and the full list of
+environment variables to stdout, then exit.
+
 Options:
 - `NFL_LIVE_DISC=<ISO path>` reads animation banks directly through nod (the
   disc reader underlying Aurora DVD). Example:
@@ -256,6 +259,21 @@ Options:
   requires `NFL_LIVE_SETS`: that NSC1 inspection catalog is generated from
   saved RAM and has no disc-file equivalent.
 - `NFL_LIVE_SCRIPT=1` replaces the stick with a scripted run for captures.
+
+On startup the log prints a one-line summary of which systems are active,
+after the "controlled player" line:
+
+```
+systems: animation=<on|off> anim_dir=<on|off> disc=<on|off> ai=<on|off> ball=<on|off> hud_values=<on|off>
+```
+
+`animation` reflects the host pose animation fallback (`NFL_LIVE_HOST_LOCOMOTION`);
+`anim_dir` reflects native channel animation (`NFL_LIVE_ANIMDIR` or `NFL_LIVE_DISC`);
+`disc` reflects whether a disc image was opened. `ai`, `ball` and `hud_values`
+run unconditionally and always report `on`.
+
+The log file is opened in binary mode (`"wb"`) so that line endings stay `\n`
+on Windows, keeping the systems line grep-friendly.
 
 The RAM image is still required for game state, including in disc mode. It
 is your own saved state on W:. Nothing from the game is in the repository.

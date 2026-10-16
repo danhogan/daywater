@@ -102,7 +102,23 @@ static uint8_t *read_file(const char *path,size_t *size){
  if(!b||fread(b,1,(size_t)n,f)!=(size_t)n){free(b);fclose(f);return NULL;}fclose(f);*size=(size_t)n;return b;}
 static double seconds(void){struct timespec t;timespec_get(&t,TIME_UTC);return (double)t.tv_sec+t.tv_nsec*1e-9;}
 int main(int argc,char *argv[]){
- log_file=fopen(argc>2?argv[2]:"nflstreet_live.log","w");
+ if(argc>1&&(strcmp(argv[1],"--help")==0||strcmp(argv[1],"-h")==0)){
+  printf("Usage: nflstreet_live <RAM image> [log file] [parts mask: 1 venue, 2 players, 4 HUD]\n");
+  printf("\n");
+  printf("Environment variables:\n");
+  printf("  NFL_LIVE_DEBUG=1            Logs Aurora at debug level.\n");
+  printf("  NFL_LIVE_TRACE=<file>       Logs every bridged call.\n");
+  printf("  NFL_LIVE_ORBIT=1|<angle>    Turns the camera (24-bit angle per frame).\n");
+  printf("  NFL_LIVE_SCRIPT=1           Replaces the stick with a scripted run for captures.\n");
+  printf("  NFL_LIVE_HOST_LOCOMOTION=1  Bypasses native selection for the host controller fallback.\n");
+  printf("  NFL_LIVE_DISC=<ISO path>    Reads animation banks directly through nod (disc reader).\n");
+  printf("  NFL_LIVE_ANIMDATA=<file>    Supplies the host fallback bank (animdata/00111.bin).\n");
+  printf("  NFL_LIVE_SETS=<file>        Supplies the NSC1 inspection catalog for the host fallback.\n");
+  printf("  NFL_LIVE_ANIMDIR=<dir>      Unpacked animdata directory enabling channel animation.\n");
+  return 0;}
+ /* Binary mode: on Windows, text mode would translate \n to \r\n, which
+   breaks gate regexes that anchor lines with $. */
+ log_file=fopen(argc>2?argv[2]:"nflstreet_live.log","wb");
  const char *image=argc>1?argv[1]:"position-neutral-15.mem1";
  FILE *f=fopen(image,"rb");uint8_t *ram=malloc(RAM_BYTES);
  if(!f||!ram||fread(ram,1,RAM_BYTES,f)!=RAM_BYTES){note("cannot read the RAM image");return 2;}fclose(f);
@@ -165,6 +181,12 @@ int main(int argc,char *argv[]){
   channels.group=nflstreet_channel_callbacks_group;channels.user=&callbacks;nflstreet_live_clips_init(&clips,&channels,&callbacks);
   if(log_file){fprintf(log_file,"streamed banks mapped: %d\n",banks);fflush(log_file);}
   if(!channel_anim){note("no animation banks mapped");nflstreet_disc_close(disc);return 4;}}
+ /* animation = animated (host pose animation fallback);
+    anim_dir = channel_anim (set when banks map from NFL_LIVE_ANIMDIR or
+    NFL_LIVE_DISC); disc = the disc handle; ai, ball, hud_values run
+    unconditionally every frame. */
+ if(log_file){fprintf(log_file,"systems: animation=%s anim_dir=%s disc=%s ai=%s ball=%s hud_values=%s\n",
+  animated?"on":"off",channel_anim?"on":"off",disc?"on":"off","on","on","on");fflush(log_file);}
  nflstreet_disc_close(disc); /* Banks own their decoded bytes; no DVD state remains. */
  /* The gameplay actor table: *(r13-7C30) holds the array's address (+0) and count (+0A). */
  const uint32_t actor_table=ram32(ram,R13-0x7c30u),gameplay_actors=ram32(ram,actor_table);
