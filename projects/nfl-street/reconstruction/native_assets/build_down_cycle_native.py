@@ -66,9 +66,15 @@ def main() -> None:
     # Ghidra cache. It is exactly LIS r3,0x100; BLR in all three captures.
     # Bound construction-time decoding at the end of those two instructions,
     # rather than treating adjacent padding/data as part of the function.
+    # The container comparator at 80182C00 is likewise absent from the
+    # cache: its six instructions end at 80182C18, where another function
+    # starts. 801830CC passes this callback to 801805E0, which writes it
+    # at container+10; 80180C6C calls that field at 80180D14. Decode exactly
+    # the actual comparator, including its unequal return / equal -1 path.
     source = source.replace(
         "            end = next(a for a in known if a > entry)",
-        "            end = 0x802441A8 if entry == 0x802441A0 else next(a for a in known if a > entry)",
+        "            end = {0x802441A0: 0x802441A8, 0x80182C00: 0x80182C18}.get(entry) "
+        "or next(a for a in known if a > entry)",
     )
     # Ghidra splits the shared GPR save/restore entry points into fragments:
     # e.g. 80215458 contains one STW and falls into 8021545C; 802154A8
@@ -125,6 +131,7 @@ def main() -> None:
     allocation_callbacks = {}
     allocator_vtables = {}
     callbacks_803569b8 = {}
+    container_comparators = {}
     targets = []
     for context in (14, 15, 16):
         capture = Path(f"/mnt/w/Daywater/research-temp/position-neutral-{context}.mem1").read_bytes()
@@ -152,6 +159,26 @@ def main() -> None:
                 raise RuntimeError(f"Invalid camera registration span {address:08x} in {context}")
             return int.from_bytes(capture[offset : offset + 4], "big")
 
+        # 801830CC publishes this container through r13-4F3C after
+        # registering LAB_80182C00 with 801805E0. Retain the captured
+        # callback without rewriting the container, its records or cases.
+        container = word(0x803A9A40 - 0x4F3C)
+        comparator = word(container + 0x10)
+        if comparator != 0x80182C00:
+            raise RuntimeError(f"Changed container comparator {comparator:08x} in {context}")
+        instructions = tuple(word(comparator + offset) for offset in range(0, 24, 4))
+        if instructions != (0x81230020, 0x80040020, 0x7C604851, 0x4C820020, 0x3860FFFF, 0x4E800020):
+            raise RuntimeError(f"Changed uncached comparator instructions in {context}")
+        container_comparators[str(context)] = {
+            "global": f"{0x803A9A40 - 0x4F3C:08x}",
+            "container": f"{container:08x}",
+            "callback_offset": "10",
+            "callback": f"{comparator:08x}",
+            "initializer": "801830cc -> 801805e0",
+            "reader": "80180c6c, indirect call at 80180d14",
+            "confidence": "candidate until original-module gate passes",
+        }
+        targets.append(f"{comparator:08x}")
         manager = word(0x803A9A40 - 0x5BA4)
         cameras = {}
         for slot in range(4):
@@ -276,6 +303,7 @@ def main() -> None:
     provenance["allocation_callbacks"] = allocation_callbacks
     provenance["allocator_vtables"] = allocator_vtables
     provenance["callback_registry_803569b8"] = callbacks_803569b8
+    provenance["container_comparators"] = container_comparators
     provenance["disc_interface_boundary"] = {
         "registers": "cc006000..cc006024, aligned u32 only",
         "read": "zero, matching mem_read32 with external_read unset",

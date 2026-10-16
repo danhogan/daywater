@@ -2494,6 +2494,10 @@
       "end": "801824c4",
       "sha256": "3c37f8e90fa2623c9d0da874ffeea222ccc9a3c569f0d4867a49b68e21348c3e"
     },
+    "80182c00": {
+      "end": "80182c18",
+      "sha256": "442ee20c7132b446a30dde1e1cfe2061657dc5e6bfc07ae6a8b3d402b0f67a4b"
+    },
     "80182c18": {
       "end": "80182c30",
       "sha256": "c7b2f4b0e349dd7989a7ed506c962349590b6886eda0ffb0f3e0c2c9e5ae2fce"
@@ -3025,6 +3029,35 @@
     "802441a0": {
       "end": "802441a8",
       "sha256": "d11f4b475313dd697a0caa00fd13d7f168993962f7038d25908155de5a17fdcd"
+    }
+  },
+  "container_comparators": {
+    "14": {
+      "callback": "80182c00",
+      "callback_offset": "10",
+      "confidence": "candidate until original-module gate passes",
+      "container": "804ffd40",
+      "global": "803a4b04",
+      "initializer": "801830cc -> 801805e0",
+      "reader": "80180c6c, indirect call at 80180d14"
+    },
+    "15": {
+      "callback": "80182c00",
+      "callback_offset": "10",
+      "confidence": "candidate until original-module gate passes",
+      "container": "804ffd40",
+      "global": "803a4b04",
+      "initializer": "801830cc -> 801805e0",
+      "reader": "80180c6c, indirect call at 80180d14"
+    },
+    "16": {
+      "callback": "80182c00",
+      "callback_offset": "10",
+      "confidence": "candidate until original-module gate passes",
+      "container": "804ffd40",
+      "global": "803a4b04",
+      "initializer": "801830cc -> 801805e0",
+      "reader": "80180c6c, indirect call at 80180d14"
     }
   },
   "decrementer_boundary": {
@@ -13210,6 +13243,7 @@
     "80182930",
     "80182970",
     "80182a24",
+    "80182c00",
     "801ac6e0",
     "801acaa8",
     "80224018",
