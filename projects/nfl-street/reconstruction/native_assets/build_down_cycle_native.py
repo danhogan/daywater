@@ -22,7 +22,7 @@ RUNTIME_CACHE = Path(
 # football writer. 801405B8 reads replay/mirror flags but writes only its
 # sound-history records. Preserve general event delivery and gameplay
 # getters (including their cache writes) above these service requests.
-# Numeric returns are original disabled-audio / unavailable-resource results;
+# Numeric returns are disabled-audio / unavailable-resource / suppressed-request results;
 # None denotes a void early return, preserving the incoming GPRs.
 AUDIO_DISC_SERVICES = {
     0x8012AC68: (0, "UI resource-bank load request; unavailable-resource NULL result"),
@@ -34,6 +34,7 @@ AUDIO_DISC_SERVICES = {
     0x801405B8: (None, "replay sound-cue request and audio history"),
     0x8014164C: (None, "music/stream channel control request"),
     0x8014368C: (None, "announcer/speech bank prefetch request"),
+    0x80175448: (0, "animation-bank stream request; suppressed request, no bank publication"),
     0x801ABA64: (None, "streamed sound channel control request"),
 }
 
@@ -54,17 +55,27 @@ def audio_disc_write_audit() -> dict[str, Any]:
     # manager/cache records (8012BBD8 initialization; 8012AA2C registration).
     # They are not general permission to skip game-code address ranges.
     ui_cache = {"80129d04", "80129d94", "80129e3c", "8012a168", "8012a360", "8012a3b0", "8012ac68"}
-    audit = {}
-    for address in AUDIO_DISC_SERVICES:
+    # 80175448 supplies 80174B20 to the resource reader. 80173B10,
+    # 80016278 and the three captures pin its nested asset callbacks.
+    # Audit these as well as direct calls; none may reach a football writer.
+    animation_callbacks = {"80174b20", "80175fac", "80151928", "80151968"}
+
+    def closure(roots: set[str]) -> set[str]:
         seen: set[str] = set()
-        todo = [f"{address:08x}"]
+        todo = list(roots)
         while todo:
             current = todo.pop()
-            if current in seen:
-                continue
-            seen.add(current)
-            todo += [edge["addr"] for edge in graph.get(current, {}).get("callees", [])]
-        low_entries = {entry for entry in seen if int(entry, 16) < 0x80130000}
+            if current not in seen:
+                seen.add(current)
+                todo += [edge["addr"] for edge in graph.get(current, {}).get("callees", [])]
+        return seen
+
+    audit = {}
+    for address in AUDIO_DISC_SERVICES:
+        seen = closure({f"{address:08x}"})
+        callbacks = animation_callbacks if address == 0x80175448 else set()
+        callback_closure = closure(callbacks)
+        low_entries = {entry for entry in seen | callback_closure if int(entry, 16) < 0x80130000}
         permitted = readonly | (ui_cache if address == 0x8012AC68 else set())
         if low_entries - permitted:
             raise RuntimeError(f"Unreviewed game entry in audio/disc closure {address:08x}: {low_entries}")
@@ -85,6 +96,17 @@ def audio_disc_write_audit() -> dict[str, Any]:
             "write_scope": "audio banks/voices/history, UI resource cache/requests, heap/OS/device state only",
             "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
         }
+        if callbacks:
+            audit[f"{address:08x}"].update(
+                reviewed_callback_roots=sorted(callbacks),
+                callback_closure_functions=len(callback_closure),
+                callback_closure_sha256=hashlib.sha256("\n".join(sorted(callback_closure)).encode()).hexdigest(),
+                callback_disassembly_sha256={
+                    entry: hashlib.sha256((builder.CACHE / "disassembly" / f"{entry}.txt").read_bytes()).hexdigest()
+                    for entry in sorted(callbacks)
+                },
+                write_scope="animation-bank/cache/request records, asset-local relocations, heap/OS/device state only",
+            )
     return audit
 
 
@@ -185,6 +207,7 @@ def main() -> None:
     exec(compile(source, str(__file__), "exec"), scope)
     callbacks = {}
     ui_resource_services = {}
+    animation_resource_services = {}
     camera_callbacks = {}
     allocation_callbacks = {}
     allocator_vtables = {}
@@ -231,6 +254,36 @@ def main() -> None:
             "resource_cache_manager": f"{word(0x803A9A40 - 0x6CE8):08x}",
             "registration": "8012aa2c -> 801cfd50",
             "consumer": "801cfd90; NULL follows unavailable-resource branch",
+        }
+
+        # 80016278 opens animdata.dat; 80174FD8 owns the 1C-byte cache
+        # and 8-byte request records. Pin the actual indirect callbacks,
+        # rather than assuming all resource callbacks are non-gameplay.
+        asset_callbacks = {
+            "completion": (0x6724, 0x80175FAC),
+            "relocation": (0x5798, 0x80151928),
+            "release": (0x6720, 0x80151968),
+        }
+        for name, (offset, target) in asset_callbacks.items():
+            if word(0x803A9A40 - offset) != target:
+                raise RuntimeError(f"Changed animation resource {name} callback in {context}")
+        # 801A735C/801A4C40 can also notify a resource observer or timeout
+        # handler. Neither is installed in the checked contexts; do not
+        # silently extend the write audit to arbitrary callback code.
+        resource_observers = {"observer": word(0x803A9A40 - 0x652C), "timeout": word(0x803A9A40 - 0x6524)}
+        if any(resource_observers.values()):
+            raise RuntimeError(f"Unreviewed resource observer in {context}: {resource_observers}")
+        if word(0x80175448) != 0x9421FFE0:
+            raise RuntimeError(f"Changed animation stream request prologue in {context}")
+        animation_resource_services[str(context)] = {
+            "bank": f"{word(0x803A9A40 - 0x6728):08x}",
+            "bank_cache": f"{word(0x803A9A40 - 0x4F6C):08x}",
+            "request_records": f"{word(0x803A9A40 - 0x4F5C):08x}",
+            "callbacks": {name: f"{target:08x}" for name, (_, target) in asset_callbacks.items()},
+            "resource_observers": {name: f"{target:08x}" for name, target in resource_observers.items()},
+            "initialization": "80016278 -> 80173b10 / 80174fd8; animdata.dat",
+            "request_completion": "80175448 -> 801a735c(callback 80174b20)",
+            "boundary": "return zero without submitting a request or publishing bank readiness",
         }
 
         # 801830CC publishes this container through r13-4F3C after
@@ -394,6 +447,7 @@ def main() -> None:
     }
     provenance["audio_disc_write_audit"] = service_audit
     provenance["ui_resource_service_bindings"] = ui_resource_services
+    provenance["animation_resource_service_bindings"] = animation_resource_services
     provenance["device_boundary"] = {
         "native": "all external device addresses fail the MEM1 span check",
         "scope": "no DVD/DSP/ARAM/audio register emulation, DMA completion, interrupts or streaming",

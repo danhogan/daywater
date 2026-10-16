@@ -66,7 +66,7 @@ check, avoiding a second AI/physics update. Phase 4 advances the original
 `8004EBF0` callback queue (including the delayed result commit), then requests
 original phase 5 when the queue drains. Replay, celebration, audio and menu
 wait scheduling from the full phase-4 update is not modeled. Original reached
-entry/exit/event functions remain transcribed. The ten named audio/disc service
+entry/exit/event functions remain transcribed. The eleven named audio/disc service
 entries below return early on both sides; no gameplay routine is skipped.
 A reached unsupported instruction, function or memory span stops the update.
 
@@ -90,19 +90,24 @@ to `80F38000..80F46FFF`; production never borrows gameplay RAM as scratch.
 The project manager explicitly directed the hardware and sound/streaming layer
 to remain outside this module. Earlier context-14 case 401/stage 570 exhausted
 the budget inside the ARAM client's synchronous completion wait. This revision
-cuts at audio requests and the UI resource-load callback, above their
+cuts at audio requests, the UI resource-load callback and the animation-bank
+stream request, above their
 generic resource, OS and device calls.
 It removes the earlier DVD/ARAM zero-read/discard-write fallback. Native device
 addresses now fail the span check, and the original checker rejects external
 reads/writes. There is no DMA, completion interrupt, audio clock or disc model.
 
-The original checker lists exactly these ten original entry addresses. It
+The original checker lists exactly these eleven original entry addresses. It
 returns to guest LR before executing each listed routine, without calling
 native code or writing guest RAM. The native function returns at the same
 entry. Void entries preserve incoming registers. The sound-cue start returns
 `7FFFFFFF`, its own disabled-audio return in `8013D8A4`; this means no voice
 handle, rather than an invented successful request. The UI load callback
 returns NULL, following the consumer's existing unavailable-resource branch.
+The animation stream request returns zero without submitting a request or
+publishing readiness; this is an explicit suppressed-service policy, not a
+claim that an asset loaded successfully. Its original caller ignores the
+status. Captured bank contents are retained; no replacement asset is supplied.
 
 The first boundary revision checked only the PC returned by the DLL's
 dispatcher. The owner's next run failed at context 14, case 2, stage 3:
@@ -118,7 +123,7 @@ The checker now also installs the unchanged DLL's exported
 `ppc_set_mem_write_journal` callback. Every listed entry begins with
 `STWU r1,negative-frame(r1)`. The DLL materializes guest PC and invokes the
 journal **before** storing the stack backchain and updating guest r1. At
-exactly one of the ten named PCs the callback checks the captured opcode,
+exactly one of the eleven named PCs the callback checks the captured opcode,
 write width, effective stack address and private stack bounds, applies the
 same void/disabled-handle return, and uses `longjmp` to leave the generated C
 frames. No service RAM store commits and no native game implementation is
@@ -141,6 +146,15 @@ backchain to the play-selection UI load request:
 `801FD65C -> CC005020`; the resource request was an ARAM read. This is UI
 resource streaming, not a sound request. The new boundary is the registered
 UI resource callback, without skipping the UI or football state machines.
+
+The following owner run reached context 14, case 402/stage 146 while the
+touchdown's queued commit requested a celebration animation bank. The logged
+backchain resolves to `800263EC -> 80020704 -> 800200B8 -> 80016510 ->
+80019354 -> 8001695C -> 80175448 -> 801A735C -> 801A4C40 -> 80183824 ->
+80182E60 -> ... -> 801F748C`, ending in the DVD write to `CC006004`.
+The new cut is the bank request `80175448`, above the shared resource reader.
+This is a valid touchdown case; no fixture constraint, update window,
+comparison mask or gameplay callback was changed to avoid it.
 
 - **not modeled: audio/disc service (`8012AC68`, UI resource-bank load/stream request).**
   `8012AA2C -> 801CFD50` registers it at UI manager `+14`; all three saved
@@ -197,6 +211,44 @@ UI resource callback, without skipping the UI or football state machines.
   The wrapper calls `801AD66C`: audio's `chatdata.dat` bank manager supplies
   the resource/index, then the loaded bank is passed to `801728F8`. Its writes
   are resource-cache/request, heap/OS, and speech-engine state.
+- **not modeled: audio/disc service (`80175448`, animation-bank stream request).**
+  `80016278` opens `animdata.dat` and initializes this subsystem through
+  `80173B10/80174FD8`. The latter allocates its separate bank cache at
+  `*(r13-4F6C)` (records of `1C` bytes) and request records at
+  `*(r13-4F5C)` (8 bytes each). The request changes only the selected cache
+  record's bank index `+0` and readiness `+12`, and the request record's slot
+  `+0` and asset descriptor `+4`. It supplies the bank's private destination
+  buffer at cache `+C` to `801A735C` with completion callback `80174B20`.
+  Its other work releases a previous cached bank (`80174BC4`) or waits for
+  an outstanding resource request; those paths operate on resource/heap/OS
+  state, not actors, ball or down state.
+
+  The callback audit includes indirect calls, not just the direct callgraph.
+  All three captures bind `r13-6724` to completion `80175FAC`, `r13-5798` to
+  relocation `80151928`, and `r13-6720` to release `80151968`, matching their
+  original initialization. The resource observer at `r13-652C` and timeout
+  callback at `r13-6524` are NULL in all three captures; the builder rejects
+  unreviewed replacements. `80174B20` publishes bank readiness/asset IDs and
+  forwards the asset descriptor to `80175FAC`. That callback relocates pointers
+  inside loaded asset/animation descriptors, fixes embedded `BFCM/BFFM`
+  resources and publishes cache entries. `80174574/80151834` likewise fix
+  resource-local offsets; `80151620` moves asset data through heap allocation;
+  `80151968` releases that allocation. `8017959C` invalidates the asset lookup
+  tables at `*(r13-4F48)`. None writes a gameplay actor, ball, field object,
+  phase, possession, score, down/distance or game-config cache. The builder
+  pins these callback bindings, their disassemblies and their callee closure;
+  neither the direct nor callback closure reaches the game-code address area.
+
+  Both sides return zero at the request entry, before any cache/request write.
+  Zero is also the original already-resident/no-request return, but suppression
+  does **not** mark a missing bank resident. Caller `8001695C` ignores the
+  status and still writes its own celebration bank references; `80019354`
+  retains its own result/descriptor publication and `8001BD74` retains its
+  actor/ball-dependent eligibility work. Skipping those higher callers would
+  hide gameplay writes. Their complete implementations, the score commit
+  and the whistle queue remain compared on all RAM. Streaming celebration
+  assets and their asynchronous readiness are unmodeled; the host already
+  omits the full celebration/replay wait schedule described above.
 - **not modeled: audio/disc service (`801ABA64`, streamed sound control).**
   This is also called directly by ambient stream controls `80137B84/80137C08`.
   It checks audio flags `8034859C`, takes `802292C0/80229300`'s audio lock and
@@ -212,7 +264,9 @@ leaves below `80130000`: replay predicate `8000C360` and field mirror predicate
 and branches, with no stores, calls or indirect branches. The UI entry
 additionally reaches the seven exact resource-cache
 functions listed above; these have a separate write ledger and are allowed
-only in that entry's audit, without exempting any address range. The builder enforces that property
+only in that entry's audit, without exempting any address range. The animation
+entry additionally audits its four named callback roots and their closure.
+The builder enforces that property
 and records closure hashes and those leaves in `down_cycle_sources.json`.
 This source audit is not a substitute for an executed original-module check.
 
@@ -256,7 +310,7 @@ the saved frame are constructed by editing actual fields, never by injecting
 event-log records. There are 24 retained 96-update sequences crossing whistle,
 queued commit, next-play lineup and snap. Separate dirty-destination and
 threshold cases exercise result/down/distance writers. Every call/update
-compares all 24 MiB outside the oracle stack. The original has only the ten
+compares all 24 MiB outside the oracle stack. The original has only the eleven
 documented audio/disc entry returns and never invokes native implementations.
 The original-side host schedule is
 independent of the native wrapper. These are required checks, not executed

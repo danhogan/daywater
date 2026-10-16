@@ -1223,6 +1223,59 @@
       "registry": "80b79080"
     }
   },
+  "animation_resource_service_bindings": {
+    "14": {
+      "bank": "80504be8",
+      "bank_cache": "80b4e280",
+      "boundary": "return zero without submitting a request or publishing bank readiness",
+      "callbacks": {
+        "completion": "80175fac",
+        "release": "80151968",
+        "relocation": "80151928"
+      },
+      "initialization": "80016278 -> 80173b10 / 80174fd8; animdata.dat",
+      "request_completion": "80175448 -> 801a735c(callback 80174b20)",
+      "request_records": "80b4eca0",
+      "resource_observers": {
+        "observer": "00000000",
+        "timeout": "00000000"
+      }
+    },
+    "15": {
+      "bank": "80504be8",
+      "bank_cache": "80b4e280",
+      "boundary": "return zero without submitting a request or publishing bank readiness",
+      "callbacks": {
+        "completion": "80175fac",
+        "release": "80151968",
+        "relocation": "80151928"
+      },
+      "initialization": "80016278 -> 80173b10 / 80174fd8; animdata.dat",
+      "request_completion": "80175448 -> 801a735c(callback 80174b20)",
+      "request_records": "80b4eca0",
+      "resource_observers": {
+        "observer": "00000000",
+        "timeout": "00000000"
+      }
+    },
+    "16": {
+      "bank": "80504be8",
+      "bank_cache": "80b4e280",
+      "boundary": "return zero without submitting a request or publishing bank readiness",
+      "callbacks": {
+        "completion": "80175fac",
+        "release": "80151968",
+        "relocation": "80151928"
+      },
+      "initialization": "80016278 -> 80173b10 / 80174fd8; animdata.dat",
+      "request_completion": "80175448 -> 801a735c(callback 80174b20)",
+      "request_records": "80b4eca0",
+      "resource_observers": {
+        "observer": "00000000",
+        "timeout": "00000000"
+      }
+    }
+  },
   "audio_disc_services": {
     "8012ac68": {
       "confidence": "source-audited service boundary; original-module gate pending",
@@ -1295,6 +1348,14 @@
       "native": "early return from the statically named source function",
       "oracle": "listed original entry returns to LR; no native implementation is invoked",
       "return": "preserve incoming GPRs (void)"
+    },
+    "80175448": {
+      "confidence": "source-audited service boundary; original-module gate pending",
+      "description": "animation-bank stream request; suppressed request, no bank publication",
+      "disassembly_sha256": "ec929e516a6d5d4c15e1761a69a54a3645dde867eaa2922a4d0b3a4028bf4004",
+      "native": "early return from the statically named source function",
+      "oracle": "listed original entry returns to LR; no native implementation is invoked",
+      "return": 0
     },
     "801aba64": {
       "confidence": "source-audited service boundary; original-module gate pending",
@@ -1391,6 +1452,28 @@
       "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
       "ui_resource_cache_functions": [],
       "write_scope": "audio banks/voices/history, UI resource cache/requests, heap/OS/device state only"
+    },
+    "80175448": {
+      "callback_closure_functions": 71,
+      "callback_closure_sha256": "eea2fd89759a8954b4e76d2fa7cc160de61ae604aedf105e88593f6fb88a410c",
+      "callback_disassembly_sha256": {
+        "80151928": "d43409211a8d014bfe2d43fa07dfaa169c195a2cc1d643d22d93fe5a0f0725f0",
+        "80151968": "b51e7db643852c86cbebd8c1dd922b739def23ac945dd627e850e22ec2d29b3b",
+        "80174b20": "d5ffd8cd3e167ce55f8c4af0bb9528b74dbb5252a661d8e085ca5b659fc13d35",
+        "80175fac": "9c3a87b9063290b63fb088f690217ebe2a2abb413eeb0ce8e8f337b29acf3310"
+      },
+      "direct_closure_functions": 465,
+      "direct_closure_sha256": "eade34d6c7aa310105e660eac2d8cf7dd582b197e7c7ce432a34182a91be4e89",
+      "read_only_game_leaves": [],
+      "reviewed_callback_roots": [
+        "80151928",
+        "80151968",
+        "80174b20",
+        "80175fac"
+      ],
+      "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
+      "ui_resource_cache_functions": [],
+      "write_scope": "animation-bank/cache/request records, asset-local relocations, heap/OS/device state only"
     },
     "801aba64": {
       "direct_closure_functions": 35,
