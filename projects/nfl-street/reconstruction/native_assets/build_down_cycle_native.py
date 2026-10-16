@@ -20,6 +20,9 @@ RUNTIME_CACHE = Path(
     "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/"
     "vendor/dolphin/GXRuntime/src/core/cpu_interpreter_integer.c"
 )
+DSP_REGISTERS = Path(
+    "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/vendor/dolphin/Source/Core/Core/HW/DSP.cpp"
+)
 # Actual writers/readers and their parents, not assumed football rules.
 ROOTS = (
     "8002e3c8 8002e45c 800f9c50 800f946c 800815b4 800262b0 800263ec "
@@ -112,18 +115,25 @@ def main() -> None:
     # external_write callbacks: GXRuntime cpu.h mem_read32 returns zero
     # and mem_write32 discards the write. Preserve every source instruction
     # and all request/queue/alarm RAM work with that same explicit boundary.
-    # This does not simulate a disc, DMA completion, interrupts, or any
-    # other device; other out-of-span addresses must still fail closed.
+    # The same boundary applies to 801FD628's six ARAM DMA halfwords
+    # CC005020..2A and 801FD7E4's DSP control halfword CC00500A.
+    # GXRuntime mem_read16/mem_write16 have the same unset-callback behavior
+    # as their word counterparts. Preserve the original 801FF050/154/290
+    # request queue writes; do not invent transfers or completion callbacks.
+    # This does not simulate a disc, ARAM, DMA completion or interrupts;
+    # other out-of-span addresses and unsupported widths still fail closed.
     source = source.replace(
         "    out = [",
         '    helpers = helpers.replace("static uint32_t cb_load(cb_machine *s,uint32_t a,unsigned n){",\n'
         '        "static uint32_t cb_load(cb_machine *s,uint32_t a,unsigned n){"\n'
-        '        "if(n==4&&a>=0xcc006000u&&a<=0xcc006024u&&!(a&3u))return 0;")\n'
+        '        "if((n==4&&a>=0xcc006000u&&a<=0xcc006024u&&!(a&3u))"\n'
+        '        "||(n==2&&(a==0xcc00500au||(a>=0xcc005020u&&a<=0xcc00502au&&!(a&1u)))))return 0;")\n'
         '    helpers = helpers.replace("static void cb_store(cb_machine *s,uint32_t a,uint32_t v,unsigned n){",\n'
         '        "static void cb_store(cb_machine *s,uint32_t a,uint32_t v,unsigned n){"\n'
-        '        "if(n==4&&a>=0xcc006000u&&a<=0xcc006024u&&!(a&3u))return;")\n'
-        '    helpers = ("/* DVD register words: zero reads / discarded writes, matching the oracle\\n"\n'
-        '        "   with unset external device callbacks. No DMA or completion is simulated. */\\n" + helpers)\n'
+        '        "if((n==4&&a>=0xcc006000u&&a<=0xcc006024u&&!(a&3u))"\n'
+        '        "||(n==2&&(a==0xcc00500au||(a>=0xcc005020u&&a<=0xcc00502au&&!(a&1u)))))return;")\n'
+        '    helpers = ("/* DVD words / ARAM DMA and DSP control halfwords: zero reads and discarded\\n"\n'
+        '        "   writes match the oracle with unset device callbacks. No transfers or IRQs. */\\n" + helpers)\n'
         "    out = [",
     )
     for name in ("init", "host_call", "call", "service"):
@@ -315,6 +325,19 @@ def main() -> None:
         "source": str(RUNTIME_MEMORY),
         "source_sha256": hashlib.sha256(RUNTIME_MEMORY.read_bytes()).hexdigest(),
         "scope": "synchronous host boundary only; no device, DMA completion or interrupt simulation",
+        "confidence": "candidate until original-module gate passes",
+    }
+    provenance["aram_register_boundary"] = {
+        "registers": "cc005020..cc00502a aligned u16; cc00500a u16",
+        "read": "zero, matching mem_read16 with external_read unset",
+        "write": "discard, matching mem_write16 with external_write unset",
+        "readers_writers": ["801fd628 DMA programming", "801fd7e4 DSP control acknowledgement"],
+        "queue_callers": ["801ff050", "801ff154", "801ff290"],
+        "source": str(RUNTIME_MEMORY),
+        "source_sha256": hashlib.sha256(RUNTIME_MEMORY.read_bytes()).hexdigest(),
+        "register_map_source": str(DSP_REGISTERS),
+        "register_map_sha256": hashlib.sha256(DSP_REGISTERS.read_bytes()).hexdigest(),
+        "scope": "no ARAM transfer, interrupt delivery or completion callbacks; preserve original pending-request RAM",
         "confidence": "candidate until original-module gate passes",
     }
     provenance["decrementer_boundary"] = {

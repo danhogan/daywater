@@ -18,8 +18,8 @@
    they do not change host interrupts or bypass the guarded RAM work. */
 typedef struct {nflstreet_ai_policy *out;uint32_t r[32],lr,ctr,cr,ca,pc,msr,dec;
  double f[32],ps[32];unsigned budget,depth;} cb_machine;
-/* DVD register words: zero reads / discarded writes, matching the oracle
-   with unset external device callbacks. No DMA or completion is simulated. */
+/* DVD words / ARAM DMA and DSP control halfwords: zero reads and discarded
+   writes match the oracle with unset device callbacks. No transfers or IRQs. */
 static void cb_fail(cb_machine *s,uint32_t address){
  if(s->out->ok){s->out->failure_pc=s->pc;s->out->failure_address=address;}
  s->out->ok=0;
@@ -31,9 +31,9 @@ static uint8_t *cb_mem(cb_machine *s,uint32_t a,uint32_t n){
   return s->out->stack+(a-NFLSTREET_AI_POLICY_STACK_LO);
  uint8_t *p=s->out->ram.span(s->out->ram.memory,a,n);if(!p)cb_fail(s,a);return p;
 }
-static uint32_t cb_load(cb_machine *s,uint32_t a,unsigned n){if(n==4&&a>=0xcc006000u&&a<=0xcc006024u&&!(a&3u))return 0;uint8_t *p=cb_mem(s,a,n);uint32_t v=0;
+static uint32_t cb_load(cb_machine *s,uint32_t a,unsigned n){if((n==4&&a>=0xcc006000u&&a<=0xcc006024u&&!(a&3u))||(n==2&&(a==0xcc00500au||(a>=0xcc005020u&&a<=0xcc00502au&&!(a&1u)))))return 0;uint8_t *p=cb_mem(s,a,n);uint32_t v=0;
  if(p)for(unsigned i=0;i<n;++i)v=(v<<8)|p[i];return v;}
-static void cb_store(cb_machine *s,uint32_t a,uint32_t v,unsigned n){if(n==4&&a>=0xcc006000u&&a<=0xcc006024u&&!(a&3u))return;uint8_t *p=cb_mem(s,a,n);
+static void cb_store(cb_machine *s,uint32_t a,uint32_t v,unsigned n){if((n==4&&a>=0xcc006000u&&a<=0xcc006024u&&!(a&3u))||(n==2&&(a==0xcc00500au||(a>=0xcc005020u&&a<=0xcc00502au&&!(a&1u)))))return;uint8_t *p=cb_mem(s,a,n);
  if(p)for(unsigned i=n;i;--i){p[i-1]=(uint8_t)v;v>>=8;}}
 static double cb_lfd(cb_machine *s,uint32_t a){const uint64_t hi=cb_load(s,a,4),lo=cb_load(s,a+4,4);return nflstreet_gk_value((hi<<32)|lo);}
 static double cb_lfs(cb_machine *s,uint32_t a){uint32_t b=cb_load(s,a,4);float f;memcpy(&f,&b,4);return (double)f;}

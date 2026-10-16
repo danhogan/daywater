@@ -1223,6 +1223,26 @@
       "registry": "80b79080"
     }
   },
+  "aram_register_boundary": {
+    "confidence": "candidate until original-module gate passes",
+    "queue_callers": [
+      "801ff050",
+      "801ff154",
+      "801ff290"
+    ],
+    "read": "zero, matching mem_read16 with external_read unset",
+    "readers_writers": [
+      "801fd628 DMA programming",
+      "801fd7e4 DSP control acknowledgement"
+    ],
+    "register_map_sha256": "4339d47f9c052dd1bb95a107ae1702d0453bd76e440cd8b0ef440ed80eb273eb",
+    "register_map_source": "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/vendor/dolphin/Source/Core/Core/HW/DSP.cpp",
+    "registers": "cc005020..cc00502a aligned u16; cc00500a u16",
+    "scope": "no ARAM transfer, interrupt delivery or completion callbacks; preserve original pending-request RAM",
+    "source": "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/vendor/dolphin/GXRuntime/include/core/cpu.h",
+    "source_sha256": "74a3d8be770ddd6e2fd9e858ce282e3836e7734be02bca73f9ffb466f37ed807",
+    "write": "discard, matching mem_write16 with external_write unset"
+  },
   "cache_maintenance_boundary": {
     "confidence": "candidate until original-module gate passes",
     "native": "existing static cache-ordering operations leave the flat RAM span unchanged",
