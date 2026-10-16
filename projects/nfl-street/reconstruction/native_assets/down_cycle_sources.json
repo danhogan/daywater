@@ -1224,6 +1224,14 @@
     }
   },
   "audio_disc_services": {
+    "8012ac68": {
+      "confidence": "source-audited service boundary; original-module gate pending",
+      "description": "UI resource-bank load request; unavailable-resource NULL result",
+      "disassembly_sha256": "4be7b2bba09681e9023d701fcbd4413397e0d4faab5678ac4271169869cb1bb8",
+      "native": "early return from the statically named source function",
+      "oracle": "listed original entry returns to LR; no native implementation is invoked",
+      "return": 0
+    },
     "8013d4d4": {
       "confidence": "source-audited service boundary; original-module gate pending",
       "description": "sound-bank load request and audio bank-slot publication",
@@ -1298,12 +1306,29 @@
     }
   },
   "audio_disc_write_audit": {
+    "8012ac68": {
+      "direct_closure_functions": 522,
+      "direct_closure_sha256": "6a2ef58c9e33a244e75108f41cd9f37f350e30ed876f69b5fe43ed28395a3924",
+      "read_only_game_leaves": [],
+      "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
+      "ui_resource_cache_functions": [
+        "80129d04",
+        "80129d94",
+        "80129e3c",
+        "8012a168",
+        "8012a360",
+        "8012a3b0",
+        "8012ac68"
+      ],
+      "write_scope": "audio banks/voices/history, UI resource cache/requests, heap/OS/device state only"
+    },
     "8013d4d4": {
       "direct_closure_functions": 514,
       "direct_closure_sha256": "127c86ed2bcc3badd2d8c3b19475fc2a4019ab428dac5ebfc4614d182c36f8bf",
       "read_only_game_leaves": [],
       "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
-      "write_scope": "audio banks/voices/history, audio resource requests, heap/OS/device state only"
+      "ui_resource_cache_functions": [],
+      "write_scope": "audio banks/voices/history, UI resource cache/requests, heap/OS/device state only"
     },
     "8013d8a4": {
       "direct_closure_functions": 134,
@@ -1313,28 +1338,32 @@
         "80103e64"
       ],
       "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
-      "write_scope": "audio banks/voices/history, audio resource requests, heap/OS/device state only"
+      "ui_resource_cache_functions": [],
+      "write_scope": "audio banks/voices/history, UI resource cache/requests, heap/OS/device state only"
     },
     "8013d9c0": {
       "direct_closure_functions": 37,
       "direct_closure_sha256": "2de6153522bd5720c9822f4c167cdb85924560bd5696b1b7615092751b2d41b4",
       "read_only_game_leaves": [],
       "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
-      "write_scope": "audio banks/voices/history, audio resource requests, heap/OS/device state only"
+      "ui_resource_cache_functions": [],
+      "write_scope": "audio banks/voices/history, UI resource cache/requests, heap/OS/device state only"
     },
     "8013dad4": {
       "direct_closure_functions": 483,
       "direct_closure_sha256": "59ce741b8584afc88bdc8762d08bc16b09c492f7182a039a5e695c76a520ce34",
       "read_only_game_leaves": [],
       "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
-      "write_scope": "audio banks/voices/history, audio resource requests, heap/OS/device state only"
+      "ui_resource_cache_functions": [],
+      "write_scope": "audio banks/voices/history, UI resource cache/requests, heap/OS/device state only"
     },
     "8013fff8": {
       "direct_closure_functions": 513,
       "direct_closure_sha256": "4cd93873f2853f3eec0e53347f44a86f8c305be790d59fd86162c23f6b9bb655",
       "read_only_game_leaves": [],
       "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
-      "write_scope": "audio banks/voices/history, audio resource requests, heap/OS/device state only"
+      "ui_resource_cache_functions": [],
+      "write_scope": "audio banks/voices/history, UI resource cache/requests, heap/OS/device state only"
     },
     "801405b8": {
       "direct_closure_functions": 135,
@@ -1344,28 +1373,32 @@
         "80103e64"
       ],
       "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
-      "write_scope": "audio banks/voices/history, audio resource requests, heap/OS/device state only"
+      "ui_resource_cache_functions": [],
+      "write_scope": "audio banks/voices/history, UI resource cache/requests, heap/OS/device state only"
     },
     "8014164c": {
       "direct_closure_functions": 43,
       "direct_closure_sha256": "669b69407b8791f8ceac9bdc2e020a1bf46a455b7bad6399848272a9559715b6",
       "read_only_game_leaves": [],
       "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
-      "write_scope": "audio banks/voices/history, audio resource requests, heap/OS/device state only"
+      "ui_resource_cache_functions": [],
+      "write_scope": "audio banks/voices/history, UI resource cache/requests, heap/OS/device state only"
     },
     "8014368c": {
       "direct_closure_functions": 485,
       "direct_closure_sha256": "561fe19ba70c87cb3db6d5c7d4f0cbe2fe2e7fcd29b40c4d528e211e90930cb2",
       "read_only_game_leaves": [],
       "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
-      "write_scope": "audio banks/voices/history, audio resource requests, heap/OS/device state only"
+      "ui_resource_cache_functions": [],
+      "write_scope": "audio banks/voices/history, UI resource cache/requests, heap/OS/device state only"
     },
     "801aba64": {
       "direct_closure_functions": 35,
       "direct_closure_sha256": "c13130f184a56a269b16e71eb733ab8ecb9ee486cd1512be9cea738163a8d6ac",
       "read_only_game_leaves": [],
       "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
-      "write_scope": "audio banks/voices/history, audio resource requests, heap/OS/device state only"
+      "ui_resource_cache_functions": [],
+      "write_scope": "audio banks/voices/history, UI resource cache/requests, heap/OS/device state only"
     }
   },
   "cache_maintenance_boundary": {
@@ -13754,6 +13787,32 @@
     2149090448,
     2149531940
   ],
+  "ui_resource_service_bindings": {
+    "14": {
+      "consumer": "801cfd90; NULL follows unavailable-resource branch",
+      "load_callback": "8012ac68",
+      "load_callback_offset": "14",
+      "registration": "8012aa2c -> 801cfd50",
+      "resource_cache_manager": "808eb960",
+      "ui_manager": "80913bc0"
+    },
+    "15": {
+      "consumer": "801cfd90; NULL follows unavailable-resource branch",
+      "load_callback": "8012ac68",
+      "load_callback_offset": "14",
+      "registration": "8012aa2c -> 801cfd50",
+      "resource_cache_manager": "808eb960",
+      "ui_manager": "80913bc0"
+    },
+    "16": {
+      "consumer": "801cfd90; NULL follows unavailable-resource branch",
+      "load_callback": "8012ac68",
+      "load_callback_offset": "14",
+      "registration": "8012aa2c -> 801cfd50",
+      "resource_cache_manager": "808eb960",
+      "ui_manager": "80913bc0"
+    }
+  },
   "unsupported_ops": {
     "80188bc0": "psq_l",
     "801c8088": "psq_l",

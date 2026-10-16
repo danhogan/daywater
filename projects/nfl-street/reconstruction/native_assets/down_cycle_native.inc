@@ -344141,36 +344141,8 @@ L8012ac40: if(!cb_tick(s,0x8012ac40u))return;
 }
 static AI_NOINLINE void cb_8012ac68(cb_machine *s){
 if(!cb_tick(s,0x8012ac68u))return;
-/* 8012ac68 */ s->pc=0x8012ac68u;{uint32_t t=(s->r[1]+0xffffffe8u);cb_store(s,t,s->r[1],4);s->r[1]=t;}
-/* 8012ac6c */ s->r[0]=s->lr;
-/* 8012ac70 */ s->pc=0x8012ac70u;{uint32_t t=(s->r[1]+0x0000000cu);for(unsigned j=29;j<32;++j){cb_store(s,t+4*(j-29),s->r[j],4);}}
-/* 8012ac74 */ s->pc=0x8012ac74u;{uint32_t t=(s->r[1]+0x0000001cu);cb_store(s,t,s->r[0],4);}
-/* 8012ac78 */ s->r[30]=s->r[3]|s->r[3];
-/* 8012ac7c */ s->r[29]=s->r[4]|s->r[4];
-/* 8012ac80 */ s->r[3]=0xffffffffu;
-/* 8012ac84 */ s->pc=0x8012ac84u;s->lr=0x8012ac88u;cb_dispatch(s,0x8018c0e4u);if(!s->out->ok)return;
-/* 8012ac88 */ s->pc=0x8012ac88u;{uint32_t t=(s->r[13]+0xffff9318u);s->r[3]=cb_load(s,t,4);}
-/* 8012ac8c */ s->r[4]=s->r[30]|s->r[30];
-/* 8012ac90 */ s->pc=0x8012ac90u;s->lr=0x8012ac94u;cb_dispatch(s,0x8012a168u);if(!s->out->ok)return;
-/* 8012ac94 */ s->pc=0x8012ac94u;{uint32_t t=(s->r[13]+0xffff9318u);s->r[3]=cb_load(s,t,4);}
-/* 8012ac98 */ s->r[6]=0x00000000u;
-/* 8012ac9c */ s->r[4]=s->r[30]|s->r[30];
-/* 8012aca0 */ s->r[5]=s->r[29]|s->r[29];
-/* 8012aca4 */ s->pc=0x8012aca4u;s->lr=0x8012aca8u;cb_dispatch(s,0x8012a360u);if(!s->out->ok)return;
-/* 8012aca8 */ s->pc=0x8012aca8u;{uint32_t t=(s->r[13]+0xffff9318u);s->r[3]=cb_load(s,t,4);}
-/* 8012acac */ s->r[4]=s->r[30]|s->r[30];
-/* 8012acb0 */ s->r[5]=s->r[29]|s->r[29];
-/* 8012acb4 */ s->pc=0x8012acb4u;s->lr=0x8012acb8u;cb_dispatch(s,0x8012a3b0u);if(!s->out->ok)return;
-/* 8012acb8 */ s->r[30]=s->r[3]|s->r[3];
-/* 8012acbc */ s->r[3]=0xffffffffu;
-/* 8012acc0 */ s->pc=0x8012acc0u;s->lr=0x8012acc4u;cb_dispatch(s,0x8018c174u);if(!s->out->ok)return;
-/* 8012acc4 */ s->r[3]=s->r[30]|s->r[30];
-/* 8012acc8 */ s->pc=0x8012acc8u;{uint32_t t=(s->r[1]+0x0000001cu);s->r[0]=cb_load(s,t,4);}
-/* 8012accc */ s->lr=s->r[0];
-/* 8012acd0 */ s->pc=0x8012acd0u;{uint32_t t=(s->r[1]+0x0000000cu);for(unsigned j=29;j<32;++j){s->r[j]=cb_load(s,t+4*(j-29),4);}}
-/* 8012acd4 */ s->r[1]=s->r[1]+(0x00000018u);
-/* 8012acd8 */ return;
-}
+/* Not modeled: audio/disc service 8012ac68: UI resource-bank load request; unavailable-resource NULL result. */
+s->r[3]=0u;return;}
 static AI_NOINLINE void cb_8012acdc(cb_machine *s){
 if(!cb_tick(s,0x8012acdcu))return;
 /* 8012acdc */ s->pc=0x8012acdcu;{uint32_t t=(s->r[1]+0xfffffff0u);cb_store(s,t,s->r[1],4);s->r[1]=t;}

@@ -66,7 +66,7 @@ check, avoiding a second AI/physics update. Phase 4 advances the original
 `8004EBF0` callback queue (including the delayed result commit), then requests
 original phase 5 when the queue drains. Replay, celebration, audio and menu
 wait scheduling from the full phase-4 update is not modeled. Original reached
-entry/exit/event functions remain transcribed. The nine named audio/disc service
+entry/exit/event functions remain transcribed. The ten named audio/disc service
 entries below return early on both sides; no gameplay routine is skipped.
 A reached unsupported instruction, function or memory span stops the update.
 
@@ -90,17 +90,19 @@ to `80F38000..80F46FFF`; production never borrows gameplay RAM as scratch.
 The project manager explicitly directed the hardware and sound/streaming layer
 to remain outside this module. Earlier context-14 case 401/stage 570 exhausted
 the budget inside the ARAM client's synchronous completion wait. This revision
-cuts at audio requests, above their generic resource, OS and device calls.
+cuts at audio requests and the UI resource-load callback, above their
+generic resource, OS and device calls.
 It removes the earlier DVD/ARAM zero-read/discard-write fallback. Native device
 addresses now fail the span check, and the original checker rejects external
 reads/writes. There is no DMA, completion interrupt, audio clock or disc model.
 
-The original checker lists exactly these nine original entry addresses. It
+The original checker lists exactly these ten original entry addresses. It
 returns to guest LR before executing each listed routine, without calling
 native code or writing guest RAM. The native function returns at the same
 entry. Void entries preserve incoming registers. The sound-cue start returns
 `7FFFFFFF`, its own disabled-audio return in `8013D8A4`; this means no voice
-handle, rather than an invented successful request.
+handle, rather than an invented successful request. The UI load callback
+returns NULL, following the consumer's existing unavailable-resource branch.
 
 The first boundary revision checked only the PC returned by the DLL's
 dispatcher. The owner's next run failed at context 14, case 2, stage 3:
@@ -116,7 +118,7 @@ The checker now also installs the unchanged DLL's exported
 `ppc_set_mem_write_journal` callback. Every listed entry begins with
 `STWU r1,negative-frame(r1)`. The DLL materializes guest PC and invokes the
 journal **before** storing the stack backchain and updating guest r1. At
-exactly one of the nine named PCs the callback checks the captured opcode,
+exactly one of the ten named PCs the callback checks the captured opcode,
 write width, effective stack address and private stack bounds, applies the
 same void/disabled-handle return, and uses `longjmp` to leave the generated C
 frames. No service RAM store commits and no native game implementation is
@@ -129,8 +131,41 @@ retain the DLL's host recursion acceleration depth. Its generated header
 bounds that counter at 24 and then uses the normal dispatcher; it controls
 only host call optimization, not guest instructions or MEM1. The checker
 requires a positive in-chunk interception count and reports it separately.
-The nine native bodies, case generator, all-RAM mask and time budget are
-unchanged by this correction. Runtime agreement still awaits the owner run.
+That correction retained the nine native bodies, case generator, all-RAM mask
+and time budget. Runtime agreement still awaits the owner run.
+
+The subsequent owner run reached case 401/stage 570 with a complete source
+backchain to the play-selection UI load request:
+`80037528 -> 801D0264 -> 801D007C -> 801CFD90 -> 8012AC68 -> 8012A360 ->
+80129E3C -> 801A69C0 -> 801A4424 -> 8017BB78`. The failing store was
+`801FD65C -> CC005020`; the resource request was an ARAM read. This is UI
+resource streaming, not a sound request. The new boundary is the registered
+UI resource callback, without skipping the UI or football state machines.
+
+- **not modeled: audio/disc service (`8012AC68`, UI resource-bank load/stream request).**
+  `8012AA2C -> 801CFD50` registers it at UI manager `+14`; all three saved
+  contexts retain that registration. `8012BBD8` initializes its separate
+  `*(r13-6CE8)` resource manager, including `uis_pops.dat` bank data. The
+  request's writes are bank/block cache records, refcounts, request readiness,
+  and heap/OS/stream state. `8012A168` owns bank records (`+0` bank index,
+  `+4` resource descriptor, `+8` block count, `+C` refcount, `+10` block cache).
+  `80129E3C` owns block records (`+0` block index, `+4` refcount, `+8` data,
+  `+C` readiness). `80129D04/80129D94` search those caches; their comparators
+  publish only search-result pointers to caller stack locals. `80129DDC`'s
+  async callback likewise publishes only block data/readiness. `8012A360`
+  forwards the request; `8012A3B0` returns ready data or NULL. The entry itself
+  brackets those calls with the original heap context push/pop. No actor,
+  ball, down, distance, score, possession, phase or game-config cache is written.
+
+  Returning NULL is an explicit unavailable-service result, rather than a
+  fabricated asset or DMA completion. The original consumer `801CFD90` tests
+  that pointer and returns failure before creating a UI instance. Its parent
+  `801D007C` handles that failure and rolls back its tentative UI transition
+  record. Those functions, `801D0264`, `80037528`, play selection and lineups
+  still execute and remain in the all-RAM comparison. In particular,
+  `80037528` also moves actors and writes selection state, so skipping it
+  would hide gameplay work. The host still chooses/installs the native plays;
+  loading the game's interactive play-selection UI assets is not modeled.
 
 - **not modeled: audio/disc service (`8013D4D4`, sound-bank load request).**
   Called by the sound-bank manager. Its publication writes a bank pointer to
@@ -170,16 +205,21 @@ unchanged by this correction. Runtime agreement still awaits the owner run.
 The write audit follows each entry's disassembly/decompilation and direct
 callee closure, then checks ownership at the audio initialization and request
 callers. Generic allocation, resource containers and OS synchronization below
-these APIs serve their audio objects. Their direct closures contain only two
+these APIs serve their private audio/resource objects. The audio entries'
+direct closures contain only two
 leaves below `80130000`: replay predicate `8000C360` and field mirror predicate
-`80103E64`. Both consist exclusively of loads/register operations/branches,
-with no stores, calls or indirect branches. The builder enforces that property
+`80103E64`. Both predicates consist exclusively of loads, register operations
+and branches, with no stores, calls or indirect branches. The UI entry
+additionally reaches the seven exact resource-cache
+functions listed above; these have a separate write ledger and are allowed
+only in that entry's audit, without exempting any address range. The builder enforces that property
 and records closure hashes and those leaves in `down_cycle_sources.json`.
 This source audit is not a substitute for an executed original-module check.
 
 The broad event queue `80136F08/801EF484`, announcer decisions `80145724`,
-sound event consumers `8013DE50/801433C4`, generic file/resource readers and
-all phase entry/exit callbacks remain native/original calls. In particular,
+sound event consumers `8013DE50/801433C4`, generic file/resource readers below
+the UI load service and all phase entry/exit callbacks remain native/original
+calls. In particular,
 `8002E4F8` publishes a phase-read cache, `8010B60C` can publish a config cache,
 and `8005C284` can drive game/menu work: none is hidden by a broad audio hook.
 All down, distance, possession, score, spot, snap, actor and ball writes remain
@@ -216,8 +256,9 @@ the saved frame are constructed by editing actual fields, never by injecting
 event-log records. There are 24 retained 96-update sequences crossing whistle,
 queued commit, next-play lineup and snap. Separate dirty-destination and
 threshold cases exercise result/down/distance writers. Every call/update
-compares all 24 MiB outside the oracle stack. The original has only the nine documented audio/disc entry returns and
-never invokes native implementations. The original-side host schedule is
+compares all 24 MiB outside the oracle stack. The original has only the ten
+documented audio/disc entry returns and never invokes native implementations.
+The original-side host schedule is
 independent of the native wrapper. These are required checks, not executed
 results in this author's environment.
 

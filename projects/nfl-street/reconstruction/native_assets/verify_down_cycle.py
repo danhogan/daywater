@@ -61,8 +61,9 @@ BOUNDARY = (
     "phase 5 chooses/positions through original routines and requests phase 2; host requests snap. "
     "401 saved/edited cases and 24 persistent sequences per context. Every MEM1 byte outside private "
     "80F38000..80F46FFF compared after every call/update against original calls with identical "
-    "host SDK scopes and the nine documented audio/disc entry returns. No gameplay hooks, native "
-    "stand-ins or manufactured event-log records. Device accesses fail; no MMIO/DMA simulation. "
+    "host SDK scopes and the ten documented audio/disc entry returns (including UI resource streaming). "
+    "No gameplay hooks, native stand-ins or manufactured event-log records. "
+    "Device accesses fail; no MMIO/DMA simulation. "
     "The author cannot execute Windows binaries; live smoke verification belongs to the outer gate."
 )
 
@@ -79,7 +80,7 @@ def check_service_boundaries(here: Path) -> dict[str, object]:
         int(pc, 16): int(result, 0) if returns == "1" else "preserve incoming GPRs (void)"
         for pc, result, returns in entries
     }
-    if len(entries) != 9 or observed != expected:
+    if len(entries) != 10 or observed != expected:
         raise RuntimeError("Original audio/disc entry list differs from the pinned native boundary")
     native = (here / "down_cycle_native.inc").read_text()
     for pc, result in expected.items():

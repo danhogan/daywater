@@ -20,10 +20,13 @@ static uint32_t seed=0x646f776eu;
 static unsigned case_index,side,stage;
 /* Not modeled: audio/disc service. Source/write audit is in down_cycle.md.
    These are original FUNCTION ENTRIES, not register-write instructions.
-   8013D8A4 returns its own audio-disabled handle. Void entries preserve every
-   GPR. Never invoke native code from this oracle boundary or skip general
-   event/resource functions. The list is independent of the native builder. */
+   8013D8A4 returns its own audio-disabled handle; UI load callback 8012AC68
+   returns unavailable-resource NULL, checked by its original UI consumer.
+   Void entries preserve every GPR. Never invoke native code from this
+   boundary or skip general event functions or non-UI resource loaders.
+   The list is independent of the native builder. */
 static const struct {uint32_t pc,result;int returns;const char *purpose;} audio_disc_services[]={
+ {0x8012ac68u,0,1,"UI resource-bank stream/load request"},
  {0x8013d4d4u,0,0,"sound-bank load request"},
  {0x8013d8a4u,0x7fffffffu,1,"sound-cue start request"},
  {0x8013d9c0u,0,0,"sound-cue stop request"},
@@ -54,7 +57,7 @@ static void wf(void *p,uint32_t a,float f){uint32_t v;memcpy(&v,&f,4);w32(p,a,v)
    Dispatch-only hooks therefore miss service entries (8013D854's forward
    BL to 8013D8A4 is the observed example).
 
-   The DLL exports a PRE-WRITE journal. All nine listed entries begin with
+   The DLL exports a PRE-WRITE journal. All ten listed entries begin with
    STWU r1,negative-frame(r1). At that first write the original code has
    materialized PC but has not stored the backchain or updated guest r1.
    Validate the exact opcode/address/width, perform the SAME listed entry

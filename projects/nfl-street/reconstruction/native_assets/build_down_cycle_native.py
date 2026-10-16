@@ -17,14 +17,15 @@ RUNTIME_CACHE = Path(
     "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/"
     "vendor/dolphin/GXRuntime/src/core/cpu_interpreter_integer.c"
 )
-# Audio-only entry points, rather than DI/DSP/ARAM registers or shared
-# resource/event services. None of their direct source closures calls a
+# Audio and UI resource-stream entry points, rather than DI/DSP/ARAM
+# registers or shared event services. None of their source closures calls a
 # football writer. 801405B8 reads replay/mirror flags but writes only its
 # sound-history records. Preserve general event delivery and gameplay
 # getters (including their cache writes) above these service requests.
-# Numeric returns are the routines' own audio-disabled result;
+# Numeric returns are original disabled-audio / unavailable-resource results;
 # None denotes a void early return, preserving the incoming GPRs.
 AUDIO_DISC_SERVICES = {
+    0x8012AC68: (0, "UI resource-bank load request; unavailable-resource NULL result"),
     0x8013D4D4: (None, "sound-bank load request and audio bank-slot publication"),
     0x8013D8A4: (0x7FFFFFFF, "sound-cue start request; original audio-disabled handle"),
     0x8013D9C0: (None, "sound-cue stop request"),
@@ -46,9 +47,13 @@ ROOTS = (
 
 
 def audio_disc_write_audit() -> dict[str, Any]:
-    """Pin the reviewed service closures and their two read-only game leaves."""
+    """Pin service closures, UI resource-cache writers and read-only game leaves."""
     graph = json.loads((builder.CACHE / "callgraph.json").read_text())
     readonly = {"8000c360", "80103e64"}
+    # These seven exact functions operate on *(r13-6CE8)'s UI resource
+    # manager/cache records (8012BBD8 initialization; 8012AA2C registration).
+    # They are not general permission to skip game-code address ranges.
+    ui_cache = {"80129d04", "80129d94", "80129e3c", "8012a168", "8012a360", "8012a3b0", "8012ac68"}
     audit = {}
     for address in AUDIO_DISC_SERVICES:
         seen: set[str] = set()
@@ -59,9 +64,11 @@ def audio_disc_write_audit() -> dict[str, Any]:
                 continue
             seen.add(current)
             todo += [edge["addr"] for edge in graph.get(current, {}).get("callees", [])]
-        game_leaves = {entry for entry in seen if int(entry, 16) < 0x80130000}
-        if game_leaves - readonly:
-            raise RuntimeError(f"Unreviewed game entry in audio/disc closure {address:08x}: {game_leaves}")
+        low_entries = {entry for entry in seen if int(entry, 16) < 0x80130000}
+        permitted = readonly | (ui_cache if address == 0x8012AC68 else set())
+        if low_entries - permitted:
+            raise RuntimeError(f"Unreviewed game entry in audio/disc closure {address:08x}: {low_entries}")
+        game_leaves = low_entries & readonly
         # Neither leaf contains stores, calls or indirect branches. Keep
         # phase/config getters that publish caches ABOVE the boundary.
         for entry in game_leaves:
@@ -74,7 +81,8 @@ def audio_disc_write_audit() -> dict[str, Any]:
             "direct_closure_functions": len(seen),
             "direct_closure_sha256": hashlib.sha256("\n".join(sorted(seen)).encode()).hexdigest(),
             "read_only_game_leaves": sorted(game_leaves),
-            "write_scope": "audio banks/voices/history, audio resource requests, heap/OS/device state only",
+            "ui_resource_cache_functions": sorted(low_entries & ui_cache),
+            "write_scope": "audio banks/voices/history, UI resource cache/requests, heap/OS/device state only",
             "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
         }
     return audit
@@ -176,6 +184,7 @@ def main() -> None:
     scope: dict[str, Any] = {"__file__": str(__file__), "__name__": "down_builder"}
     exec(compile(source, str(__file__), "exec"), scope)
     callbacks = {}
+    ui_resource_services = {}
     camera_callbacks = {}
     allocation_callbacks = {}
     allocator_vtables = {}
@@ -207,6 +216,22 @@ def main() -> None:
             if offset < 0 or offset + 4 > len(capture):
                 raise RuntimeError(f"Invalid camera registration span {address:08x} in {context}")
             return int.from_bytes(capture[offset : offset + 4], "big")
+
+        # 8012AA2C registers the UI load callback through 801CFD50.
+        # 801CFD90 calls UI+14 and checks NULL before constructing an
+        # instance. Its resource manager is independent of football state.
+        ui = word(0x803A9A40 - 0x6C94)
+        resource_callback = word(ui + 0x14)
+        if resource_callback != 0x8012AC68:
+            raise RuntimeError(f"Changed UI resource callback {resource_callback:08x} in {context}")
+        ui_resource_services[str(context)] = {
+            "ui_manager": f"{ui:08x}",
+            "load_callback_offset": "14",
+            "load_callback": f"{resource_callback:08x}",
+            "resource_cache_manager": f"{word(0x803A9A40 - 0x6CE8):08x}",
+            "registration": "8012aa2c -> 801cfd50",
+            "consumer": "801cfd90; NULL follows unavailable-resource branch",
+        }
 
         # 801830CC publishes this container through r13-4F3C after
         # registering LAB_80182C00 with 801805E0. Retain the captured
@@ -368,6 +393,7 @@ def main() -> None:
         for address, (result, description) in AUDIO_DISC_SERVICES.items()
     }
     provenance["audio_disc_write_audit"] = service_audit
+    provenance["ui_resource_service_bindings"] = ui_resource_services
     provenance["device_boundary"] = {
         "native": "all external device addresses fail the MEM1 span check",
         "scope": "no DVD/DSP/ARAM/audio register emulation, DMA completion, interrupts or streaming",
