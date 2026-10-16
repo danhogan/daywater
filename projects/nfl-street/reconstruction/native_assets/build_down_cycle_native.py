@@ -16,6 +16,10 @@ CPU_REGISTERS = Path(
     "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/"
     "vendor/dolphin/Source/Core/Core/PowerPC/Interpreter/Interpreter_SystemRegisters.cpp"
 )
+RUNTIME_CACHE = Path(
+    "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/"
+    "vendor/dolphin/GXRuntime/src/core/cpu_interpreter_integer.c"
+)
 # Actual writers/readers and their parents, not assumed football rules.
 ROOTS = (
     "8002e3c8 8002e45c 800f9c50 800f946c 800815b4 800262b0 800263ec "
@@ -59,7 +63,7 @@ def main() -> None:
     # use it after updating the original OS alarm list. Keep the value as
     # call-local architectural state, like MSR; the host does not advance
     # time or deliver decrementer interrupts. The original checker supplies
-    # ONLY this ISA operation through CPUState.instruction_fallback because
+    # this ISA operation through CPUState.instruction_fallback because
     # the unmodified DLL's C emitter delegates MTDEC to that CPU boundary.
     source = source.replace("r[32],lr,ctr,cr,ca,pc,msr;", "r[32],lr,ctr,cr,ca,pc,msr,dec;")
     # The captured allocator vtable also names 802441A0, absent from the
@@ -316,10 +320,20 @@ def main() -> None:
     provenance["decrementer_boundary"] = {
         "instruction": "801ef620: mtspr DEC,r3; SPR_DEC = 22",
         "native": "store operand in call-local architectural DEC; retain all original alarm RAM work",
-        "oracle": "independent MTDEC-only CPU instruction fallback; advance PC by 4, execute original BLR",
-        "scope": "no clock advancement or decrementer interrupt delivery; other CPU fallbacks reject",
+        "oracle": "independent DEC write in CPU fallback; advance PC by 4, execute original BLR",
+        "scope": "no clock advancement or decrementer interrupt delivery; only documented CPU fallbacks allowed",
         "source": str(CPU_REGISTERS),
         "source_sha256": hashlib.sha256(CPU_REGISTERS.read_bytes()).hexdigest(),
+        "confidence": "candidate until original-module gate passes",
+    }
+    provenance["cache_maintenance_boundary"] = {
+        "operations": ["dcbst", "dcbf", "dcbi", "icbi"],
+        "observed_instruction": "801f0b90: dcbi 0,r3 (7c001bac)",
+        "oracle": "no RAM effects when cache_control is unset; advance PC by 4 and retain original SDK loops",
+        "native": "existing static cache-ordering operations leave the flat RAM span unchanged",
+        "scope": "no cache simulation; DCBI requires supervisor mode; DCBZ and other fallbacks still reject",
+        "source": str(RUNTIME_CACHE),
+        "source_sha256": hashlib.sha256(RUNTIME_CACHE.read_bytes()).hexdigest(),
         "confidence": "candidate until original-module gate passes",
     }
     manifest.write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n")

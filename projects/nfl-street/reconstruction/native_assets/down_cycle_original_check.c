@@ -24,17 +24,24 @@ static void w32(void *p,uint32_t a,uint32_t v){uint8_t *q=span(p,a,4);if(!q)exit
 static void w16(void *p,uint32_t a,unsigned v){uint8_t *q=span(p,a,2);if(!q)exit(4);q[0]=v>>8;q[1]=v;}
 static void wf(void *p,uint32_t a,float f){uint32_t v;memcpy(&v,&f,4);w32(p,a,v);}
 /* CPU instruction boundary, not an original-function hook. The unchanged
-   oracle chunk delegates MTDEC to ppc_fallback_instruction and returns to
-   its dispatcher. Implement only MTSPR SPR_DEC(22),rS: retain the operand
-   in call-local CPU state and resume at the following original instruction
-   (801EF624's BLR), never at the guest LR. No guest RAM/GPR/CR/LR writes,
-   clock advancement, interrupt delivery or native down-cycle call occurs.
+   oracle chunks delegate MTDEC and cache maintenance to the CPU fallback.
+   MTSPR SPR_DEC(22),rS retains the operand in call-local CPU state. Cache
+   operations DCBST/DCBF/DCBI/ICBI have no RAM effects when cache_control is
+   unset (GXRuntime cpu_interpreter_integer.c, ppc_cache_control); preserve
+   DCBI's supervisor restriction. DCBZ and other RAM-writing operations are
+   NOT accepted. Resume at the following original instruction, never at the
+   guest LR: the SDK cache loops still execute every increment and branch.
+   No guest RAM/GPR/CR/LR writes, clock advancement, interrupt delivery or
+   native down-cycle call occurs here.
    Dolphin Interpreter_SystemRegisters.cpp assigns spr[index]=gpr[RD]; its
    timer/interrupt effects are outside this synchronous host boundary.
    Every other fallback remains an explicit checker failure. */
 static void original_cpu_instruction(CPUState *c,uint32_t instruction,uint32_t pc){
  if((instruction&0xfc1fffffu)==0x7c1603a6u&&!(c->msr&0x4000u)){
   *(uint32_t *)c->external_user_data=c->gpr[(instruction>>21)&31u];c->pc=pc+4u;return;}
+ const uint32_t cache=instruction&0xffe007ffu; /* Ignore only the RA/RB operand fields. */
+ if(!c->cache_control&&(cache==0x7c00006cu||cache==0x7c0000acu||cache==0x7c0007acu||
+    (cache==0x7c0003acu&&!(c->msr&0x4000u)))){c->pc=pc+4u;return;}
  fprintf(stderr,"unsupported oracle CPU instruction %08x at %08x\n",instruction,pc);exit(6);}
 static int original_raw(uint32_t pc,const uint32_t *args,uint32_t *result){
  uint32_t decrementer=0;CPUState c;memset(&c,0,sizeof c);c.ram=oracle;c.ram_size=BYTES;c.msr=0x2000;c.hid2=0xe0000000u;
