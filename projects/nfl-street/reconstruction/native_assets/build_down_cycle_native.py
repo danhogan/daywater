@@ -49,6 +49,7 @@ def main() -> None:
     scope: dict[str, Any] = {"__file__": str(__file__), "__name__": "down_builder"}
     exec(compile(source, str(__file__), "exec"), scope)
     callbacks = {}
+    camera_callbacks = {}
     targets = []
     for context in (14, 15, 16):
         capture = Path(f"/mnt/w/Daywater/research-temp/position-neutral-{context}.mem1").read_bytes()
@@ -65,11 +66,34 @@ def main() -> None:
             if target:
                 targets.append(f"{target:08x}")
         callbacks[str(context)] = bindings
+
+        # 800C7160 resolves manager slots at *(r13-5BA4)+8+4*i;
+        # 800C6FB8 visits slots 0..3. 800C33D8 BLRLs each camera's
+        # +DC event callback. These actual registrations are not direct
+        # callgraph edges, and are not a contiguous PTR_FUN source table.
+        def word(address: int) -> int:
+            offset = address - 0x80000000
+            if offset < 0 or offset + 4 > len(capture):
+                raise RuntimeError(f"Invalid camera registration span {address:08x} in {context}")
+            return int.from_bytes(capture[offset : offset + 4], "big")
+
+        manager = word(0x803A9A40 - 0x5BA4)
+        cameras = {}
+        for slot in range(4):
+            camera = word(manager + 8 + 4 * slot)
+            target = word(camera + 0xDC) if camera else 0
+            if target and (not 0x80004000 <= target < 0x80244000 or target & 3):
+                raise RuntimeError(f"Invalid camera event callback {camera:08x} -> {target:08x}")
+            cameras[str(slot)] = {"camera": f"{camera:08x}", "callback": f"{target:08x}"}
+            if target:
+                targets.append(f"{target:08x}")
+        camera_callbacks[str(context)] = {"manager": f"{manager:08x}", "slots": cameras}
     scope["ROOTS"] = list(dict.fromkeys(scope["ROOTS"] + ROOTS + sorted(set(targets))))
     scope["main"]()
     manifest = HERE / "down_cycle_sources.json"
     provenance = json.loads(manifest.read_text())
     provenance["phase_and_sort_callbacks"] = callbacks
+    provenance["camera_event_callbacks"] = camera_callbacks
     manifest.write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n")
 
 
