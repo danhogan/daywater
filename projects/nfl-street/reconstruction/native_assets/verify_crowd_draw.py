@@ -19,15 +19,15 @@ EXPECTED = {
     "7610 model and copy draws completed; digest 9fba097b.",
 }
 RENDERED = {
-    14: "Scene without crowd: 5845 venue GX calls, 23208 in all; 732 display lists, 28002 triangles (9965 culled, 3119 "
-    "clipped), 1288584 shaded pixels; digest 90962aa4.\nScene with crowd: 6444 venue GX calls, 23807 in all; 752 "
-    "display lists, 30894 triangles (11002 culled, 3119 clipped), 1289043 shaded pixels; digest 7a414a64.",
-    15: "Scene without crowd: 5842 venue GX calls, 21817 in all; 732 display lists, 27898 triangles (9948 culled, 3114 "
-    "clipped), 1290660 shaded pixels; digest 79e21c4c.\nScene with crowd: 6441 venue GX calls, 22416 in all; 752 "
-    "display lists, 30790 triangles (10991 culled, 3114 clipped), 1291127 shaded pixels; digest 7e42426e.",
-    16: "Scene without crowd: 5895 venue GX calls, 22645 in all; 732 display lists, 27931 triangles (9939 culled, 3115 "
-    "clipped), 1287325 shaded pixels; digest c53cf63f.\nScene with crowd: 6494 venue GX calls, 23244 in all; 752 "
-    "display lists, 30823 triangles (10980 culled, 3115 clipped), 1287788 shaded pixels; digest a9be1328.",
+    14: "Scene without crowd: 14952 venue GX calls, 32337 in all; 732 display lists, 28564 triangles (9965 culled, 3597"
+    " clipped), 1288584 shaded pixels; digest 90962aa4.\nScene with crowd: 15551 venue GX calls, 32936 in all; 752 "
+    "display lists, 31456 triangles (11002 culled, 3597 clipped), 1289043 shaded pixels; digest 7a414a64.",
+    15: "Scene without crowd: 14949 venue GX calls, 30944 in all; 732 display lists, 28460 triangles (9948 culled, 3592"
+    " clipped), 1290660 shaded pixels; digest 79e21c4c.\nScene with crowd: 15548 venue GX calls, 31543 in all; 752 "
+    "display lists, 31352 triangles (10991 culled, 3592 clipped), 1291127 shaded pixels; digest 7e42426e.",
+    16: "Scene without crowd: 15002 venue GX calls, 31774 in all; 732 display lists, 28493 triangles (9939 culled, 3589"
+    " clipped), 1287325 shaded pixels; digest c53cf63f.\nScene with crowd: 15601 venue GX calls, 32373 in all; 752 "
+    "display lists, 31385 triangles (10980 culled, 3589 clipped), 1287788 shaded pixels; digest a9be1328.",
 }
 SOURCES = (
     "crowd_draw.c",

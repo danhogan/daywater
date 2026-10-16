@@ -41,14 +41,14 @@ RENDER = {
     "textures, 30139 shaded pixels, 21608 covered; digest ac372641.",
 }
 SCENE = {
-    14: "(6444 GX calls) then 14 actors, strips and particles (8801 GX calls) and the HUD (8562 GX calls); "
-    "752 display lists, 30894 triangles (11002 culled, 3119 clipped), 359 decoded textures, 1289043 "
+    14: "(15551 GX calls) then 14 actors, strips and particles (8823 GX calls) and the HUD (8562 GX calls); "
+    "752 display lists, 31456 triangles (11002 culled, 3597 clipped), 360 decoded textures, 1289043 "
     "shaded pixels; digest 7a414a64.",
-    15: "(6441 GX calls) then 14 actors, strips and particles (7417 GX calls) and the HUD (8558 GX calls); "
-    "752 display lists, 30790 triangles (10991 culled, 3114 clipped), 358 decoded textures, 1291127 "
+    15: "(15548 GX calls) then 14 actors, strips and particles (7437 GX calls) and the HUD (8558 GX calls); "
+    "752 display lists, 31352 triangles (10991 culled, 3592 clipped), 359 decoded textures, 1291127 "
     "shaded pixels; digest 7e42426e.",
-    16: "(6494 GX calls) then 14 actors, strips and particles (8188 GX calls) and the HUD (8562 GX calls); "
-    "752 display lists, 30823 triangles (10980 culled, 3115 clipped), 356 decoded textures, 1287788 "
+    16: "(15601 GX calls) then 14 actors, strips and particles (8210 GX calls) and the HUD (8562 GX calls); "
+    "752 display lists, 31385 triangles (10980 culled, 3589 clipped), 357 decoded textures, 1287788 "
     "shaded pixels; digest a9be1328.",
 }
 SOURCES = (
