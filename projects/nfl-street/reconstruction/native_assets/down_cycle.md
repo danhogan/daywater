@@ -38,6 +38,48 @@ and bindings. The broad transitive closure includes unexercised paths; that
 inclusion alone is not verification. It contains no runtime opcode decoder,
 DLL provider or copied game assets. Compile with `-ffp-contract=off`.
 
+### Actor-command sixth callback (candidate; source/capture binding)
+
+The owner's next run passed the earlier voice-start path and reached context
+14, case 403/stage 570, then rejected `8007EA64 -> 8007EF14` while finishing
+a contact-down queue. This is an omitted gameplay callback, not an audio/disc
+service or an invalid fixture. `8007EA28` loads the command byte, multiplies it
+by `18` hex, reads the row's function pointer at `+14`, then executes `BLRL`
+at `8007EA64`. The shared AI builder's initial table walk collected only five
+pointers per row (`+0/+4/+8/+C/+10`), omitting that sixth column.
+
+The down builder now gathers all six columns of every registered command
+table in captures 14/15/16 and includes them in both the native target set and
+the construction-time decoder's known-entry boundaries. The shared builder
+is unchanged. `8007DE88` owns the registry pointer at `*(r13-7860)` and records
+its slot capacity at `r13-50A4`; `800B7CE8 -> 8007DF20` installs the descriptor.
+Each descriptor contains u16 row count at `+0`, u16 command-stack capacity at
+`+2`, and a table pointer at `+4`. All three captures have 30 registry slots,
+with slot 0 pointing to `803A2638`: 95 rows at `8026EE1C` and command-stack
+capacity 10. The other registry slots are NULL. These are observed bindings,
+not a restriction on the randomized cases. `down_cycle_sources.json` records
+the per-context descriptors, every callback column including NULLs, and table
+hashes. The original callback registry and selectors are never edited.
+
+Row 52's sixth entry is `8007EF14`. Ghidra has no separate cache file for it;
+all three captures contain the same seven instructions ending at `8007EF30`,
+the next cached function. They read command byte `+2`, calculate
+`(40 hex - byte) & 7F hex`, store it back at `+2` and return. The builder pins
+those 28 bytes before construction-time decoding and emits the full original
+load/arithmetic/store/return path, with no runtime opcode decoder or callback
+stub. The byte write remains part of the all-RAM comparison. Collecting the
+whole sixth column also includes the other callbacks previously absent from
+the native closure and bounds adjacent uncached entries correctly.
+In particular, `8009DBF0` now ends at `8009DBF8` after its original
+`LI r3,1; BLR`; the following callback gets its own native entry. Its formerly
+unreachable trailing instructions are retained in that new callback, and the
+constant-return path is unchanged. The other existing native bodies are
+unchanged; this regeneration adds 11 callback functions.
+
+No service entry, oracle hook, fixture input, comparison mask, timer or update
+budget changed in this repair. Native/original execution agreement and mutant
+coverage on this revision still require the owner's external gate.
+
 ## Candidate field ledger
 
 All rows inherit the title/region/revision/hash, big-endian MEM1, unavailable

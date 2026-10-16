@@ -126,6 +126,15 @@ def main() -> None:
     source = Path(builder.__file__).read_text()
     source = source.replace('"ai_policy.c"', '"down_cycle_native.inc"')
     source = source.replace('"ai_policy_sources.json"', '"down_cycle_sources.json"')
+    # The shared AI builder initially collects five callbacks per 0x18-byte
+    # actor-command row. 8007EA28 calls the SIXTH (+14) through BLRL at
+    # 8007EA64. Include all six columns from every registered capture table
+    # in both the native target set and the uncached-code boundary set.
+    # Keep the shared builder unchanged; these are additional source roots.
+    target_marker = "    targets = sorted(set(targets))"
+    if source.count(target_marker) != 1:
+        raise RuntimeError("Changed shared builder target collection")
+    source = source.replace(target_marker, "    targets = sorted(set(targets) | ACTOR_COMMAND_TARGETS)")
     entry = '        out.append(f"if(!cb_tick(s,0x{function_addr:08x}u))return;")'
     source = source.replace(
         entry,
@@ -224,6 +233,8 @@ def main() -> None:
     allocator_vtables = {}
     callbacks_803569b8 = {}
     container_comparators = {}
+    actor_command_tables = {}
+    actor_command_targets: set[int] = set()
     targets = []
     for context in (14, 15, 16):
         capture = Path(f"/mnt/w/Daywater/research-temp/position-neutral-{context}.mem1").read_bytes()
@@ -250,6 +261,57 @@ def main() -> None:
             if offset < 0 or offset + 4 > len(capture):
                 raise RuntimeError(f"Invalid camera registration span {address:08x} in {context}")
             return int.from_bytes(capture[offset : offset + 4], "big")
+
+        # 8007DE88 allocates the registry and records its slot count at
+        # r13-50A4. 800B7CE8 -> 8007DF20 installs its descriptors.
+        # Descriptor +0 is row count, +2 is command-stack capacity, +4 is
+        # the table; consumers stride 0x18 bytes and use columns +0..+14.
+        command_registry = word(0x803A9A40 - 0x7860)
+        command_slots = word(0x803A9A40 - 0x50A4)
+        if command_registry + 4 * command_slots > 0x80000000 + len(capture):
+            raise RuntimeError(f"Invalid actor-command registry span in {context}")
+        descriptors = {}
+        for slot in range(command_slots):
+            descriptor = word(command_registry + 4 * slot)
+            if not descriptor:
+                continue
+            counts, table = word(descriptor), word(descriptor + 4)
+            row_count = counts >> 16
+            table_end = table + 0x18 * row_count
+            if table < 0x80000000 or table_end > 0x80000000 + len(capture):
+                raise RuntimeError(f"Invalid actor-command table span in {context}/{slot}")
+            rows = []
+            for row in range(row_count):
+                columns = [word(table + 0x18 * row + 4 * column) for column in range(6)]
+                for target in columns:
+                    if target and (target & 3 or not 0x80004000 <= target < 0x80244000):
+                        raise RuntimeError(f"Invalid actor-command callback {target:08x} in {context}/{slot}/{row}")
+                    if target:
+                        actor_command_targets.add(target)
+                rows.append([f"{target:08x}" for target in columns])
+            descriptors[str(slot)] = {
+                "descriptor": f"{descriptor:08x}",
+                "row_count": row_count,
+                "command_stack_capacity": counts & 0xFFFF,
+                "table": f"{table:08x}",
+                "table_sha256": hashlib.sha256(capture[table - 0x80000000 : table_end - 0x80000000]).hexdigest(),
+                "rows": rows,
+            }
+        # This callback has no Ghidra cache file. Its seven source
+        # instructions end at the next cached entry, 8007EF30. Pin all
+        # three copies before the construction-time decoder consumes one.
+        callback_code = capture[0x7EF14:0x7EF30]
+        if callback_code.hex() != "880300023d2000805400881c7d20485055297e7e992300024e800020":
+            raise RuntimeError(f"Changed actor-command +14 callback in {context}")
+        actor_command_tables[str(context)] = {
+            "registry": f"{command_registry:08x}",
+            "registry_slots": command_slots,
+            "descriptors": descriptors,
+            "callback_columns": ["00", "04", "08", "0c", "10", "14"],
+            "sixth_column_consumer": "8007ea28; BLRL at 8007ea64",
+            "uncached_8007ef14": {"end": "8007ef30", "sha256": hashlib.sha256(callback_code).hexdigest()},
+            "confidence": "candidate; source/capture binding; original-module gate pending",
+        }
 
         # 8012AA2C registers the UI load callback through 801CFD50.
         # 801CFD90 calls UI+14 and checks NULL before constructing an
@@ -433,6 +495,7 @@ def main() -> None:
             "lists": lists,
         }
     scope["AUDIO_DISC_SERVICES"] = AUDIO_DISC_SERVICES
+    scope["ACTOR_COMMAND_TARGETS"] = actor_command_targets
     scope["ROOTS"] = list(dict.fromkeys(scope["ROOTS"] + ROOTS + sorted(set(targets))))
     scope["main"]()
     manifest = HERE / "down_cycle_sources.json"
@@ -443,6 +506,7 @@ def main() -> None:
     provenance["allocator_vtables"] = allocator_vtables
     provenance["callback_registry_803569b8"] = callbacks_803569b8
     provenance["container_comparators"] = container_comparators
+    provenance["actor_command_tables"] = actor_command_tables
     provenance["audio_disc_services"] = {
         f"{address:08x}": {
             "description": description,
