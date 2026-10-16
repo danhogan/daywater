@@ -84,6 +84,35 @@ Interrupts, audio hardware, disc streaming and original OS threads are not
 simulated. Private call temporaries occupy owned context storage corresponding
 to `80F38000..80F46FFF`; production never borrows gameplay RAM as scratch.
 
+### Outstanding ARAM completion wait
+
+The owner's failed context-14 run reaches case 401, stage 570 and exhausts
+the native instruction budget at `80213CB4`. That address is inside the
+original signed 64-bit division helper `80213C18`. **Probable cause from
+source:** synchronous ARAM wrappers `8017BA98` and `8017BB78` call that helper
+while polling time and `*(r13-5788)` after submitting an ARQ request through
+`801FF290`. With fixed time and discarded DMA register writes, neither a
+transfer nor its completion occurs. Raising the budget cannot complete this
+wait. This report does not yet identify which wrapper/caller the failed run
+reaches, or whether it requests a read or a write.
+
+`801FF154` is the original ARQ completion service, registered through the
+ARAM interrupt callback at `*(r13-5408)` in the saved contexts. It calls the
+queued callback and advances the original queues. A future hardware boundary
+must preserve that path and supply actual transfer data; simply changing the
+completion counter would falsely acknowledge work. The MEM1 inputs do not
+include ARAM. No zero-filled ARAM, forced counter change, skipped game
+function, reduced case set, timer edit or increased budget is introduced.
+
+On budget exhaustion the checker now logs the current active/pending ARQ
+request words and candidate source stack backchains from its owned PPC stack.
+These are failure-only observations: the request may live on that stack,
+and the low-priority driver may already have advanced its addresses/count.
+The backchain candidates are explicitly diagnostic, since older stack frames
+can survive a call. The next owner run is needed to identify the actual
+transfer and caller before selecting a data/completion model. The transfer
+wait remains unresolved; all-RAM, mutant and live gate success is not claimed.
+
 ## Check and integration
 
 Windows-capable owner runner, from the worktree root:

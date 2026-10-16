@@ -87,7 +87,43 @@ static int same(void){const unsigned lo=LO-BASE,hi=HI-BASE;
    fprintf(stderr,"RAM mismatch case %u team %u stage %u at %08x original %02x native %02x\n",case_index,side,stage,BASE+k,oracle[k],native[k]);break;}return 0;}return 1;}
 static void reset(void){memcpy(native,saved,BYTES);nflstreet_down_cycle_init(&policy,(nflstreet_actor_ai){span,native,R13});
  memcpy(policy.native.stack,saved+LO-BASE,sizeof policy.native.stack);}
-static int rejected(void){fprintf(stderr,"native rejected case %u team %u stage %u pc %08x address %08x target %08x budget %d\n",
+/* Failure-only observations. Native source calls keep their PPC stack in the
+   owned stack array, not the MEM1 backing buffer. Inspect that array for ARQ
+   requests as well as ABI backchains; never run a completion or alter RAM.
+   Stack candidates can include older frames: report them as candidates,
+   validate increasing backchains and original branch-with-link words, and
+   retain only the longest chain terminating at this checker's entry SP. */
+static int diagnostic_word(uint32_t a,uint32_t *v){
+ const uint8_t *p=a>=LO&&(uint64_t)a+4u<=HI?policy.native.stack+a-LO:span(native,a,4);
+ if(!p)return 0;*v=(uint32_t)p[0]<<24|(uint32_t)p[1]<<16|(uint32_t)p[2]<<8|p[3];return 1;}
+static void rejected_aram(void){
+ fprintf(stderr,"ARAM observation: completion %08x low callback %08x high callback %08x interrupt callback %08x\n",
+  r32(native,R13-0x5788u),r32(native,R13-0x53c4u),r32(native,R13-0x53c8u),r32(native,R13-0x5408u));
+ /* 801FF290's request fields are next, owner, direction, unused, address1,
+    address2, remaining, callback. 801FF050 advances addresses/remaining for
+    low-priority chunks: these are current fields, not original DMA sizes. */
+ const uint32_t globals[]={R13-0x53d0u,R13-0x53ccu,R13-0x53e8u,R13-0x53e0u};
+ for(unsigned i=0;i<4;++i){const uint32_t request=r32(native,globals[i]);if(!request)continue;
+  fprintf(stderr,"ARAM request global %08x pointer %08x words",globals[i],request);
+  for(unsigned k=0;k<8;++k){uint32_t value;if(!diagnostic_word(request+4u*k,&value)){
+    fprintf(stderr," <invalid span>");break;}fprintf(stderr," %08x",value);}fputc('\n',stderr);}
+ uint32_t best=0;unsigned longest=0;
+ for(uint32_t candidate=LO;candidate<HI-0x40u;candidate+=8u){uint32_t current=candidate;unsigned depth=0;
+  while(current<HI-0x40u&&depth<128){uint32_t parent,lr,instruction;
+   if(!diagnostic_word(current,&parent)||parent<=current||parent>HI-0x40u||(parent&7u)||
+      !diagnostic_word(parent+4u,&lr))break;
+   if(!(parent==HI-0x40u&&!lr)&&
+      (lr<0x80004004u||lr>=0x80244000u||!diagnostic_word(lr-4u,&instruction)||
+       !(((instruction>>26)==18u&&(instruction&1u))||instruction==0x4e800021u||instruction==0x4e800421u)))break;
+   current=parent;++depth;}
+  if(current==HI-0x40u&&depth>longest){best=candidate;longest=depth;}}
+ for(unsigned i=0;i<longest;++i){uint32_t parent,lr;
+  if(!diagnostic_word(best,&parent)||!diagnostic_word(parent+4u,&lr))break;
+  fprintf(stderr,"source stack candidate %u sp %08x parent %08x return %08x\n",i,best,parent,lr);best=parent;}
+}
+static int rejected(void){
+ if(policy.native.failure_budget_exhausted)rejected_aram();
+ fprintf(stderr,"native rejected case %u team %u stage %u pc %08x address %08x target %08x budget %d\n",
  case_index,side,stage,policy.native.failure_pc,policy.native.failure_address,policy.native.unsupported,policy.native.failure_budget_exhausted);return 5;}
 #define RESULT 0x80f37000u
 #define META (RESULT+0x40u)
