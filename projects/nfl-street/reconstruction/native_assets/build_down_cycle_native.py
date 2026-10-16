@@ -13,7 +13,7 @@ ROOTS = (
     "8002e3c8 8002e45c 800f9c50 800f946c 800815b4 800262b0 800263ec "
     "80024fb8 80024f58 80025028 80025840 80025f98 800260b4 8002676c "
     "8010397c 80103c30 80103a28 80103cbc 80103dac 80103cf0 80103ea8 "
-    "8004ebf0 80025e60 80025e90 800c19fc 800c1d1c"
+    "8004ebf0 80025e60 80025e90 800c19fc 800c1d1c 80180fb4 80182b74 80181bcc"
 ).split()
 
 
@@ -50,6 +50,7 @@ def main() -> None:
     exec(compile(source, str(__file__), "exec"), scope)
     callbacks = {}
     camera_callbacks = {}
+    allocation_callbacks = {}
     targets = []
     for context in (14, 15, 16):
         capture = Path(f"/mnt/w/Daywater/research-temp/position-neutral-{context}.mem1").read_bytes()
@@ -88,12 +89,30 @@ def main() -> None:
             if target:
                 targets.append(f"{target:08x}")
         camera_callbacks[str(context)] = {"manager": f"{manager:08x}", "slots": cameras}
+        # 80180490 registers nine callback words in each 0x30-byte row
+        # at 80389E88. Its source callers 80180FB4/80182B74/80181BCC
+        # register rows 0/1/2. 80180700's BLRL at 8018074C reads row+8
+        # (80180D64 in every capture), absent from the direct call graph.
+        # Retain every registered callback, not just that first reached slot.
+        registrations = {}
+        for row in range(3):
+            address = 0x80389E88 + 0x30 * row
+            entries = [word(address + 4 * slot) for slot in range(9)]
+            if any(target and (not 0x80004000 <= target < 0x80244000 or target & 3) for target in entries):
+                raise RuntimeError(f"Invalid allocation callback row {row} in {context}")
+            registrations[str(row)] = {
+                "address": f"{address:08x}",
+                "callbacks": [f"{target:08x}" for target in entries],
+            }
+            targets.extend(f"{target:08x}" for target in entries if target)
+        allocation_callbacks[str(context)] = registrations
     scope["ROOTS"] = list(dict.fromkeys(scope["ROOTS"] + ROOTS + sorted(set(targets))))
     scope["main"]()
     manifest = HERE / "down_cycle_sources.json"
     provenance = json.loads(manifest.read_text())
     provenance["phase_and_sort_callbacks"] = callbacks
     provenance["camera_event_callbacks"] = camera_callbacks
+    provenance["allocation_callbacks"] = allocation_callbacks
     manifest.write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n")
 
 
