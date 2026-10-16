@@ -43,6 +43,7 @@ def main() -> None:
     registered_callbacks = {}
     driver_callbacks = {}
     scheduler_callbacks = {}
+    animation_callbacks = {}
     for context in (14, 15, 16):
         capture = (
             saved
@@ -90,6 +91,37 @@ def main() -> None:
         scheduler_callbacks[str(context)] = {f"{scheduler_address:08x}": f"{scheduler_target:08x}"}
         if scheduler_target:
             targets.append(scheduler_target)
+        # 80177E20 allocates this descriptor registry at r13-6718 and
+        # stores its capacity at r13-5794; 80177EBC registers each group.
+        # 801778C0 (80177938 BLRL) calls descriptor->callbacks[key]. The
+        # old gameplay-only roots covered group 1 but omitted groups 3/4/10.
+        # 800410A4 registers those groups, and 80028178/8002EC10 populate
+        # their eleven/six slots; 800E6418 registers group 10's 69 slots.
+        # Retain ALL actual registrations across captures, with the
+        # descriptor's leading u16 callback count and
+        # +4 function table, rather than patching only the failed key.
+        capacity = event_word(0x803A9A40 - 0x5794)
+        if capacity > len(capture) // 4:
+            raise RuntimeError(f"Invalid animation registry capacity in context {context}")
+        registry = event_word(0x803A9A40 - 0x6718)
+        groups = {}
+        for group in range(capacity):
+            descriptor = event_word(registry + 4 * group)
+            if not descriptor:
+                continue
+            count = event_word(descriptor) >> 16
+            callbacks = event_word(descriptor + 4)
+            entries = [event_word(callbacks + 4 * slot) for slot in range(count)]
+            if any(target and not (0x80004000 <= target < 0x80244000 and not target & 3) for target in entries):
+                raise RuntimeError(f"Invalid animation callback in context {context}, group {group}")
+            groups[str(group)] = {
+                "descriptor": f"{descriptor:08x}",
+                "count": count,
+                "table": f"{callbacks:08x}",
+                "entries": [f"{target:08x}" for target in entries],
+            }
+            targets += [target for target in entries if target]
+        animation_callbacks[str(context)] = {"capacity": capacity, "registry": f"{registry:08x}", "groups": groups}
     targets = sorted(set(targets))
     graph = json.loads((CACHE / "callgraph.json").read_text())
     todo = ROOTS + [f"{pc:08x}" for pc in targets] + transcription.ROOTS
@@ -346,6 +378,7 @@ def main() -> None:
                 "registered_callbacks": registered_callbacks,
                 "driver_callbacks": driver_callbacks,
                 "scheduler_callbacks": scheduler_callbacks,
+                "animation_callbacks": animation_callbacks,
                 "state_callbacks": targets,
                 "disassembly_sha256": hashes,
                 "captured_functions": captured,
