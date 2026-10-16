@@ -44,6 +44,14 @@ def main() -> None:
         "                d, a = [transcription.reg(v) for v in args]\n"
         '                code = f"cb_addcarry(s,{args[0][1:]},{a},0xffffffffu,s->ca);"\n' + marker,
     )
+    # The captured allocator vtable also names 802441A0, absent from the
+    # Ghidra cache. It is exactly LIS r3,0x100; BLR in all three captures.
+    # Bound construction-time decoding at the end of those two instructions,
+    # rather than treating adjacent padding/data as part of the function.
+    source = source.replace(
+        "            end = next(a for a in known if a > entry)",
+        "            end = 0x802441A8 if entry == 0x802441A0 else next(a for a in known if a > entry)",
+    )
     for name in ("init", "host_call", "call", "service"):
         source = source.replace(f"nflstreet_ai_policy_{name}", f"nflstreet_down_native_{name}")
     scope: dict[str, Any] = {"__file__": str(__file__), "__name__": "down_builder"}
@@ -51,6 +59,7 @@ def main() -> None:
     callbacks = {}
     camera_callbacks = {}
     allocation_callbacks = {}
+    allocator_vtables = {}
     targets = []
     for context in (14, 15, 16):
         capture = Path(f"/mnt/w/Daywater/research-temp/position-neutral-{context}.mem1").read_bytes()
@@ -106,6 +115,36 @@ def main() -> None:
             }
             targets.extend(f"{target:08x}" for target in entries if target)
         allocation_callbacks[str(context)] = registrations
+        # 80172E8C returns *(r13-57A0). 8013B4F8 reads its vtable's
+        # signed this adjustment at +8 and allocator target at +C before
+        # BLRL at 8013B550. 8013B5AC/80173464 use the +10/+14 pair.
+        # Preserve the three populated method pairs of the captured table,
+        # including the tail thunk, without the old approximate 80244000
+        # code cutoff (both cached allocator methods lie above it).
+        allocator = word(0x803A9A40 - 0x57A0)
+        vtable = word(allocator)
+        methods = {}
+        for offset in (0x0C, 0x14, 0x1C):
+            target = word(vtable + offset)
+            if target and (
+                target & 3
+                or not ((builder.CACHE / "disassembly" / f"{target:08x}.txt").is_file() or target == 0x802441A0)
+            ):
+                raise RuntimeError(f"Unbounded allocator method {target:08x} in {context}")
+            if target == 0x802441A0 and (word(target), word(target + 4)) != (0x3C600100, 0x4E800020):
+                raise RuntimeError(f"Changed allocator tail thunk in {context}")
+            adjustment = word(vtable + offset - 4) >> 16
+            methods[f"{offset:02x}"] = {
+                "target": f"{target:08x}",
+                "this_adjustment": adjustment if adjustment < 0x8000 else adjustment - 0x10000,
+            }
+            if target:
+                targets.append(f"{target:08x}")
+        allocator_vtables[str(context)] = {
+            "object": f"{allocator:08x}",
+            "vtable": f"{vtable:08x}",
+            "methods": methods,
+        }
     scope["ROOTS"] = list(dict.fromkeys(scope["ROOTS"] + ROOTS + sorted(set(targets))))
     scope["main"]()
     manifest = HERE / "down_cycle_sources.json"
@@ -113,6 +152,7 @@ def main() -> None:
     provenance["phase_and_sort_callbacks"] = callbacks
     provenance["camera_event_callbacks"] = camera_callbacks
     provenance["allocation_callbacks"] = allocation_callbacks
+    provenance["allocator_vtables"] = allocator_vtables
     manifest.write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n")
 
 

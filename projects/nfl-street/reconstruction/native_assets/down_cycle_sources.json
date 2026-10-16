@@ -133,6 +133,62 @@
       }
     }
   },
+  "allocator_vtables": {
+    "14": {
+      "methods": {
+        "0c": {
+          "target": "80244154",
+          "this_adjustment": 0
+        },
+        "14": {
+          "target": "8024417c",
+          "this_adjustment": 0
+        },
+        "1c": {
+          "target": "802441a0",
+          "this_adjustment": 0
+        }
+      },
+      "object": "807b0860",
+      "vtable": "802a0580"
+    },
+    "15": {
+      "methods": {
+        "0c": {
+          "target": "80244154",
+          "this_adjustment": 0
+        },
+        "14": {
+          "target": "8024417c",
+          "this_adjustment": 0
+        },
+        "1c": {
+          "target": "802441a0",
+          "this_adjustment": 0
+        }
+      },
+      "object": "807b0860",
+      "vtable": "802a0580"
+    },
+    "16": {
+      "methods": {
+        "0c": {
+          "target": "80244154",
+          "this_adjustment": 0
+        },
+        "14": {
+          "target": "8024417c",
+          "this_adjustment": 0
+        },
+        "1c": {
+          "target": "802441a0",
+          "this_adjustment": 0
+        }
+      },
+      "object": "807b0860",
+      "vtable": "802a0580"
+    }
+  },
   "animation_callbacks": {
     "14": {
       "capacity": 11,
@@ -2524,6 +2580,10 @@
     "80225190": {
       "end": "802251dc",
       "sha256": "be31b92ea47e1079440ecc246dcc9edde64d229fdde4bbe5aac4837ff69011e2"
+    },
+    "802441a0": {
+      "end": "802441a8",
+      "sha256": "d11f4b475313dd697a0caa00fd13d7f168993962f7038d25908155de5a17fdcd"
     }
   },
   "disassembly_sha256": {
@@ -12320,7 +12380,9 @@
     "802438bc": "b1ea793da55c5a8ff1aeb17312b1bab83c384a3c4a7eb4f191afdd00b126a16a",
     "80243954": "2251299f4ca3e1bb08fe9a4ee65a222282a595569d0dcde1323b3758e99c137c",
     "80243eb4": "149da369ea127e1fdd225eb64f051e7b62badf33c82b90696b35048cdbc3963d",
-    "80243ee0": "6014d3ce67a030e629e4e58a3afefa18c6e628694c36422f6ff6ea40494c6fbf"
+    "80243ee0": "6014d3ce67a030e629e4e58a3afefa18c6e628694c36422f6ff6ea40494c6fbf",
+    "80244154": "732dc91373271a1ae0090a643629c8704d404b6829484ad3261194789e70f9bb",
+    "8024417c": "81269a3cde89ebe4424e9f23e3eea2c4f6b460f980bf6ca27910888682c6a2fb"
   },
   "driver_callbacks": {
     "14": {
@@ -12596,7 +12658,10 @@
     "80182970",
     "80182a24",
     "801ac6e0",
-    "801acaa8"
+    "801acaa8",
+    "80244154",
+    "8024417c",
+    "802441a0"
   ],
   "scheduler_callbacks": {
     "14": {
