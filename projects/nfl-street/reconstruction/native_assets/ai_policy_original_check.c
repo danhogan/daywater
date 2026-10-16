@@ -35,7 +35,7 @@ static uint32_t callback(void *p,uint32_t a){uint32_t desc=r32(p,r32(p,R13-0x786
 static const uint32_t roots[]={0x800aac08u,0x800afc88u,0x800a0d10u,0x8006e2e4u,0x8007c180u};
 static unsigned population[5],counts[5],seen[5][ACTORS];
 static unsigned mode_case,mode_actor,mode_step;
-static int original(uint32_t pc,const uint32_t *args,uint32_t *result){
+static int original_raw(uint32_t pc,const uint32_t *args,uint32_t *result){
  CPUState c;memset(&c,0,sizeof c);c.ram=oracle;c.ram_size=BYTES;c.msr=0x2000;c.hid2=0xe0000000u;
  c.gpr[1]=HI-0x40u;c.gpr[2]=0x803b9a40u;c.gpr[13]=R13;
  for(unsigned k=0;k<6;++k)c.gpr[3+k]=args[k];c.pc=pc;
@@ -44,6 +44,18 @@ static int original(uint32_t pc,const uint32_t *args,uint32_t *result){
   c.downcount=-1000000000;module->dispatch(&c,c.pc);
   if(c.exception){fprintf(stderr,"original exception %08x at %08x lr %08x\n",pc,c.pc,c.lr);return 0;}}
  *result=c.gpr[3];return 1;}
+/* Host execution boundary, also used by nflstreet_ai_policy_service: these
+   are actual unmodified SDK calls through the original module, not hooks.
+   The host has no Dolphin OS thread to yield. Deferring scheduling through
+   the SDK's own nesting counter keeps policy/queue writes and pending work;
+   the matching enable call restores the exact previous nesting depth.
+   Saved RAM and prepare() inputs are unchanged. Raw SDK tests below compare
+   both helpers and the scheduler's original guarded path independently. */
+static int original_host(uint32_t pc,const uint32_t *args,uint32_t *result){
+ const uint32_t zero[6]={0};uint32_t ignored;
+ if(!original_raw(0x801f429cu,zero,&ignored))return 0;
+ const int ok=original_raw(pc,args,result);
+ const int released=original_raw(0x801f42dcu,zero,&ignored);return ok&&released;}
 static int same(uint32_t pc){const unsigned lo=LO-BASE,hi=HI-BASE;
  if(memcmp(native,oracle,lo)||memcmp(native+hi,oracle+hi,BYTES-hi)){
   for(unsigned k=0;k<BYTES;++k)if((k<lo||k>=hi)&&native[k]!=oracle[k]){
@@ -53,6 +65,26 @@ static void reset(void){memcpy(native,saved,BYTES);memcpy(oracle,saved,BYTES);
  /* Stack starts from the SAME captured bytes. Each side retains its own
     call temporaries between calls. It is the only excluded memory span. */
  memcpy(policy.stack,saved+LO-BASE,sizeof policy.stack);}
+static int scheduler_boundary_check(void){
+ /* These RAW calls exercise the actual SDK operations without the host
+    boundary around them, including nested preexisting lock depths. */
+ const uint32_t operations[]={0x801f429cu,0x801f429cu,0x801f45d0u,0x801f42dcu,0x801f42dcu};
+ const uint32_t zero[6]={0};
+ for(unsigned initial=0;initial<8;++initial){reset();w32(native,R13-0x5588u,initial);w32(oracle,R13-0x5588u,initial);
+  unsigned depth=initial;
+  for(unsigned i=0;i<5;++i){const nflstreet_ai_call call={operations[i],{0}};uint32_t nv,ov;
+   if(!nflstreet_ai_policy_call(&policy,&call,0,&nv)||!original_raw(call.pc,zero,&ov))return 6;
+   if(!same(call.pc)||nv!=ov||nv!=(call.pc==0x801f45d0u?0:depth))return 7;
+   if(call.pc==0x801f429cu)++depth;else if(call.pc==0x801f42dcu)--depth;
+   if(r32(native,R13-0x5588u)!=depth||r32(oracle,R13-0x5588u)!=depth)return 7;
+  }
+ }
+ /* Host-owned invalid target, not a claimed game address: rejection must
+    release the scheduler lock and retain the BODY diagnostic. */
+ reset();const nflstreet_ai_call invalid={0xfffffffcu,{0}};uint32_t result;
+ if(nflstreet_ai_policy_host_call(&policy,&invalid,0,&result)||policy.ok||
+    policy.unsupported!=invalid.pc||memcmp(native,saved,BYTES))return 7;
+ return 0;}
 static void prepare(unsigned index,uint32_t a,uint32_t pc){
  if(!index)return;
  /* Preserve actual queues, handles, pointer-bearing unions and asset tables.
@@ -88,17 +120,20 @@ static void prepare(unsigned index,uint32_t a,uint32_t pc){
 }
 static int one(uint32_t pc,uint32_t a,int dispatch,int compare_return){
  const uint32_t args[6]={dispatch?0:a,dispatch?a+0xbe4:0,dispatch?a:0,0,0,0};uint32_t nv=0,ov=0;
- int ok;
+ /* Retain the original UNGUARDED five-service saved/edited comparisons.
+    Only host driver/dispatch operations use the explicit host boundary. */
+ int raw=0;for(unsigned k=0;k<5;++k)raw|=!dispatch&&pc==roots[k];int ok;
  if(dispatch){nflstreet_ai_dispatch d={{span,native,R13},nflstreet_ai_policy_service,&policy,LO+0x40u,0,0};
   ok=nflstreet_ai_dispatch_step(&d,0,a+0xbe4,a,0);
   if(!ok&&d.unsupported)fprintf(stderr,"dispatch service %08x\n",d.unsupported);
- }else{const nflstreet_ai_call call={pc,{a,0,0,0,0,0}};ok=nflstreet_ai_policy_service(&policy,&call,&nv);}
+ }else{const nflstreet_ai_call call={pc,{a,0,0,0,0,0}};
+  ok=raw?nflstreet_ai_policy_call(&policy,&call,0,&nv):nflstreet_ai_policy_service(&policy,&call,&nv);}
  if(!ok){fprintf(stderr,"native rejected pc %08x case %u actor %u step %u source %08x address %08x target %08x budget %d\n",
   pc,mode_case,mode_actor,mode_step,policy.failure_pc,policy.failure_address,policy.unsupported,policy.failure_budget_exhausted);
   if(policy.failure_budget_exhausted&&policy.failure_pc==0x801f471cu)
    fprintf(stderr,"remaining original scheduler idle wait 801f471c: runnable bitmap [r13-5590]=%08x; external interrupt/thread resumption is not reconstructed\n",r32(native,R13-0x5590u));
   return 6;}
- if(!original(pc,args,&ov))return 6;
+ if(!(raw?original_raw(pc,args,&ov):original_host(pc,args,&ov)))return 6;
  if(!same(pc))return 7;
  if(compare_return&&nv!=ov){fprintf(stderr,"return mismatch pc %08x case %u actor %u step %u original %u native %u\n",pc,mode_case,mode_actor,mode_step,ov,nv);return 7;}return 0;}
 static uint32_t hash(uint32_t h){for(unsigned k=0;k<BYTES;++k)if(k<LO-BASE||k>=HI-BASE)h=(h^native[k])*16777619u;return h;}
@@ -133,6 +168,7 @@ int main(int argc,char **argv){
  ModernGekkoGetModuleFn get=(ModernGekkoGetModuleFn)GetProcAddress(h,MODERNGEKKO_GET_MODULE_SYMBOL);if(!get||!(module=get()))return 3;
  saved=load(argv[1]);native=malloc(BYTES);oracle=malloc(BYTES);if(!saved||!native||!oracle)return 3;
  if(!transaction_check())return 9;
+ {int rc=scheduler_boundary_check();if(rc){fprintf(stderr,"SDK scheduler boundary check failed %d\n",rc);return rc;}}
  /* The scheduler's saved r13-61C0 registration is an actual BLR function.
     Compare its all-RAM and unchanged-r3 behavior against the original,
     including nonzero arguments. This is not an original hook. */

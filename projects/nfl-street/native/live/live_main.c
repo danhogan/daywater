@@ -59,7 +59,7 @@ typedef struct {nflstreet_live_clips *clips;nflstreet_ai_policy *policy;} live_p
 static int selected_request(void *user,const nflstreet_locomotion_request *r){
  live_policy_services *services=user;if(!services->policy)return 0;
  const nflstreet_ai_call call={0x80177ef4u,{r->manager,r->set,r->channels,r->key,r->actor,0}};uint32_t result;
- return nflstreet_ai_policy_call(services->policy,&call,r->weight,&result);}
+ return nflstreet_ai_policy_host_call(services->policy,&call,r->weight,&result);}
 /* The same native closure handles requests and subsequent channel callbacks.
    Keeping their original call/operand stack together also covers indirect
    RNG calls inside group callbacks; no original-module provider is present. */

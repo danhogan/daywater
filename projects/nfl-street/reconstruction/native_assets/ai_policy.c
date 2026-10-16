@@ -273091,5 +273091,23 @@ int nflstreet_ai_policy_call(nflstreet_ai_policy *c,const nflstreet_ai_call *cal
  static const uint32_t roots[]={0x800aac08u,0x800afc88u,0x800a0d10u,0x8006e2e4u,0x8007c180u};
  for(unsigned k=0;k<5;++k)c->entries[k]+=call->pc==roots[k];
  cb_dispatch(&s,call->pc);*result=s.r[3];return c->ok;}
+/* Host choice: calls run synchronously, outside Dolphin's OS threads.
+   Use the ORIGINAL SDK scheduler lock pair around each host operation.
+   801F429C increments r13-5588; 801F42DC decrements it. Consequently
+   801F45D0 itself defers scheduling through its original 801F45F4 branch.
+   Keep all policy, queue and reschedule-flag writes; never create a runnable
+   thread or clear a pending request. The raw API retains the unguarded path.
+   The oracle invokes the same two unmodified SDK routines around its call. */
+int nflstreet_ai_policy_host_call(nflstreet_ai_policy *c,const nflstreet_ai_call *call,
+ double weight,uint32_t *result){
+ if(!c||!call||!result||!c->ram.span)return 0;
+ const nflstreet_ai_call lock={0x801f429cu,{0}},unlock={0x801f42dcu,{0}};uint32_t ignored;
+ if(!nflstreet_ai_policy_call(c,&lock,0,&ignored))return 0;
+ const int ok=nflstreet_ai_policy_call(c,call,weight,result);
+ const uint32_t pc=c->failure_pc,address=c->failure_address,target=c->unsupported;
+ const int budget=c->failure_budget_exhausted;
+ const int released=nflstreet_ai_policy_call(c,&unlock,0,&ignored);
+ if(!ok){c->ok=0;c->failure_pc=pc;c->failure_address=address;c->unsupported=target;
+ c->failure_budget_exhausted=budget;}return ok&&released;}
 int nflstreet_ai_policy_service(void *user,const nflstreet_ai_call *call,uint32_t *result){
- return nflstreet_ai_policy_call(user,call,0,result);}
+ return nflstreet_ai_policy_host_call(user,call,0,result);}
