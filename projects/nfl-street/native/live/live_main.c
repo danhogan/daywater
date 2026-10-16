@@ -33,6 +33,7 @@
 #include "live_ai.h"
 #include "ai_policy.h"
 #include "play_selection.h"
+#include "down_cycle.h"
 #undef nflstreet_locomotion_select
 #define RAM_BASE 0x80000000u
 #define RAM_BYTES (24u*1024u*1024u)
@@ -164,7 +165,9 @@ int main(int argc,char *argv[]){
  const unsigned parts=argc>3?(unsigned)strtoul(argv[3],NULL,0):7u;
  /* NFL_LIVE_ORBIT: per-frame turn (24-bit angle; 1 means 0x2000, about 10 degrees a second at 60 fps). */
  uint32_t orbit=getenv("NFL_LIVE_ORBIT")?(uint32_t)strtoul(getenv("NFL_LIVE_ORBIT"),NULL,0):0;if(orbit==1)orbit=0x2000;
- /* The controlled player (NFL_LIVE_SCRIPT=1 drives it right, forward, left for a capture). */
+ /* Scripted smoke input continuously runs the controlled carrier toward the
+    positive-X sideline, using the same verified movement as physical input.
+    It never writes an end event or changes a whistle/score/down flag. */
  const uint32_t player=controlled_actor(ram);nflstreet_live_movement movement;int rejected=0;const int scripted=getenv("NFL_LIVE_SCRIPT")!=NULL;
  if(player&&!seed_movement(ram,player,&movement)){note("cannot seed the controlled player's movement");return 4;}
  if(log_file){fprintf(log_file,"controlled player %08x (visual %08x)\n",player,player?ram32(ram,player+4):0);fflush(log_file);}
@@ -234,6 +237,8 @@ int main(int argc,char *argv[]){
  nflstreet_ai_policy policy;nflstreet_ai_policy_init(&policy,ai.dispatch.ram);
  ai.dispatch.service=nflstreet_ai_policy_service;ai.dispatch.user=&policy;services.policy=&policy;
  channels.event=policy_event;channels.group=policy_group;channels.user=&services;
+ static nflstreet_down_cycle down_cycle;nflstreet_down_cycle_init(&down_cycle,(nflstreet_actor_ai){span,ram,R13});
+ unsigned presnap_ticks=0;
  const nflstreet_rings_context rings={&scene.draw,R13};
  const double start=seconds();double clock_time=start,ai_report_time=start;
  const uint32_t gx=ram32(ram,R13-0x4c90u);unsigned frames=0;int exiting=0,failed=0;
@@ -247,7 +252,7 @@ int main(int argc,char *argv[]){
      gameplay actor (+200 input, +1A8 movement block), then the native
      placement (800D4A6C/800D4B0C) of its visual. */
   PADStatus pads[4];PADRead(pads);float moved[2]={0,0};
-  int dx,dy;stick(&pads[0],&dx,&dy);if(scripted){const double t=seconds()-start;dx=t<1.5?1:t<3.0?0:t<4.5?-1:0;dy=t>=1.5&&t<3.0?1:0;}
+  int dx,dy;stick(&pads[0],&dx,&dy);if(scripted){dx=1;dy=0;}
   /* Host scheduling choice: advance only fixed one-tick updates, but drop
      excess wall-clock backlog above four ticks. Unbounded catch-up could
      starve event polling and scene draws when CPU updates miss 60 Hz. This
@@ -303,8 +308,37 @@ int main(int argc,char *argv[]){
     for(unsigned i=0;!failed&&i<*count;++i){const uint32_t record=pool+8+0xf4u*i;
      if(!nflstreet_ball_update(&ownership,record,1.0)||!nflstreet_ball_update_visual(&ownership,record)||
         !nflstreet_ball_update_matrix(&ownership,ram32(ram,record))){note("ball update failed (unsupported state or memory)");failed=1;}}}
-   /* The handoff module consumes decoded ownership events. This live loop has
-      no original event decoder, so it must not synthesize one per tick. */
+   /* 80024E50 checks the active carrier after actor and ball movement.
+      The down module runs that check and the original queued result commit;
+      movement/animation/ball physics above run exactly once. */
+   if(!failed){nflstreet_down_cycle_event e;
+    if(!nflstreet_down_cycle_update(&down_cycle,&e)){
+     fprintf(play_log,"down cycle stopped: pc %08x address %08x target %08x budget %d\n",
+      down_cycle.native.failure_pc,down_cycle.native.failure_address,down_cycle.native.unsupported,
+      down_cycle.native.failure_budget_exhausted);fflush(play_log);failed=1;
+    }else{
+     if(e.whistle){fprintf(play_log,"down over: %s down %u to go %.0f spot %.1f\n",e.reason,e.down,e.to_go,e.spot);fflush(play_log);}
+     if(e.select_play){
+      /* The live UI has no play-selection screen: request both actual scripts,
+         install both actual command sets and use the original lineup path. */
+      for(unsigned team=0;!failed&&team<2;++team){
+       if(!nflstreet_play_select(&selection,team,&selected)||!nflstreet_play_install(&selection,team)){
+        fprintf(play_log,"play selection failed: pc %08x address %08x target %08x budget %d\n",
+         selection.failure_pc,selection.failure_address,selection.unsupported,selection.failure_budget_exhausted);fflush(play_log);failed=1;
+       }else{fprintf(play_log,"play selected: %u%s%s for team %u\n",selected.id,selected.name[0]?" ":"",selected.name,selected.team);fflush(play_log);}}
+      if(!failed&&!nflstreet_down_cycle_lineup(&down_cycle)){note("next-down lineup failed");failed=1;}
+      if(!failed){presnap_ticks=0;if(player&&!seed_movement(ram,player,&movement))failed=1;
+       for(unsigned i=0;i<ai.count;++i)ai.actors[i].held=0;
+       if(!nflstreet_live_ai_sync(&ai))failed=1;}
+     }else if(e.phase==2){
+      /* Explicit host snap-input timing: one second after lineup. The source
+         transition and snap event perform the actual ownership/queue writes. */
+      if(++presnap_ticks>=60){
+       if(!nflstreet_down_cycle_snap(&down_cycle)){note("native snap failed");failed=1;}
+       else{presnap_ticks=0;if(player&&!seed_movement(ram,player,&movement))failed=1;
+        if(!nflstreet_live_ai_sync(&ai))failed=1;}}
+     }else presnap_ticks=0;
+    }}
    if(!failed){nflstreet_hud_values c=hud_values;
     if(!nflstreet_hud_turbo_update(&c)){if(log_file){fprintf(log_file,"frame %u: HUD turbo update rejected address %08x\n",frames,c.rejected_address);fflush(log_file);}failed=1;}}
   }

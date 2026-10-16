@@ -13,7 +13,7 @@ add_subdirectory(${AURORA_SOURCE_DIR} aurora EXCLUDE_FROM_ALL)
 # the verified movement runtime (command_to_movement and the stages it uses),
 # copied under src/reconstruction by build_windows_live.sh, and the GX bridge.
 set(NFLSTREET_DRAWS disc_files.c archive.c lzh1.c cloud_draw.c field_overlay.c ball_update.c ball_update_motion.c ball_handoff.c hud_values.c locomotion_predicates.c scene_frame.c light_rig.c crowd_draw.c actor_palettes.c actor_world.c cluster_palette.c model_view.c scenery_draw.c marks_draw.c
-  ball_draw.c hud_draw.c uis_draw.c matrix_stack.c gx_texobj.c player_draw.c draw_engine.c live_movement.c actor_ai.c actor_ai_dispatch.c ai_policy.c play_selection.c
+  ball_draw.c hud_draw.c uis_draw.c matrix_stack.c gx_texobj.c player_draw.c draw_engine.c live_movement.c actor_ai.c actor_ai_dispatch.c ai_policy.c play_selection.c down_cycle.c
   select_rings.c camera_slots.c name_tag_project.c camera_projection.c effects_draw.c actor_scale.c actor_channels.c channel_callbacks.c clip_requests.c anim_stream.c gekko_quaternion/quaternion_kernels.c gekko_quaternion/actor_slerp.c actor_dynamics.c actor_dynamics_math.c actor_pose.c actor_skeleton.c compact_pose.c live_pose.c live_locomotion.c pose.c)
 list(TRANSFORM NFLSTREET_DRAWS PREPEND reconstruction/native_assets/)
 # The host catalog selector already exports nflstreet_locomotion_select.
@@ -45,7 +45,7 @@ else ()
 endif ()
 if (MSVC)
   # Generated policy helpers are split into native C functions with source PC comments.
-  set_source_files_properties(reconstruction/native_assets/ai_policy.c reconstruction/native_assets/play_selection.c PROPERTIES COMPILE_OPTIONS "/bigobj")
+  set_source_files_properties(reconstruction/native_assets/ai_policy.c reconstruction/native_assets/play_selection.c reconstruction/native_assets/down_cycle.c PROPERTIES COMPILE_OPTIONS "/bigobj")
 endif ()
 # The DVD target exports nod's headers/library; its imported nod target is
 # scoped inside Aurora's subdirectory and cannot be named directly here.

@@ -1,0 +1,38 @@
+[
+  {
+    "name": "wrong-down",
+    "file": "down_cycle_native.inc",
+    "old": "/* 801039b0 */ s->pc=0x801039b0u;{uint32_t t=(s->r[9]+0x00000030u);cb_store(s,t,s->r[31],4);}",
+    "new": "/* 801039b0 */ s->pc=0x801039b0u;{uint32_t t=(s->r[9]+0x00000030u);cb_store(s,t,s->r[31]+1u,4);}"
+  },
+  {
+    "name": "wrong-target",
+    "file": "down_cycle_native.inc",
+    "old": "/* 80103c68 */ s->pc=0x80103c68u;{uint32_t t=(s->r[11]+0x00000008u);cb_stfs(s,t,s->f[12]);}",
+    "new": "/* 80103c68 */ s->pc=0x80103c68u;{uint32_t t=(s->r[11]+0x00000008u);cb_stfs(s,t,s->f[0]);}"
+  },
+  {
+    "name": "omit-previous-target",
+    "file": "down_cycle_native.inc",
+    "old": "/* 80103c6c */ s->pc=0x80103c6cu;{uint32_t t=(s->r[11]+0x00000004u);cb_stfs(s,t,s->f[0]);}",
+    "new": "/* 80103c6c */ s->pc=0x80103c6cu;{uint32_t t=(s->r[11]+0x00000004u);(void)t;}"
+  },
+  {
+    "name": "reverse-gain",
+    "file": "down_cycle_native.inc",
+    "old": "/* 80025ff0 */ s->f[1]=nflstreet_gk_subs(s->f[30],s->f[31]);s->ps[1]=s->f[1];",
+    "new": "/* 80025ff0 */ s->f[1]=nflstreet_gk_adds(s->f[30],s->f[31]);s->ps[1]=s->f[1];"
+  },
+  {
+    "name": "omit-result-spot",
+    "file": "down_cycle_native.inc",
+    "old": "/* 80025000 */ s->pc=0x80025000u;{uint32_t t=(s->r[30]+0x0000000cu);cb_store(s,t,s->r[10],4);}",
+    "new": "/* 80025000 */ s->pc=0x80025000u;{uint32_t t=(s->r[30]+0x0000000cu);(void)t;}"
+  },
+  {
+    "name": "wrong-initial-down",
+    "file": "down_cycle_native.inc",
+    "old": "/* 80025008 */ s->pc=0x80025008u;{uint32_t t=(s->r[30]+0x00000004u);cb_store(s,t,s->r[3],4);}",
+    "new": "/* 80025008 */ s->pc=0x80025008u;{uint32_t t=(s->r[30]+0x00000004u);cb_store(s,t,s->r[3]+1u,4);}"
+  }
+]
