@@ -39,6 +39,7 @@ def main() -> None:
     # three original captures, retaining the actual lists as provenance.
     registered_callbacks = {}
     driver_callbacks = {}
+    scheduler_callbacks = {}
     for context in (14, 15, 16):
         capture = (
             saved
@@ -77,6 +78,15 @@ def main() -> None:
         }
         driver_callbacks[str(context)] = {address: f"{target:08x}" for address, target in bindings.items()}
         targets += [target for target in bindings.values() if target]
+        # 801F45D0 reads r13-61C0 for both thread-switch notifications
+        # (801F4704/47C4); 801F4128 also calls the same registration.
+        # Its saved target 801F4124 is a real one-instruction BLR body,
+        # absent from Ghidra's direct callgraph, not a native substitute.
+        scheduler_address = 0x803A9A40 - 0x61C0
+        scheduler_target = event_word(scheduler_address)
+        scheduler_callbacks[str(context)] = {f"{scheduler_address:08x}": f"{scheduler_target:08x}"}
+        if scheduler_target:
+            targets.append(scheduler_target)
     targets = sorted(set(targets))
     graph = json.loads((CACHE / "callgraph.json").read_text())
     todo = ROOTS + [f"{pc:08x}" for pc in targets] + transcription.ROOTS
@@ -223,6 +233,13 @@ def main() -> None:
         for pc, op, args in ops:
             if pc in labels:
                 out.append(f"L{pc:08x}: if(!cb_tick(s,0x{pc:08x}u))return;")
+            if pc == 0x801F471C:
+                out.append(
+                    "/* Original scheduler idle wait: polls r13-5590 until an external interrupt/thread"
+                    " makes a runnable thread. That external producer is not reconstructed. Preserve"
+                    " the source loop and bounded rejection; do not fabricate ready bits, skip this"
+                    " path, or constrain valid policy cases to avoid the wait. */"
+                )
             if op == "bctrl":
                 code = f"{{uint32_t target=s->ctr;s->lr=0x{pc + 4:08x}u;cb_dispatch(s,target);if(!s->out->ok)return;}}"
             elif op == "mfmsr":
@@ -297,6 +314,7 @@ def main() -> None:
                 "roots": ROOTS,
                 "registered_callbacks": registered_callbacks,
                 "driver_callbacks": driver_callbacks,
+                "scheduler_callbacks": scheduler_callbacks,
                 "state_callbacks": targets,
                 "disassembly_sha256": hashes,
                 "captured_functions": captured,

@@ -94,7 +94,10 @@ static int one(uint32_t pc,uint32_t a,int dispatch,int compare_return){
   if(!ok&&d.unsupported)fprintf(stderr,"dispatch service %08x\n",d.unsupported);
  }else{const nflstreet_ai_call call={pc,{a,0,0,0,0,0}};ok=nflstreet_ai_policy_service(&policy,&call,&nv);}
  if(!ok){fprintf(stderr,"native rejected pc %08x case %u actor %u step %u source %08x address %08x target %08x budget %d\n",
-  pc,mode_case,mode_actor,mode_step,policy.failure_pc,policy.failure_address,policy.unsupported,policy.failure_budget_exhausted);return 6;}
+  pc,mode_case,mode_actor,mode_step,policy.failure_pc,policy.failure_address,policy.unsupported,policy.failure_budget_exhausted);
+  if(policy.failure_budget_exhausted&&policy.failure_pc==0x801f471cu)
+   fprintf(stderr,"remaining original scheduler idle wait 801f471c: runnable bitmap [r13-5590]=%08x; external interrupt/thread resumption is not reconstructed\n",r32(native,R13-0x5590u));
+  return 6;}
  if(!original(pc,args,&ov))return 6;
  if(!same(pc))return 7;
  if(compare_return&&nv!=ov){fprintf(stderr,"return mismatch pc %08x case %u actor %u step %u original %u native %u\n",pc,mode_case,mode_actor,mode_step,ov,nv);return 7;}return 0;}
@@ -130,6 +133,11 @@ int main(int argc,char **argv){
  ModernGekkoGetModuleFn get=(ModernGekkoGetModuleFn)GetProcAddress(h,MODERNGEKKO_GET_MODULE_SYMBOL);if(!get||!(module=get()))return 3;
  saved=load(argv[1]);native=malloc(BYTES);oracle=malloc(BYTES);if(!saved||!native||!oracle)return 3;
  if(!transaction_check())return 9;
+ /* The scheduler's saved r13-61C0 registration is an actual BLR function.
+    Compare its all-RAM and unchanged-r3 behavior against the original,
+    including nonzero arguments. This is not an original hook. */
+ const uint32_t notification_args[]={0,actor(saved,0),0xffffffffu};
+ for(unsigned i=0;i<3;++i){reset();int rc=one(0x801f4124u,notification_args[i],0,1);if(rc)return rc;}
  for(unsigned i=0;i<ACTORS;++i)if(r8(saved,actor(saved,i)+8)==255){uint32_t pc=callback(saved,actor(saved,i));
   for(unsigned k=0;k<5;++k)population[k]+=pc==roots[k];}
  for(unsigned k=0;k<5;++k)if(!population[k]){fprintf(stderr,"missing saved service %08x\n",roots[k]);return 4;}
