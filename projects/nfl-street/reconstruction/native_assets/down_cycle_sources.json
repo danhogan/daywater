@@ -2586,6 +2586,15 @@
       "sha256": "d11f4b475313dd697a0caa00fd13d7f168993962f7038d25908155de5a17fdcd"
     }
   },
+  "decrementer_boundary": {
+    "confidence": "candidate until original-module gate passes",
+    "instruction": "801ef620: mtspr DEC,r3; SPR_DEC = 22",
+    "native": "store operand in call-local architectural DEC; retain all original alarm RAM work",
+    "oracle": "independent MTDEC-only CPU instruction fallback; advance PC by 4, execute original BLR",
+    "scope": "no clock advancement or decrementer interrupt delivery; other CPU fallbacks reject",
+    "source": "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/vendor/dolphin/Source/Core/Core/PowerPC/Interpreter/Interpreter_SystemRegisters.cpp",
+    "source_sha256": "6b4493f5d4919f71978c27bea1ebe0d5bb11b37df63a38d90d85ec60e0aef663"
+  },
   "disassembly_sha256": {
     "80003480": "449611dcd9ed9795c59d9eda0f80f3efd322a271d6801773fb23028fa9d1e9cd",
     "800034b4": "fd1fd851ed8aecd11d38dc336c4391436c18ae51496100014b625c5725d40078",
@@ -13026,7 +13035,6 @@
     "801c81e8": "psq_st",
     "801c81f4": "psq_st",
     "801c8200": "psq_st",
-    "801ef620": "mtspr",
     "801ef628": "sc",
     "801ef6d0": "mfspr",
     "801ef6d8": "mtspr",

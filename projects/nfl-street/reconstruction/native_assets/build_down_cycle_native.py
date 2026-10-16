@@ -12,6 +12,10 @@ HERE = Path(__file__).resolve().parent
 RUNTIME_MEMORY = Path(
     "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/vendor/dolphin/GXRuntime/include/core/cpu.h"
 )
+CPU_REGISTERS = Path(
+    "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/"
+    "vendor/dolphin/Source/Core/Core/PowerPC/Interpreter/Interpreter_SystemRegisters.cpp"
+)
 # Actual writers/readers and their parents, not assumed football rules.
 ROOTS = (
     "8002e3c8 8002e45c 800f9c50 800f946c 800815b4 800262b0 800263ec "
@@ -46,8 +50,18 @@ def main() -> None:
         '                code = f"{d}={a}|~{b};"\n'
         '            elif op == "addme":\n'
         "                d, a = [transcription.reg(v) for v in args]\n"
-        '                code = f"cb_addcarry(s,{args[0][1:]},{a},0xffffffffu,s->ca);"\n' + marker,
+        '                code = f"cb_addcarry(s,{args[0][1:]},{a},0xffffffffu,s->ca);"\n'
+        '            elif op == "mtspr" and args[0] == "DEC":\n'
+        '                code = f"s->dec={transcription.reg(args[1])}; /* CPU state; no clock/interrupt delivery. */"\n'
+        + marker,
     )
+    # 801EF620 is MTSPR DEC,r3; BLR. 801F0258/801F0510/801F062C
+    # use it after updating the original OS alarm list. Keep the value as
+    # call-local architectural state, like MSR; the host does not advance
+    # time or deliver decrementer interrupts. The original checker supplies
+    # ONLY this ISA operation through CPUState.instruction_fallback because
+    # the unmodified DLL's C emitter delegates MTDEC to that CPU boundary.
+    source = source.replace("r[32],lr,ctr,cr,ca,pc,msr;", "r[32],lr,ctr,cr,ca,pc,msr,dec;")
     # The captured allocator vtable also names 802441A0, absent from the
     # Ghidra cache. It is exactly LIS r3,0x100; BLR in all three captures.
     # Bound construction-time decoding at the end of those two instructions,
@@ -210,6 +224,15 @@ def main() -> None:
         "source": str(RUNTIME_MEMORY),
         "source_sha256": hashlib.sha256(RUNTIME_MEMORY.read_bytes()).hexdigest(),
         "scope": "synchronous host boundary only; no device, DMA completion or interrupt simulation",
+        "confidence": "candidate until original-module gate passes",
+    }
+    provenance["decrementer_boundary"] = {
+        "instruction": "801ef620: mtspr DEC,r3; SPR_DEC = 22",
+        "native": "store operand in call-local architectural DEC; retain all original alarm RAM work",
+        "oracle": "independent MTDEC-only CPU instruction fallback; advance PC by 4, execute original BLR",
+        "scope": "no clock advancement or decrementer interrupt delivery; other CPU fallbacks reject",
+        "source": str(CPU_REGISTERS),
+        "source_sha256": hashlib.sha256(CPU_REGISTERS.read_bytes()).hexdigest(),
         "confidence": "candidate until original-module gate passes",
     }
     manifest.write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n")

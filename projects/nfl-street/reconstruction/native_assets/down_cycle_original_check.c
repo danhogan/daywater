@@ -23,8 +23,22 @@ static unsigned r8(void *p,uint32_t a){const uint8_t *q=span(p,a,1);if(!q)exit(4
 static void w32(void *p,uint32_t a,uint32_t v){uint8_t *q=span(p,a,4);if(!q)exit(4);q[0]=v>>24;q[1]=v>>16;q[2]=v>>8;q[3]=v;}
 static void w16(void *p,uint32_t a,unsigned v){uint8_t *q=span(p,a,2);if(!q)exit(4);q[0]=v>>8;q[1]=v;}
 static void wf(void *p,uint32_t a,float f){uint32_t v;memcpy(&v,&f,4);w32(p,a,v);}
+/* CPU instruction boundary, not an original-function hook. The unchanged
+   oracle chunk delegates MTDEC to ppc_fallback_instruction and returns to
+   its dispatcher. Implement only MTSPR SPR_DEC(22),rS: retain the operand
+   in call-local CPU state and resume at the following original instruction
+   (801EF624's BLR), never at the guest LR. No guest RAM/GPR/CR/LR writes,
+   clock advancement, interrupt delivery or native down-cycle call occurs.
+   Dolphin Interpreter_SystemRegisters.cpp assigns spr[index]=gpr[RD]; its
+   timer/interrupt effects are outside this synchronous host boundary.
+   Every other fallback remains an explicit checker failure. */
+static void original_cpu_instruction(CPUState *c,uint32_t instruction,uint32_t pc){
+ if((instruction&0xfc1fffffu)==0x7c1603a6u&&!(c->msr&0x4000u)){
+  *(uint32_t *)c->external_user_data=c->gpr[(instruction>>21)&31u];c->pc=pc+4u;return;}
+ fprintf(stderr,"unsupported oracle CPU instruction %08x at %08x\n",instruction,pc);exit(6);}
 static int original_raw(uint32_t pc,const uint32_t *args,uint32_t *result){
- CPUState c;memset(&c,0,sizeof c);c.ram=oracle;c.ram_size=BYTES;c.msr=0x2000;c.hid2=0xe0000000u;
+ uint32_t decrementer=0;CPUState c;memset(&c,0,sizeof c);c.ram=oracle;c.ram_size=BYTES;c.msr=0x2000;c.hid2=0xe0000000u;
+ c.instruction_fallback=original_cpu_instruction;c.external_user_data=&decrementer;
  c.fpr[1]=1.0;c.gpr[1]=HI-0x40u;c.gpr[2]=0x803b9a40u;c.gpr[13]=R13;
  for(unsigned k=0;k<6;++k)c.gpr[3+k]=args[k];c.pc=pc;
  for(unsigned step=0;c.pc;++step){

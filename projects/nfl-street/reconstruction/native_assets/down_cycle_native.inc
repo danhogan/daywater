@@ -16,7 +16,7 @@
    Reads/writes match DolRecomp emitter.c PPC_OP_MFMSR/PPC_OP_MTMSR.
    Thus 801F20A8/BC/D0 preserve the original interrupt save/restore path;
    they do not change host interrupts or bypass the guarded RAM work. */
-typedef struct {nflstreet_ai_policy *out;uint32_t r[32],lr,ctr,cr,ca,pc,msr;
+typedef struct {nflstreet_ai_policy *out;uint32_t r[32],lr,ctr,cr,ca,pc,msr,dec;
  double f[32],ps[32];unsigned budget,depth;} cb_machine;
 /* DVD register words: zero reads / discarded writes, matching the oracle
    with unset external device callbacks. No DMA or completion is simulated. */
@@ -537840,7 +537840,7 @@ L801ef5e0: if(!cb_tick(s,0x801ef5e0u))return;
 }
 static AI_NOINLINE void cb_801ef620(cb_machine *s){
 if(!cb_tick(s,0x801ef620u))return;
-/* 801ef620 */ s->pc=0x801ef620u;s->out->unsupported=0x801ef620u;cb_fail(s,0x801ef620u);return; /* unsupported mtspr */
+/* 801ef620 */ s->dec=s->r[3]; /* CPU state; no clock/interrupt delivery. */
 /* 801ef624 */ return;
 }
 static AI_NOINLINE void cb_801ef628(cb_machine *s){
