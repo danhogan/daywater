@@ -16,7 +16,7 @@ CACHE = transcription.CACHE
 # they are concrete function addresses, never assumed gameplay semantics.
 ROOTS = (
     "800aac08 800afc88 800a0d10 8006e2e4 8007c180 8005dcf8 800f8088 80094e60 800150e8 800f8214 800f86bc "
-    "801f429c 801f42dc"
+    "8007e0b4 801f429c 801f42dc 801f50e4"
 ).split()
 
 

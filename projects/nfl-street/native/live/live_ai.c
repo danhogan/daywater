@@ -62,11 +62,21 @@ static int committed_movement(nflstreet_live_ai *c,nflstreet_live_ai_actor *a){
  const nflstreet_ai_call call={0x800f86bcu,{a->actor,0,0,0,0,0}};uint32_t result=0;
  if(!c->dispatch.service||!c->dispatch.service(c->dispatch.user,&call,&result)){
   c->dispatch.unsupported=call.pc;return 0;}return sync_actor(c,a);}
+/* Run the complete original dispatch in the same native call/operand stack
+   as its policies and transition callbacks. The existing adapter remains
+   available for other service providers. The original-module checker covers
+   this source entry in persistent runs, including context 15's callback path. */
+static int dispatched_policy(nflstreet_live_ai *c,nflstreet_live_ai_actor *a){
+ if(c->dispatch.service!=nflstreet_ai_policy_service)
+  return nflstreet_ai_dispatch_step(&c->dispatch,0,a->actor+0xbe4,a->actor,0);
+ const nflstreet_ai_call call={0x8007e0b4u,{0,a->actor+0xbe4,a->actor,0,0,0}};uint32_t result;
+ const int ok=c->dispatch.service(c->dispatch.user,&call,&result);
+ c->dispatch.ok=ok;c->dispatch.unsupported=ok?0:call.pc;return ok;}
 int nflstreet_live_ai_step(nflstreet_live_ai *c,nflstreet_locomotion_context *selector,unsigned frame){
  if(!c||!c->transaction.before)return 0;c->last_moved=0;
  for(unsigned i=0;i<c->count;++i){nflstreet_live_ai_actor *a=c->actors+i;if(a->held)continue;
   nflstreet_ai_transaction_begin(&c->transaction);
-  const int ok=nflstreet_ai_dispatch_step(&c->dispatch,0,a->actor+0xbe4,a->actor,0);
+  const int ok=dispatched_policy(c,a);
   if(!service_status(c,a,ok,frame,"dispatch"))return 0;}
  (void)selector; /* Keep the public live adapter ABI; native calls share one stack. */
  for(unsigned i=0;i<c->count;++i){nflstreet_live_ai_actor *a=c->actors+i;if(a->held)continue;

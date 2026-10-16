@@ -139,9 +139,11 @@ static int one(uint32_t pc,uint32_t a,int dispatch,int compare_return){
  /* Retain the original UNGUARDED five-service saved/edited comparisons.
     Only host driver/dispatch operations use the explicit host boundary. */
  int raw=0;for(unsigned k=0;k<5;++k)raw|=!dispatch&&pc==roots[k];int ok;
- if(dispatch){nflstreet_ai_dispatch d={{span,native,R13},nflstreet_ai_policy_service,&policy,LO+0x40u,0,0};
+ if(dispatch==1){nflstreet_ai_dispatch d={{span,native,R13},nflstreet_ai_policy_service,&policy,LO+0x40u,0,0};
   ok=nflstreet_ai_dispatch_step(&d,0,a+0xbe4,a,0);
   if(!ok&&d.unsupported)fprintf(stderr,"dispatch service %08x\n",d.unsupported);
+ }else if(dispatch){const nflstreet_ai_call call={pc,{0,a+0xbe4,a,0,0,0}};
+  ok=nflstreet_ai_policy_service(&policy,&call,&nv);
  }else{const nflstreet_ai_call call={pc,{a,0,0,0,0,0}};
   ok=raw?nflstreet_ai_policy_call(&policy,&call,0,&nv):nflstreet_ai_policy_service(&policy,&call,&nv);}
  if(!ok){fprintf(stderr,"native rejected pc %08x case %u actor %u step %u source %08x address %08x target %08x budget %d\n",
@@ -153,6 +155,28 @@ static int one(uint32_t pc,uint32_t a,int dispatch,int compare_return){
  if(!same(pc))return 7;
  if(compare_return&&nv!=ov){fprintf(stderr,"return mismatch pc %08x case %u actor %u step %u original %u native %u\n",pc,mode_case,mode_actor,mode_step,ov,nv);return 7;}return 0;}
 static uint32_t hash(uint32_t h){for(unsigned k=0;k<BYTES;++k)if(k<LO-BASE||k>=HI-BASE)h=(h^native[k])*16777619u;return h;}
+static int animation_entry_check(void){
+ /* Actual request path, not a direct call on an inactive callback slot:
+    80177EF4 allocates/initializes key 0, then 801778C0 selects the registered
+    group-3 80027830 callback at 80177938. Use each saved AI actor's real
+    manager, set and channels. No fake handle, manager slot or bank pointer.
+    This catches an executable missing the callback before the long matrix. */
+ unsigned checked=0;
+ for(unsigned i=0;i<ACTORS;++i){const uint32_t a=actor(saved,i);if(r8(saved,a+8)!=255)continue;
+  reset();mode_actor=i;const uint32_t manager=r32(native,a+0x324),set=r32(native,a+0x328);
+  const unsigned group=r8(native,set+2)*256+r8(native,set+3);
+  const uint32_t descriptor=r32(native,r32(native,R13-0x6718u)+4*group);
+  if(r32(native,r32(native,descriptor+4))!=0x80027830u){fprintf(stderr,"missing saved key-0 callback for actor %u\n",i);return 4;}
+  const nflstreet_ai_call call={0x80177ef4u,{manager,set,r32(native,a+0x32c),0,a,0}};uint32_t nv,ov;
+  if(!nflstreet_ai_policy_service(&policy,&call,&nv)){
+   fprintf(stderr,"animation path rejected actor %u source %08x address %08x target %08x budget %d\n",
+    i,policy.failure_pc,policy.failure_address,policy.unsupported,policy.failure_budget_exhausted);return 6;}
+  if(!original_host(call.pc,call.args,&ov))return 6;
+  if(!same(call.pc)||nv!=ov)return 7;++checked;
+ }
+ if(checked!=13)return 4;
+ printf("AI path regression: %u original requests through 80177EF4/80177938/80027830 match all RAM and returns.\n",checked);
+ return 0;}
 static int host_thread_check(void){
  /* Exercise the source's current-thread reader and mixer lock/unlock pair
     on each capture, including the captured OTHER thread's held mutex in
@@ -218,6 +242,7 @@ int main(int argc,char **argv){
  if(!transaction_check())return 9;
  {int rc=scheduler_boundary_check();if(rc){fprintf(stderr,"SDK scheduler boundary check failed %d\n",rc);return rc;}}
  {int rc=host_thread_check();if(rc){fprintf(stderr,"host thread/mixer boundary check failed %d\n",rc);return rc;}}
+ {int rc=animation_entry_check();if(rc)return rc;}
  /* The scheduler's saved r13-61C0 registration is an actual BLR function.
     Compare its all-RAM and unchanged-r3 behavior against the original,
     including nonzero arguments. This is not an original hook. */
@@ -247,7 +272,9 @@ int main(int argc,char **argv){
   memcpy(oracle,native,BYTES);
   for(unsigned step=0;step<UPDATES;++step){mode_step=step;
    for(unsigned i=0;i<ACTORS;++i){mode_actor=i;uint32_t a=actor(saved,i);if(r8(saved,a+8)!=255)continue;
-    if((result=one(0x8007e0b4u,a,1,0))||(result=one(0x800150e8u,a,0,0))||(result=one(0x800f86bcu,a,0,0)))return result;
+    /* Same complete source-dispatch entry as live_ai.c. Keep the independent
+       hand-written adapter's 401-case comparisons above as well. */
+    if((result=one(0x8007e0b4u,a,2,0))||(result=one(0x800150e8u,a,0,0))||(result=one(0x800f86bcu,a,0,0)))return result;
     ++persistent;}
   }digest=hash(digest);
  }
