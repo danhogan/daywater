@@ -32,6 +32,7 @@
 #include "locomotion_predicates.h"
 #include "live_ai.h"
 #include "ai_policy.h"
+#include "play_selection.h"
 #undef nflstreet_locomotion_select
 #define RAM_BASE 0x80000000u
 #define RAM_BYTES (24u*1024u*1024u)
@@ -214,6 +215,19 @@ int main(int argc,char *argv[]){
  /* The gameplay actor table: *(r13-7C30) holds the array's address (+0) and count (+0A). */
  const uint32_t actor_table=ram32(ram,R13-0x7c30u),gameplay_actors=ram32(ram,actor_table);
  const unsigned actor_count=(unsigned)(ram32(ram,actor_table+8)&0xffffu)<14u?(unsigned)(ram32(ram,actor_table+8)&0xffffu):14u;
+ /* Startup is a host resume boundary: choose once for the opposite side,
+    then install through the original play->command path before any update.
+    Reject unsupported selection rather than silently retaining the saved play. */
+ static nflstreet_play_selection selection;nflstreet_selected_play selected;
+ nflstreet_play_selection_init(&selection,(nflstreet_actor_ai){span,ram,R13});
+ const uint8_t *controlled_team=player?ram_at(ram,player+2u,1):NULL;
+ if(!controlled_team||*controlled_team>1){note("cannot resolve AI team for play selection");return 4;}
+ const unsigned ai_team=*controlled_team^1u;
+ if(!nflstreet_play_select(&selection,ai_team,&selected)||!nflstreet_play_install(&selection,ai_team)){
+  if(log_file){fprintf(log_file,"play selection failed: pc %08x address %08x target %08x budget %d\n",
+   selection.failure_pc,selection.failure_address,selection.unsupported,selection.failure_budget_exhausted);fflush(log_file);}return 4;}
+ FILE *play_log=log_file?log_file:stderr;
+ fprintf(play_log,"play selected: %u%s%s for team %u\n",selected.id,selected.name[0]?" ":"",selected.name,selected.team);fflush(play_log);
  nflstreet_live_ai ai;
  if(!nflstreet_live_ai_init(&ai,span,ram,R13,gameplay_actors,actor_count,player,log_file)){
   note("cannot seed AI movement from gameplay roster");return 4;}

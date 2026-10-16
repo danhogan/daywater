@@ -1,0 +1,50 @@
+[
+  {
+    "name": "rng-multiplier",
+    "file": "play_selection_native.inc",
+    "old": "/* 80188014 */ s->r[0]=s->r[0]|(0x0000660du);",
+    "new": "/* 80188014 */ s->r[0]=s->r[0]|(0x0000660cu);"
+  },
+  {
+    "name": "rng-audit",
+    "file": "play_selection_native.inc",
+    "old": "/* 801ee294 */ s->r[11]=s->r[11]+(0x00000007u);",
+    "new": "/* 801ee294 */ s->r[11]=s->r[11]+(0x00000008u);"
+  },
+  {
+    "name": "down-script-input",
+    "file": "play_selection_native.inc",
+    "old": "/* 800f4074 */ s->pc=0x800f4074u;{uint32_t t=(s->r[31]+0x00000002u);cb_store(s,t,s->r[3],2);}",
+    "new": "/* 800f4074 */ s->pc=0x800f4074u;{uint32_t t=(s->r[31]+0x00000002u);cb_store(s,t,s->r[3]^1u,2);}"
+  },
+  {
+    "name": "distance-script-input",
+    "file": "play_selection_native.inc",
+    "old": "/* 800f415c */ s->pc=0x800f415cu;{uint32_t t=(s->r[31]+0x00000004u);cb_store(s,t,s->r[9],2);}",
+    "new": "/* 800f415c */ s->pc=0x800f415cu;{uint32_t t=(s->r[31]+0x00000004u);cb_store(s,t,s->r[9]+1u,2);}"
+  },
+  {
+    "name": "yard-line-script-input",
+    "file": "play_selection_native.inc",
+    "old": "/* 800f4090 */ s->pc=0x800f4090u;{uint32_t t=(s->r[31]+0x00000006u);cb_store(s,t,s->r[9],2);}",
+    "new": "/* 800f4090 */ s->pc=0x800f4090u;{uint32_t t=(s->r[31]+0x00000006u);cb_store(s,t,s->r[9]+1u,2);}"
+  },
+  {
+    "name": "score-script-input",
+    "file": "play_selection_native.inc",
+    "old": "/* 800f4068 */ s->pc=0x800f4068u;{uint32_t t=(s->r[31]+0x00000000u);cb_store(s,t,s->r[0],2);}",
+    "new": "/* 800f4068 */ s->pc=0x800f4068u;{uint32_t t=(s->r[31]+0x00000000u);cb_store(s,t,s->r[0]+1u,2);}"
+  },
+  {
+    "name": "first-command-append",
+    "file": "play_selection_native.inc",
+    "old": "/* 800ef3bc */ s->pc=0x800ef3bcu;s->lr=0x800ef3c0u;cb_dispatch(s,0x8007e650u);if(!s->out->ok)return;",
+    "new": "/* 800ef3bc */ s->pc=0x800ef3bcu;s->lr=0x800ef3c0u;cb_dispatch(s,0x8007e4ecu);if(!s->out->ok)return;"
+  },
+  {
+    "name": "chosen-id",
+    "file": "play_selection.c",
+    "old": "out->id=ps_word(c,play);",
+    "new": "out->id=ps_word(c,ps_team(c,team)+0x10u);"
+  }
+]
