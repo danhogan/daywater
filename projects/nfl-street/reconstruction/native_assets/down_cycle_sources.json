@@ -1357,6 +1357,14 @@
       "oracle": "listed original entry returns to LR; no native implementation is invoked",
       "return": 0
     },
+    "801ab968": {
+      "confidence": "source-audited service boundary; original-module gate pending",
+      "description": "streamed voice-start request; original audio-disabled handle",
+      "disassembly_sha256": "441629c54ce3a801d1fc7663fdda923a33f505431d5f97371dc9af3de298bd6f",
+      "native": "early return from the statically named source function",
+      "oracle": "listed original entry returns to LR; no native implementation is invoked",
+      "return": 4294967295
+    },
     "801aba64": {
       "confidence": "source-audited service boundary; original-module gate pending",
       "description": "streamed sound channel control request",
@@ -1474,6 +1482,25 @@
       "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
       "ui_resource_cache_functions": [],
       "write_scope": "animation-bank/cache/request records, asset-local relocations, heap/OS/device state only"
+    },
+    "801ab968": {
+      "callback_closure_functions": 344,
+      "callback_closure_sha256": "21d26d59a105225759d4b81386d70735a58e5bd713fc9c79ad6d3ce2cdf92179",
+      "callback_disassembly_sha256": {
+        "801add94": "b607df39eeadd0ea36a344692393f462028b528748c40633aff93393be4e62ab"
+      },
+      "completion_callback": "801adee8 passes 801add94 to 80183824; updates only the STRM owner",
+      "direct_closure_functions": 363,
+      "direct_closure_sha256": "7c3d052f24ebd8eb0696e0f6e0c9f3c462364da64ada87b3637d22dd8681437b",
+      "disabled_return": "ffffffff from 801ab968's original disabled-audio branch",
+      "read_only_game_leaves": [],
+      "retained_caller": "80143acc; includes 801439b0 -> 801436ac -> 8002e4f8 phase-cache publication",
+      "reviewed_callback_roots": [
+        "801add94"
+      ],
+      "source_review": "down_cycle.md audio/disc write ledger; shared game event dispatch is retained",
+      "ui_resource_cache_functions": [],
+      "write_scope": "audio voice queues/handles, STRM ring buffers/file requests, heap/OS/device state only"
     },
     "801aba64": {
       "direct_closure_functions": 35,

@@ -463913,29 +463913,8 @@ L801ab954: if(!cb_tick(s,0x801ab954u))return;
 }
 static AI_NOINLINE void cb_801ab968(cb_machine *s){
 if(!cb_tick(s,0x801ab968u))return;
-/* 801ab968 */ s->pc=0x801ab968u;{uint32_t t=(s->r[1]+0xfffffff8u);cb_store(s,t,s->r[1],4);s->r[1]=t;}
-/* 801ab96c */ s->r[0]=s->lr;
-/* 801ab970 */ s->pc=0x801ab970u;{uint32_t t=(s->r[1]+0x0000000cu);cb_store(s,t,s->r[0],4);}
-/* 801ab974 */ s->r[11]=0xffff8035u<<16;
-/* 801ab978 */ s->r[9]=0x00000001u<<16;
-/* 801ab97c */ s->pc=0x801ab97cu;{uint32_t t=(s->r[11]+0xffff859cu);s->r[0]=cb_load(s,t,4);}
-/* 801ab980 */ s->r[9]=s->r[9]|(0x00000100u);
-/* 801ab984 */ s->r[11]=s->r[3]|s->r[3];
-/* 801ab988 */ s->r[10]=s->r[4]|s->r[4];
-/* 801ab98c */ s->r[0]=(cb_rot(s->r[0],0)&cb_mask(8,23));
-/* 801ab990 */ s->r[4]=s->r[5]|s->r[5];
-/* 801ab994 */ cb_cmp(s,0,(int32_t)s->r[0],(int32_t)s->r[9]);
-/* 801ab998 */ s->r[3]=0xffffffffu;
-/* 801ab99c */ if(!cb_bit(s,2)){goto L801ab9ac;}
-/* 801ab9a0 */ s->pc=0x801ab9a0u;{uint32_t t=(s->r[11]+0x00000000u);s->r[3]=cb_load(s,t,4);}
-/* 801ab9a4 */ s->r[5]=s->r[10]|s->r[10];
-/* 801ab9a8 */ s->pc=0x801ab9a8u;s->lr=0x801ab9acu;cb_dispatch(s,0x8022a488u);if(!s->out->ok)return;
-L801ab9ac: if(!cb_tick(s,0x801ab9acu))return;
-/* 801ab9ac */ s->pc=0x801ab9acu;{uint32_t t=(s->r[1]+0x0000000cu);s->r[0]=cb_load(s,t,4);}
-/* 801ab9b0 */ s->lr=s->r[0];
-/* 801ab9b4 */ s->r[1]=s->r[1]+(0x00000008u);
-/* 801ab9b8 */ return;
-}
+/* Not modeled: audio/disc service 801ab968: streamed voice-start request; original audio-disabled handle. */
+s->r[3]=4294967295u;return;}
 static AI_NOINLINE void cb_801ab9bc(cb_machine *s){
 if(!cb_tick(s,0x801ab9bcu))return;
 /* 801ab9bc */ s->pc=0x801ab9bcu;{uint32_t t=(s->r[1]+0xfffffff0u);cb_store(s,t,s->r[1],4);s->r[1]=t;}

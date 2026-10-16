@@ -25,6 +25,8 @@ static unsigned case_index,side,stage;
    80175448 is the animation-bank stream request: return zero without
    submitting it or publishing readiness. Its caller ignores that status;
    the source-owned celebration/gameplay bookkeeping still executes.
+   801AB968 returns its own disabled-audio handle FFFFFFFF. Its speech
+   caller remains original, including the 8002E4F8 phase-cache store.
    Void entries preserve every GPR. Never invoke native code from this
    boundary or skip general event functions or generic resource readers.
    The list is independent of the native builder. */
@@ -39,6 +41,7 @@ static const struct {uint32_t pc,result;int returns;const char *purpose;} audio_
  {0x8014164cu,0,0,"music/stream control"},
  {0x8014368cu,0,0,"announcer/speech bank prefetch"},
  {0x80175448u,0,1,"animation-bank stream request; suppressed without publication"},
+ {0x801ab968u,0xffffffffu,1,"streamed voice-start request; audio-disabled handle"},
  {0x801aba64u,0,0,"streamed sound control"},
 };
 static unsigned audio_disc_calls[sizeof audio_disc_services/sizeof *audio_disc_services];
@@ -61,7 +64,7 @@ static void wf(void *p,uint32_t a,float f){uint32_t v;memcpy(&v,&f,4);w32(p,a,v)
    Dispatch-only hooks therefore miss service entries (8013D854's forward
    BL to 8013D8A4 is the observed example).
 
-   The DLL exports a PRE-WRITE journal. All eleven listed entries begin with
+   The DLL exports a PRE-WRITE journal. All twelve listed entries begin with
    STWU r1,negative-frame(r1). At that first write the original code has
    materialized PC but has not stored the backchain or updated guest r1.
    Validate the exact opcode/address/width, perform the SAME listed entry

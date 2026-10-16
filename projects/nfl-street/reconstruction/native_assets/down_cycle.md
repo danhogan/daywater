@@ -66,7 +66,7 @@ check, avoiding a second AI/physics update. Phase 4 advances the original
 `8004EBF0` callback queue (including the delayed result commit), then requests
 original phase 5 when the queue drains. Replay, celebration, audio and menu
 wait scheduling from the full phase-4 update is not modeled. Original reached
-entry/exit/event functions remain transcribed. The eleven named audio/disc service
+entry/exit/event functions remain transcribed. The twelve named audio/disc service
 entries below return early on both sides; no gameplay routine is skipped.
 A reached unsupported instruction, function or memory span stops the update.
 
@@ -90,20 +90,22 @@ to `80F38000..80F46FFF`; production never borrows gameplay RAM as scratch.
 The project manager explicitly directed the hardware and sound/streaming layer
 to remain outside this module. Earlier context-14 case 401/stage 570 exhausted
 the budget inside the ARAM client's synchronous completion wait. This revision
-cuts at audio requests, the UI resource-load callback and the animation-bank
+cuts at audio/voice requests, the UI resource-load callback and the animation-bank
 stream request, above their
 generic resource, OS and device calls.
 It removes the earlier DVD/ARAM zero-read/discard-write fallback. Native device
 addresses now fail the span check, and the original checker rejects external
 reads/writes. There is no DMA, completion interrupt, audio clock or disc model.
 
-The original checker lists exactly these eleven original entry addresses. It
+The original checker lists exactly these twelve original entry addresses. It
 returns to guest LR before executing each listed routine, without calling
 native code or writing guest RAM. The native function returns at the same
 entry. Void entries preserve incoming registers. The sound-cue start returns
 `7FFFFFFF`, its own disabled-audio return in `8013D8A4`; this means no voice
 handle, rather than an invented successful request. The UI load callback
 returns NULL, following the consumer's existing unavailable-resource branch.
+The streamed voice-start API `801AB968` returns `FFFFFFFF`, its own
+disabled-audio handle; the original speech caller still publishes that result.
 The animation stream request returns zero without submitting a request or
 publishing readiness; this is an explicit suppressed-service policy, not a
 claim that an asset loaded successfully. Its original caller ignores the
@@ -123,7 +125,7 @@ The checker now also installs the unchanged DLL's exported
 `ppc_set_mem_write_journal` callback. Every listed entry begins with
 `STWU r1,negative-frame(r1)`. The DLL materializes guest PC and invokes the
 journal **before** storing the stack backchain and updating guest r1. At
-exactly one of the eleven named PCs the callback checks the captured opcode,
+exactly one of the twelve named PCs the callback checks the captured opcode,
 write width, effective stack address and private stack bounds, applies the
 same void/disabled-handle return, and uses `longjmp` to leave the generated C
 frames. No service RAM store commits and no native game implementation is
@@ -253,6 +255,41 @@ comparison mask or gameplay callback was changed to avoid it.
   This is also called directly by ambient stream controls `80137B84/80137C08`.
   It checks audio flags `8034859C`, takes `802292C0/80229300`'s audio lock and
   calls `8022A7B4` to change audio channel state. No game object is supplied.
+- **not modeled: audio/disc service (`801AB968`, streamed voice-start request).**
+  The next owner run again reached context 14 case 402/stage 146, now after
+  the animation request. Its complete backchain passes through speech event
+  `801433C4 -> 8014321C -> 8016F464 -> 801713B0 -> 80170D1C -> 80143ACC`,
+  then `801AB968 -> 8022A488 -> 8022A284 -> 801AE6FC -> 801ADDB8 ->
+  801ADEE8 -> 80183824 -> ... -> 801F748C` and `CC006004`. This is an
+  announcer voice's streamed audio data, not another celebration-bank request.
+  The fixture remains a valid touchdown; no generator restriction was added.
+
+  `801AB968` is the audio API immediately below the speech caller. It
+  returns `FFFFFFFF` when `(8034859C & FFFF00) != 10100`; both sides use that
+  existing disabled-audio result without changing the global audio flags.
+  `801441F4/8014159C` supply audio channel descriptors from `803877F8`.
+  `8022A284` resolves only an audio voice owner through `802297B8`'s
+  `80362E68` table. Its stores initialize a voice queue record, advance the
+  owner's voice-handle counter and link that record into the audio queue under
+  `802292C0/80229300`'s audio lock. `801AE6FC` validates a `STRM` owner,
+  allocates its stream request, records the bank/block key and disc range,
+  then links the request through `801AD8D0`. `801ADDB8/801ADEE8` update only
+  that owner's request list, ring-buffer positions, pending byte counts and
+  file request token; `80183824` receives a destination inside that audio
+  ring buffer. Completion `801ADD94 -> 801ADC98` advances those same byte
+  counters, chunk/parser state and stream readiness. The builder now audits
+  and hashes that named callback's closure as well as the direct closure.
+  Neither closure contains a game-code entry; writes are audio/stream/OS
+  state, never actors, ball, phase, field, down/distance, possession or score.
+
+  The higher speech caller cannot be skipped: `80143ACC -> 801439B0 ->
+  801436AC` calls phase reader `8002E4F8`, which writes `r13-7CF4`.
+  `80143ACC` and the speech engine therefore remain complete source/native
+  routines. They still perform their decisions, phase-cache publication and
+  audio history/handle stores after the API returns the disabled handle.
+  Only the original `801AB968` entry returns early, including when reached
+  inside a generated chunk. The case schedule, RAM mask, gameplay callbacks
+  and hardware-access rejection are unchanged.
 
 The write audit follows each entry's disassembly/decompilation and direct
 callee closure, then checks ownership at the audio initialization and request
@@ -265,7 +302,8 @@ and branches, with no stores, calls or indirect branches. The UI entry
 additionally reaches the seven exact resource-cache
 functions listed above; these have a separate write ledger and are allowed
 only in that entry's audit, without exempting any address range. The animation
-entry additionally audits its four named callback roots and their closure.
+entry additionally audits its four named callback roots and their closure;
+the streamed voice entry separately audits its file-completion callback.
 The builder enforces that property
 and records closure hashes and those leaves in `down_cycle_sources.json`.
 This source audit is not a substitute for an executed original-module check.
@@ -310,7 +348,7 @@ the saved frame are constructed by editing actual fields, never by injecting
 event-log records. There are 24 retained 96-update sequences crossing whistle,
 queued commit, next-play lineup and snap. Separate dirty-destination and
 threshold cases exercise result/down/distance writers. Every call/update
-compares all 24 MiB outside the oracle stack. The original has only the eleven
+compares all 24 MiB outside the oracle stack. The original has only the twelve
 documented audio/disc entry returns and never invokes native implementations.
 The original-side host schedule is
 independent of the native wrapper. These are required checks, not executed

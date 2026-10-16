@@ -17,7 +17,7 @@ RUNTIME_CACHE = Path(
     "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/"
     "vendor/dolphin/GXRuntime/src/core/cpu_interpreter_integer.c"
 )
-# Audio and UI resource-stream entry points, rather than DI/DSP/ARAM
+# Audio, UI and animation resource-stream entry points, rather than DI/DSP/ARAM
 # registers or shared event services. None of their source closures calls a
 # football writer. 801405B8 reads replay/mirror flags but writes only its
 # sound-history records. Preserve general event delivery and gameplay
@@ -35,6 +35,7 @@ AUDIO_DISC_SERVICES = {
     0x8014164C: (None, "music/stream channel control request"),
     0x8014368C: (None, "announcer/speech bank prefetch request"),
     0x80175448: (0, "animation-bank stream request; suppressed request, no bank publication"),
+    0x801AB968: (0xFFFFFFFF, "streamed voice-start request; original audio-disabled handle"),
     0x801ABA64: (None, "streamed sound channel control request"),
 }
 
@@ -73,7 +74,7 @@ def audio_disc_write_audit() -> dict[str, Any]:
     audit = {}
     for address in AUDIO_DISC_SERVICES:
         seen = closure({f"{address:08x}"})
-        callbacks = animation_callbacks if address == 0x80175448 else set()
+        callbacks = {0x80175448: animation_callbacks, 0x801AB968: {"801add94"}}.get(address, set())
         callback_closure = closure(callbacks)
         low_entries = {entry for entry in seen | callback_closure if int(entry, 16) < 0x80130000}
         permitted = readonly | (ui_cache if address == 0x8012AC68 else set())
@@ -105,7 +106,17 @@ def audio_disc_write_audit() -> dict[str, Any]:
                     entry: hashlib.sha256((builder.CACHE / "disassembly" / f"{entry}.txt").read_bytes()).hexdigest()
                     for entry in sorted(callbacks)
                 },
-                write_scope="animation-bank/cache/request records, asset-local relocations, heap/OS/device state only",
+                write_scope=(
+                    "animation-bank/cache/request records, asset-local relocations, heap/OS/device state only"
+                    if address == 0x80175448
+                    else "audio voice queues/handles, STRM ring buffers/file requests, heap/OS/device state only"
+                ),
+            )
+        if address == 0x801AB968:
+            audit[f"{address:08x}"].update(
+                disabled_return="ffffffff from 801ab968's original disabled-audio branch",
+                retained_caller="80143acc; includes 801439b0 -> 801436ac -> 8002e4f8 phase-cache publication",
+                completion_callback="801adee8 passes 801add94 to 80183824; updates only the STRM owner",
             )
     return audit
 
