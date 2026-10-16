@@ -21,7 +21,7 @@ ROOTS = (
     "8002e3c8 8002e45c 800f9c50 800f946c 800815b4 800262b0 800263ec "
     "80024fb8 80024f58 80025028 80025840 80025f98 800260b4 8002676c "
     "8010397c 80103c30 80103a28 80103cbc 80103dac 80103cf0 80103ea8 "
-    "8004ebf0 80025e60 80025e90 800c19fc 800c1d1c 80180fb4 80182b74 80181bcc"
+    "8004ebf0 80025e60 80025e90 800c19fc 800c1d1c 80180fb4 80182b74 80181bcc 8022297c"
 ).split()
 
 
@@ -124,6 +124,7 @@ def main() -> None:
     camera_callbacks = {}
     allocation_callbacks = {}
     allocator_vtables = {}
+    callbacks_803569b8 = {}
     targets = []
     for context in (14, 15, 16):
         capture = Path(f"/mnt/w/Daywater/research-temp/position-neutral-{context}.mem1").read_bytes()
@@ -209,6 +210,63 @@ def main() -> None:
             "vtable": f"{vtable:08x}",
             "methods": methods,
         }
+        # 8022297C registers seven callbacks at 803569B8..D0.
+        # 80227580 loads 803569CC before BLRL at 802276AC; the
+        # captured target is 80224640. Preserve all seven registrations
+        # and their initializer's source closure, not just the failed call.
+        # 80224058 publishes the 0x60-byte row array through 803569AC;
+        # its count is 803567D8's high byte. 80224640 walks row+40's list,
+        # invoking node+4 and advancing through node+8 before freeing.
+        # Capture those real callback bindings as well. This adds native
+        # functions without changing the saved registry, lists, or cases.
+        registrations_803569b8 = {}
+        for address in range(0x803569B8, 0x803569D4, 4):
+            target = word(address)
+            if target and (target & 3 or not (builder.CACHE / "disassembly" / f"{target:08x}.txt").is_file()):
+                raise RuntimeError(f"Invalid registered callback {address:08x} -> {target:08x} in {context}")
+            registrations_803569b8[f"{address:08x}"] = f"{target:08x}"
+            if target:
+                targets.append(f"{target:08x}")
+        # Related source consumers: 80224600 calls 803567DC;
+        # 8022478C calls 803567E4/803569B0; 802316D8 calls 803569B4;
+        # 80232220/24C and 802324D8/504 call 80362F04/08. Keep NULLs
+        # and bounded captured-code targets (803569B0 names 802307F0,
+        # which has no cache file) just like the existing closure decoder.
+        related = {}
+        for address in (0x803567DC, 0x803567E4, 0x803569B0, 0x803569B4, 0x80362F04, 0x80362F08):
+            target = word(address)
+            if target and (target & 3 or not 0x80004000 <= target < 0x80244000):
+                raise RuntimeError(f"Invalid related callback {address:08x} -> {target:08x} in {context}")
+            related[f"{address:08x}"] = f"{target:08x}"
+            if target:
+                targets.append(f"{target:08x}")
+        count = word(0x803567D8) >> 24
+        rows_address = word(0x803569AC)
+        lists = {}
+        for row in range(count):
+            address = rows_address + 0x60 * row
+            node = word(address + 0x40)
+            visited: set[int] = set()
+            nodes = []
+            while node:
+                if node in visited:
+                    raise RuntimeError(f"Cyclic callback list {address:08x} in {context}")
+                visited.add(node)
+                target, successor = word(node + 4), word(node + 8)
+                if target and (target & 3 or not (builder.CACHE / "disassembly" / f"{target:08x}.txt").is_file()):
+                    raise RuntimeError(f"Invalid list callback {node:08x} -> {target:08x} in {context}")
+                nodes.append({"node": f"{node:08x}", "callback": f"{target:08x}", "next": f"{successor:08x}"})
+                if target:
+                    targets.append(f"{target:08x}")
+                node = successor
+            lists[str(row)] = {"address": f"{address:08x}", "nodes": nodes}
+        callbacks_803569b8[str(context)] = {
+            "registrations": registrations_803569b8,
+            "related_callbacks": related,
+            "rows_address": f"{rows_address:08x}",
+            "rows_count": count,
+            "lists": lists,
+        }
     scope["ROOTS"] = list(dict.fromkeys(scope["ROOTS"] + ROOTS + sorted(set(targets))))
     scope["main"]()
     manifest = HERE / "down_cycle_sources.json"
@@ -217,6 +275,7 @@ def main() -> None:
     provenance["camera_event_callbacks"] = camera_callbacks
     provenance["allocation_callbacks"] = allocation_callbacks
     provenance["allocator_vtables"] = allocator_vtables
+    provenance["callback_registry_803569b8"] = callbacks_803569b8
     provenance["disc_interface_boundary"] = {
         "registers": "cc006000..cc006024, aligned u32 only",
         "read": "zero, matching mem_read32 with external_read unset",
