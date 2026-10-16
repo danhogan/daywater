@@ -3075,6 +3075,15 @@
       "reader": "80180c6c, indirect call at 80180d14"
     }
   },
+  "cycle_coverage_schedule": {
+    "check": "24 x 96 retained update windows, then up to 256 checked phase-4 tail updates per window",
+    "commit_signal": "800263ec -> 80043b9c sets whistle-state +151 and appends a 120-tick queue entry",
+    "confidence": "candidate until original-module gate passes",
+    "contact": "800f9c50 requires actor +1b0 <= 0, +c bit 800 and either +c bit 10000 or +265 nonzero",
+    "fixture": "contact cases set actor +c bits 10800 and height zero, alongside the existing ball state edits",
+    "queue": "800266a4 queues 45 ticks, then 80025e90 commits through 800263ec",
+    "tail_scope": "all RAM compared per update; no timer edits or callback bypass; lineup/snap after selection"
+  },
   "decrementer_boundary": {
     "confidence": "candidate until original-module gate passes",
     "instruction": "801ef620: mtspr DEC,r3; SPR_DEC = 22",

@@ -336,6 +336,15 @@ def main() -> None:
         "source_sha256": hashlib.sha256(RUNTIME_CACHE.read_bytes()).hexdigest(),
         "confidence": "candidate until original-module gate passes",
     }
+    provenance["cycle_coverage_schedule"] = {
+        "queue": "800266a4 queues 45 ticks, then 80025e90 commits through 800263ec",
+        "commit_signal": "800263ec -> 80043b9c sets whistle-state +151 and appends a 120-tick queue entry",
+        "check": "24 x 96 retained update windows, then up to 256 checked phase-4 tail updates per window",
+        "tail_scope": "all RAM compared per update; no timer edits or callback bypass; lineup/snap after selection",
+        "contact": "800f9c50 requires actor +1b0 <= 0, +c bit 800 and either +c bit 10000 or +265 nonzero",
+        "fixture": "contact cases set actor +c bits 10800 and height zero, alongside the existing ball state edits",
+        "confidence": "candidate until original-module gate passes",
+    }
     manifest.write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n")
 
 

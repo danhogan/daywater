@@ -113,15 +113,20 @@ static int original_update(void){uint32_t p=phase(oracle);
   if(!o_call(0x8004ebf0u,w,0,0))return 0;
   if(!r8(oracle,w+0x100u))return o_call(0x8002e45cu,5,0,0);return 1;}
  return p==2||p==5;}
-static unsigned whistles[5],commits,selections,snaps,updates;
+static unsigned whistles[5],commits,selections,snaps,updates,tail_updates;
 static int step(void){nflstreet_down_cycle_event e;uint32_t before=phase(oracle);
+ const uint32_t whistle_state=r32(oracle,R13-0x7b98u);const unsigned committed=r8(oracle,whistle_state+0x151u);
  if(!nflstreet_down_cycle_update(&policy,&e))return rejected();if(!original_update())return 6;
  if(!same())return 7;++updates;
  if(e.phase!=phase(oracle)||e.previous_phase!=before||e.whistle!=(before==3&&phase(oracle)==4)||e.select_play!=(phase(oracle)==5)){
   fprintf(stderr,"return mismatch cycle event\n");return 7;}
  if(e.whistle){uint32_t result=r32(oracle,R13-0x7b98u)+0x104u,flags=r32(oracle,result+0x18u);unsigned score=r8(oracle,result+0x1du);
   unsigned k=score==6?2:flags&0x4000u?3:flags&0x20000u?1:0;++whistles[k];}
- if(before==4&&phase(oracle)==5){++commits;++selections;}
+ /* 800263EC -> 80043B9C sets +151 when the actual result is committed.
+    That callback also appends a 120-tick presentation entry. Reaching
+    selection is a later event, not evidence that the commit just ran. */
+ if(before==4&&!committed&&r8(oracle,whistle_state+0x151u))++commits;
+ if(before==4&&phase(oracle)==5)++selections;
  return 0;}
 static int next_down(void){
  int status;uint32_t nv,play,actor;const uint32_t team=r8(oracle,field(oracle)+0x38u);
@@ -154,7 +159,12 @@ static void prepare(unsigned index){
  if(mode==0){x=(index&1u?1.0f:-1.0f)*(40.0f+(float)(rnd()%1000)/100.0f);
   w32(native,b+0xc4u,1);w32(native,b+0xacu,4);}
  if(mode==1){y=45.0f+(float)(rnd()%500)/100.0f;w32(native,a+0xcu,r32(native,a+0xcu)|0x1000000u);}
- if(mode==2){w32(native,b+0xc4u,4);w32(native,b+0xacu,4);wf(native,a+0x1b0u,0);} /* actual contact-mode consumer */
+ if(mode==2){w32(native,b+0xc4u,4);w32(native,b+0xacu,4);wf(native,a+0x1b0u,0);
+  /* 800F9C50 at 800FA1E4..800FA210 requires grounded height and
+     actor +C bit 800, plus bit 10000 or actor+265. Ball contact state
+     alone does not end a play. Construct those actual actor fields;
+     preserve the original geometry, event consumer and whistle path. */
+  w32(native,a+0xcu,r32(native,a+0xcu)|0x10800u);}
  if(mode==3){w32(native,b+0xb4u,0);w32(native,b+0xa4u,2);w32(native,b+0xc4u,0);}
  if(mode==4)y=-45.0f;
  wf(native,a+0x1a8u,x);wf(native,a+0x1acu,y);
@@ -192,6 +202,16 @@ int main(int argc,char **argv){
  for(unsigned sequence=0;sequence<24;++sequence){case_index=CASES+sequence;reset();prepare(1+sequence%3u);memcpy(oracle,native,BYTES);
   for(unsigned tick=0;tick<96;++tick){stage=100+tick;status=step();if(status)return status;
    if(phase(native)==5){status=next_down();if(status)return status;}}
+  /* Keep the full 96-update window, then finish any pending source queue
+     without editing timers or skipping callbacks. 800266A4 queues 45 ticks
+     before 80025E90's commit; 80043B9C appends another 120 ticks afterward.
+     The old window ended between those events. Every tail update still
+     compares ALL RAM, and a bounded failure catches a queue that stalls. */
+  for(unsigned tick=0;phase(native)==4&&tick<256;++tick){stage=500+tick;status=step();if(status)return status;++tail_updates;}
+  if(phase(native)==4){uint32_t w=r32(oracle,R13-0x7b98u),index=r8(oracle,w+0x101u);
+   fprintf(stderr,"cycle tail stalled case %u queue %u/%u timer %u commits %u\n",case_index,index,r8(oracle,w+0x100u),r32(oracle,w+index*0x20u+0xcu),commits);return 9;}
+  if(phase(native)==5){status=next_down();if(status)return status;
+   stage=800;status=step();if(status)return status;}
   hash=digest(hash,native,LO-BASE);hash=digest(hash,native+HI-BASE,BYTES-(HI-BASE));}
  /* Independently exercise dirty output destinations and real down/distance
     writers, including line-to-gain thresholds and score mutations. */
@@ -211,6 +231,7 @@ int main(int argc,char **argv){
   stage=304;status=pair(0x8010397cu,case_index%7u,0,0,0);if(status)return status;
   leaves+=6;hash=digest(hash,native,LO-BASE);hash=digest(hash,native+HI-BASE,BYTES-(HI-BASE));
  }
- if(!whistles[0]||!whistles[1]||!whistles[2]||!whistles[3]||!commits||!snaps){fprintf(stderr,"incomplete cycle coverage: contact %u OOB %u TD %u incomplete %u commits %u\n",whistles[0],whistles[1],whistles[2],whistles[3],commits);return 9;}
+ if(!whistles[0]||!whistles[1]||!whistles[2]||!whistles[3]||!commits||!selections||!snaps){fprintf(stderr,"incomplete cycle coverage: contact %u OOB %u TD %u incomplete %u commits %u selections %u snaps %u tail updates %u\n",whistles[0],whistles[1],whistles[2],whistles[3],commits,selections,snaps,tail_updates);return 9;}
  printf("Original down cycle: 401 saved/edited cases, 24 x 96 persistent updates; %u updates, %u leaves; whistles contact %u bounds %u touchdown %u incompletion %u; commits %u snaps %u; all RAM outside oracle stack and defined returns match; no original hooks; digest %08x.\n",updates,leaves,whistles[0],whistles[1],whistles[2],whistles[3],commits,snaps,hash);
+ printf("Persistent queue completion: %u additional checked tail updates beyond the 24 x 96 windows; %u selections; commits observed at the original +151 publication.\n",tail_updates,selections);
  return 0;}
