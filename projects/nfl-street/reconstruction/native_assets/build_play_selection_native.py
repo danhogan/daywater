@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build selection's independent instruction-ordered C closure without editing shared sources."""
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -34,8 +35,32 @@ def main() -> None:
         source = source.replace(f"nflstreet_ai_policy_{name}", f"nflstreet_play_native_{name}")
     scope: dict[str, Any] = {"__file__": str(HERE / "build_play_selection_native.py"), "__name__": "selection_builder"}
     exec(compile(source, str(HERE / "build_play_selection_native.py"), "exec"), scope)
-    scope["ROOTS"] = list(dict.fromkeys(scope["ROOTS"] + ROOTS))
+    # 801AC670 reads a function at 8039E2B4 + mode*8, then BLRL at
+    # 801AC6AC. 801AC8C0/801ACBC8 register modes 0/1 through 801AC6C0;
+    # these are RAM callback records, not PTR_FUN tables or direct callees.
+    # The failed saved-as-is case reached mode 0 -> 801AC6E0. Include both
+    # actual bindings from every capture and their original helper closure.
+    # No case edits, oracle hooks or native stand-ins are used to avoid sorting.
+    sort_callbacks = {}
+    targets = []
+    for context in (14, 15, 16):
+        capture = Path(f"/mnt/w/Daywater/research-temp/position-neutral-{context}.mem1").read_bytes()
+        bindings = {}
+        for mode in (0, 1):
+            address = 0x8039E2B4 + 8 * mode
+            offset = address - 0x80000000
+            target = int.from_bytes(capture[offset : offset + 4], "big")
+            if not 0x80004000 <= target < 0x80244000 or target & 3:
+                raise RuntimeError(f"Invalid sort registration {address:08x} -> {target:08x} in {context}")
+            bindings[f"{address:08x}"] = f"{target:08x}"
+            targets.append(f"{target:08x}")
+        sort_callbacks[str(context)] = bindings
+    scope["ROOTS"] = list(dict.fromkeys(scope["ROOTS"] + ROOTS + sorted(set(targets))))
     scope["main"]()
+    manifest = HERE / "play_selection_sources.json"
+    provenance = json.loads(manifest.read_text())
+    provenance["sort_callbacks"] = sort_callbacks
+    manifest.write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n")
 
 
 if __name__ == "__main__":
