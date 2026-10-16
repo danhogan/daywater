@@ -31,6 +31,7 @@
 #define nflstreet_locomotion_select nflstreet_live_locomotion_select
 #include "locomotion_predicates.h"
 #include "live_ai.h"
+#include "ai_policy.h"
 #undef nflstreet_locomotion_select
 #define RAM_BASE 0x80000000u
 #define RAM_BYTES (24u*1024u*1024u)
@@ -54,14 +55,35 @@ static int channel_status(int ok,const nflstreet_channel_callbacks *callbacks,un
  if(ok&&callbacks->ok)return 1;
  if(log_file){fprintf(log_file,"frame %u: animation %s failed, actor %08x, callback pc %08x address %08x budget %d\n",
   frame,phase,actor,callbacks->failure_pc,callbacks->failure_address,callbacks->failure_budget_exhausted);fflush(log_file);}return 0;}
+typedef struct {nflstreet_live_clips *clips;nflstreet_ai_policy *policy;} live_policy_services;
 static int selected_request(void *user,const nflstreet_locomotion_request *r){
- nflstreet_live_clips *clips=user;
- if(!clips->channels||!clips->callbacks)return 0;
- return nflstreet_clip_request_group(&clips->requests,r->weight,r->manager,r->set,r->channels,r->key,r->actor)&&clips->callbacks->ok;}
-/* The downstream gameplay event systems are not reconstructed. Diagnose and
-   reject before an event executes; never claim its effects were supplied. */
+ live_policy_services *services=user;if(!services->policy)return 0;
+ const nflstreet_ai_call call={0x80177ef4u,{r->manager,r->set,r->channels,r->key,r->actor,0}};uint32_t result;
+ return nflstreet_ai_policy_host_call(services->policy,&call,r->weight,&result);}
+/* The same native closure handles requests and subsequent channel callbacks.
+   Keeping their original call/operand stack together also covers indirect
+   RNG calls inside group callbacks; no original-module provider is present. */
+static uint32_t policy_event(void *user,nflstreet_actor_channels *channels,uint32_t actor,uint32_t command,uint32_t key){
+ live_policy_services *services=user;const nflstreet_ai_call call={0x8001532cu,{actor,command,key,0,0,0}};uint32_t result=0;
+ if(!nflstreet_ai_policy_service(services->policy,&call,&result)){
+  nflstreet_channel_callbacks *c=services->clips->callbacks;channels->ok=c->ok=0;
+  c->failure_pc=services->policy->failure_pc;c->failure_address=services->policy->failure_address;
+  c->failure_budget_exhausted=services->policy->failure_budget_exhausted;}
+ return result;}
+static void policy_group(void *user,nflstreet_actor_channels *channels,uint32_t function,uint32_t resources,uint32_t key,
+ uint32_t set,uint32_t actor_channels,uint32_t actor,uint32_t mode){
+ live_policy_services *services=user;const nflstreet_ai_call call={function,{resources,key,set,actor_channels,actor,mode}};uint32_t result;
+ if(function&&!nflstreet_ai_policy_service(services->policy,&call,&result)){
+  nflstreet_channel_callbacks *c=services->clips->callbacks;channels->ok=c->ok=0;
+  c->failure_pc=services->policy->failure_pc;c->failure_address=services->policy->failure_address;
+  c->failure_budget_exhausted=services->policy->failure_budget_exhausted;}}
+/* Native policy closure supplies the selector's original gameplay events too. */
 static int gameplay_effect(void *user,uint32_t function,uint32_t actor,uint32_t mode){
- (void)user;if(log_file){fprintf(log_file,"unreconstructed locomotion event %08x actor %08x mode %u\n",function,actor,mode);fflush(log_file);}return 0;}
+ live_policy_services *services=user;if(!services->policy)return 0;
+ const nflstreet_ai_call call={function,{actor,mode,0,0,0,0}};uint32_t result;
+ if(nflstreet_ai_policy_service(services->policy,&call,&result))return 1;
+ if(log_file){fprintf(log_file,"locomotion event %08x actor %08x stopped at PC %08x address %08x target %08x\n",
+  function,actor,services->policy->failure_pc,services->policy->failure_address,services->policy->unsupported);fflush(log_file);}return 0;}
 /* The field camera's data (+04 position, +14/+18/+1C angles): the C-stick
    orbits about z and pitches; the camera position follows the controlled
    player by its movement (a host choice: the game's camera logic is not
@@ -166,7 +188,8 @@ int main(int argc,char *argv[]){
  static uint8_t *anim_files[200];static size_t anim_sizes[200];static nflstreet_anim_aram aram;static nflstreet_actor_channels channels;
  static nflstreet_channel_callbacks callbacks;static nflstreet_live_clips clips;
  int channel_anim=0;
- nflstreet_locomotion_context selector={span,ram,selected_request,gameplay_effect,&clips,0,0};
+ live_policy_services services={&clips,NULL};
+ nflstreet_locomotion_context selector={span,ram,selected_request,gameplay_effect,&services,0,0};
  if(disc||getenv("NFL_LIVE_ANIMDIR")){char path[1024];
   unsigned count=200;if(disc&&(!nflstreet_disc_entry_count(disc,"animdata.dat",&count)||!count||count>200)){
    note("NFL_LIVE_DISC animation archive count unsupported");nflstreet_disc_close(disc);return 4;}
@@ -194,8 +217,11 @@ int main(int argc,char *argv[]){
  nflstreet_live_ai ai;
  if(!nflstreet_live_ai_init(&ai,span,ram,R13,gameplay_actors,actor_count,player,log_file)){
   note("cannot seed AI movement from gameplay roster");return 4;}
+ nflstreet_ai_policy policy;nflstreet_ai_policy_init(&policy,ai.dispatch.ram);
+ ai.dispatch.service=nflstreet_ai_policy_service;ai.dispatch.user=&policy;services.policy=&policy;
+ channels.event=policy_event;channels.group=policy_group;channels.user=&services;
  const nflstreet_rings_context rings={&scene.draw,R13};
- const double start=seconds();double clock_time=start;
+ const double start=seconds();double clock_time=start,ai_report_time=start;
  const uint32_t gx=ram32(ram,R13-0x4c90u);unsigned frames=0;int exiting=0,failed=0;
  while(!exiting){
   const AuroraEvent *e=aurora_update();
@@ -208,7 +234,13 @@ int main(int argc,char *argv[]){
      placement (800D4A6C/800D4B0C) of its visual. */
   PADStatus pads[4];PADRead(pads);float moved[2]={0,0};
   int dx,dy;stick(&pads[0],&dx,&dy);if(scripted){const double t=seconds()-start;dx=t<1.5?1:t<3.0?0:t<4.5?-1:0;dy=t>=1.5&&t<3.0?1:0;}
-  for(const double now=seconds();!failed&&clock_time+1.0/60.0<=now;clock_time+=1.0/60.0){
+  /* Host scheduling choice: advance only fixed one-tick updates, but drop
+     excess wall-clock backlog above four ticks. Unbounded catch-up could
+     starve event polling and scene draws when CPU updates miss 60 Hz. This
+     neither increases the game's delta nor skips part of an actor update. */
+  const double update_time=seconds();
+  if(update_time-clock_time>4.0/60.0)clock_time=update_time-4.0/60.0;
+  for(;!failed&&clock_time+1.0/60.0<=update_time;clock_time+=1.0/60.0){
    /* The rings follow the position the previous update left (800E4A24),
       so they trail the player by one update, as in the saved frame. */
    if(!nflstreet_rings_update(&rings)){note("select-ring update failed");failed=1;break;}
@@ -277,7 +309,12 @@ int main(int argc,char *argv[]){
   nflstreet_gx_aurora_flush(bridge);
   aurora_end_frame();
   if(failed)exiting=1;
-  if(++frames%120==0&&log_file){const AuroraStats *st=aurora_get_stats();
+  const int periodic_report=seconds()-ai_report_time>=1.0;
+  if(periodic_report){
+   const unsigned moving=nflstreet_live_ai_moving(&ai);ai_report_time=seconds();
+   if(log_file){fprintf(log_file,"AI moving: %u\n",moving);fflush(log_file);}}
+  ++frames;
+  if((periodic_report||frames%120==0)&&log_file){const AuroraStats *st=aurora_get_stats();
    nflstreet_live_ai_report(&ai);
    fprintf(log_file,"frame %u, %u GX calls so far; draws %u (merged %u), pipelines queued %u created %u, %.0f fps\n",frames,
     nflstreet_gx_aurora_calls(bridge),st->drawCallCount,st->mergedDrawCallCount,st->queuedPipelines,st->createdPipelines,aurora_get_fps());fflush(log_file);}}

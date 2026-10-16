@@ -1,0 +1,44 @@
+[
+  {
+    "name": "contact-entry-byte",
+    "file": "ai_policy.c",
+    "old": "/* 800aac30 */ s->pc=0x800aac30u;{uint32_t t=(s->r[29]+0x0000000bu);cb_store(s,t,s->r[27],1);}",
+    "new": "/* 800aac30 */ s->pc=0x800aac30u;{uint32_t t=(s->r[29]+0x0000000bu);cb_store(s,t,0,1);}"
+  },
+  {
+    "name": "runner-counter",
+    "file": "ai_policy.c",
+    "old": "/* 800afcc0 */ s->r[9]=s->r[9]+(0x00000001u);",
+    "new": "/* 800afcc0 */ s->r[9]=s->r[9]+(0x00000002u);"
+  },
+  {
+    "name": "assignment-status",
+    "file": "ai_policy.c",
+    "old": "/* 800a1088 */ s->r[9]=0x00000003u;",
+    "new": "/* 800a1088 */ s->r[9]=0x00000001u;"
+  },
+  {
+    "name": "pursuit-default-result",
+    "file": "ai_policy.c",
+    "old": "/* 8006e304 */ s->r[21]=0x00000000u;",
+    "new": "/* 8006e304 */ s->r[21]=0x00000001u;"
+  },
+  {
+    "name": "interaction-default-result",
+    "file": "ai_policy.c",
+    "old": "/* 8007c194 */ s->r[27]=0x00000000u;",
+    "new": "/* 8007c194 */ s->r[27]=0x00000001u;"
+  },
+  {
+    "name": "runner-strength-output",
+    "file": "ai_policy.c",
+    "old": "/* 800b0070 */ s->pc=0x800b0070u;{uint32_t t=(s->r[28]+0x00000200u);cb_stfs(s,t,s->f[0]);}",
+    "new": "/* 800b0070 */ s->pc=0x800b0070u;{uint32_t t=(s->r[28]+0x00000200u);cb_stfs(s,t,0.0);}"
+  },
+  {
+    "name": "runner-timer-step",
+    "file": "ai_policy.c",
+    "old": "/* 800afccc */ s->r[11]=s->r[11]-(0x00000001u);",
+    "new": "/* 800afccc */ s->r[11]=s->r[11]-(0x00000002u);"
+  }
+]
