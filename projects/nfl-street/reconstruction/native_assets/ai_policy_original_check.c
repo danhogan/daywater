@@ -51,11 +51,27 @@ static int original_raw(uint32_t pc,const uint32_t *args,uint32_t *result){
    the matching enable call restores the exact previous nesting depth.
    Saved RAM and prepare() inputs are unchanged. Raw SDK tests below compare
    both helpers and the scheduler's original guarded path independently. */
+/* Independent oracle-side caller selection, without using ai_policy_host.h.
+   The SDK publishes state 2 before its E4 write (801F47B0/47C8). A RAM-only
+   capture can therefore have E4 naming READY while another record is RUNNING.
+   A host call borrows the sole running identity, or the active-list head
+   in idle captures. Restore E4 afterward; no mutex is reset or reassigned. */
+static int original_caller(void *ram,uint32_t *selected){
+ uint32_t node=r32(ram,0x800000dcu),head=node,running=0,visited[256];unsigned count=0;
+ if(!head)return 0;
+ while(node){if(count==256)return 0;
+  for(unsigned i=0;i<count;++i)if(visited[i]==node)return 0;visited[count++]=node;
+  if(!r8(ram,node+0x2c8u)&&r8(ram,node+0x2c9u)==2){if(running)return 0;running=node;}
+  node=r32(ram,node+0x2fcu);}
+ *selected=running?running:head;return 1;}
 static int original_host(uint32_t pc,const uint32_t *args,uint32_t *result){
- const uint32_t zero[6]={0};uint32_t ignored;
- if(!original_raw(0x801f429cu,zero,&ignored))return 0;
+ const uint32_t zero[6]={0};uint32_t ignored,caller;
+ if(!original_caller(oracle,&caller)){fprintf(stderr,"invalid oracle host caller list\n");return 0;}
+ const uint32_t previous=r32(oracle,0x800000e4u);w32(oracle,0x800000e4u,caller);
+ if(!original_raw(0x801f429cu,zero,&ignored)){w32(oracle,0x800000e4u,previous);return 0;}
  const int ok=original_raw(pc,args,result);
- const int released=original_raw(0x801f42dcu,zero,&ignored);return ok&&released;}
+ const int released=original_raw(0x801f42dcu,zero,&ignored);
+ w32(oracle,0x800000e4u,previous);return ok&&released;}
 static int same(uint32_t pc){const unsigned lo=LO-BASE,hi=HI-BASE;
  if(memcmp(native,oracle,lo)||memcmp(native+hi,oracle+hi,BYTES-hi)){
   for(unsigned k=0;k<BYTES;++k)if((k<lo||k>=hi)&&native[k]!=oracle[k]){
@@ -137,6 +153,38 @@ static int one(uint32_t pc,uint32_t a,int dispatch,int compare_return){
  if(!same(pc))return 7;
  if(compare_return&&nv!=ov){fprintf(stderr,"return mismatch pc %08x case %u actor %u step %u original %u native %u\n",pc,mode_case,mode_actor,mode_step,ov,nv);return 7;}return 0;}
 static uint32_t hash(uint32_t h){for(unsigned k=0;k<BYTES;++k)if(k<LO-BASE||k>=HI-BASE)h=(h^native[k])*16777619u;return h;}
+static int host_thread_check(void){
+ /* Exercise the source's current-thread reader and mixer lock/unlock pair
+    on each capture, including the captured OTHER thread's held mutex in
+    context 15. This must take the real recursive SDK branch, without an
+    oracle hook or clearing its owner/count. Also exercise E4==NULL and E4
+    naming the registered main thread; only the temporary identity changes. */
+ for(unsigned variant=0;variant<3;++variant){reset();uint32_t expected,nv,ov;
+  if(!original_caller(oracle,&expected))return 4;
+  if(variant){uint32_t previous=variant==1?0:r32(saved,0x800000dcu);
+   w32(native,0x800000e4u,previous);w32(oracle,0x800000e4u,previous);}
+  const uint32_t previous=r32(native,0x800000e4u);
+  const nflstreet_ai_call caller={0x801f4290u,{0}};const uint32_t zero[6]={0};
+  if(!nflstreet_ai_policy_service(&policy,&caller,&nv)||!original_host(caller.pc,zero,&ov))return 6;
+  if(nv!=expected||ov!=expected||!same(caller.pc)||r32(native,0x800000e4u)!=previous)return 7;
+  const uint32_t owner=r32(native,0x8032bf00u),depth=r32(native,0x8032bf04u);
+  if(owner&&owner!=expected){fprintf(stderr,"captured mixer owner differs from host running identity\n");return 4;}
+  int rc=one(0x80172ef8u,0,0,1);if(rc)return rc;
+  if(r32(native,0x8032bf00u)!=(owner?owner:expected)||r32(native,0x8032bf04u)!=depth+1||
+     r32(native,0x800000e4u)!=previous)return 7;
+  if((rc=one(0x80172f24u,0,0,1)))return rc;
+  if(r32(native,0x8032bf00u)!=owner||r32(native,0x8032bf04u)!=depth||r32(native,0x800000e4u)!=previous)return 7;
+ }
+ /* Reject malformed host context before any operation or partial E4 write.
+    These are separate validation cases; the 401 policy fixtures are intact. */
+ for(unsigned variant=0;variant<2;++variant){reset();uint32_t head=r32(native,0x800000dcu),next=r32(native,head+0x2fcu);
+  if(!next)return 4;
+  if(!variant)w32(native,head+0x2fcu,head);
+  else{w16(native,head+0x2c8u,2);w16(native,next+0x2c8u,2);}
+  memcpy(oracle,native,BYTES);const nflstreet_ai_call caller={0x801f4290u,{0}};uint32_t result;
+  if(nflstreet_ai_policy_service(&policy,&caller,&result)||memcmp(native,oracle,BYTES))return 7;
+ }
+ return 0;}
 static uint8_t *load(const char *name){FILE *f=fopen(name,"rb");if(!f)return NULL;uint8_t *p=malloc(BYTES);
  if(!p||fread(p,1,BYTES,f)!=BYTES){free(p);fclose(f);return NULL;}fclose(f);return p;}
 /* Host-only journal check: all RAM is checked, without an oracle hook or
@@ -169,6 +217,7 @@ int main(int argc,char **argv){
  saved=load(argv[1]);native=malloc(BYTES);oracle=malloc(BYTES);if(!saved||!native||!oracle)return 3;
  if(!transaction_check())return 9;
  {int rc=scheduler_boundary_check();if(rc){fprintf(stderr,"SDK scheduler boundary check failed %d\n",rc);return rc;}}
+ {int rc=host_thread_check();if(rc){fprintf(stderr,"host thread/mixer boundary check failed %d\n",rc);return rc;}}
  /* The scheduler's saved r13-61C0 registration is an actual BLR function.
     Compare its all-RAM and unchanged-r3 behavior against the original,
     including nonzero arguments. This is not an original hook. */

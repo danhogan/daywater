@@ -23,7 +23,11 @@ int nflstreet_ai_policy_service(void *,const nflstreet_ai_call *,uint32_t *resul
    GPR arguments remain call.args[0..5], corresponding to original r3..r8. */
 int nflstreet_ai_policy_call(nflstreet_ai_policy *,const nflstreet_ai_call *,double f1,uint32_t *result);
 /* Host choice, candidate until original checks pass: synchronously run a
-   policy/clip/event operation between native transcriptions of the original
+   policy/clip/event operation with a scoped SDK caller identity: the sole
+   RUNNING active thread, or the active-list head for idle captures. Restore
+   800000E4 afterward; preserve all captured mutex ownership and queues.
+   The source evidence and malformed-list rules are in ai_policy_host.h.
+   Run the operation between native transcriptions of the original
    SDK scheduler lock/unlock (801F429C/801F42DC). The original check invokes
    that SAME unmodified pair. Restore nesting depth even on rejection, retain
    queue/pending-reschedule writes, and preserve the body's failure diagnostic.
