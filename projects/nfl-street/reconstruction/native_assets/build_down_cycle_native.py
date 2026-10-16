@@ -52,6 +52,32 @@ def main() -> None:
         "            end = next(a for a in known if a > entry)",
         "            end = 0x802441A8 if entry == 0x802441A0 else next(a for a in known if a > entry)",
     )
+    # Ghidra splits the shared GPR save/restore entry points into fragments:
+    # e.g. 80215458 contains one STW and falls into 8021545C; 802154A8
+    # contains one LWZ and falls into 802154AC. A cache-file boundary is
+    # not a BLR. Follow the actual next instruction and retain that edge
+    # in the emitted C without synthesizing an original PPC instruction.
+    source = source.replace("    captured = {}", "    captured = {}\n    fallthrough = {}")
+    source = source.replace(
+        "        local_pcs = {pc for pc, _, _ in ops}",
+        '        if ops and ops[-1][1] not in ("blr", "b", "bctr", "rfi"):\n'
+        "            successor = ops[-1][0] + 4\n"
+        "            fallthrough[entry] = successor\n"
+        '            todo.append(f"{successor:08x}")\n'
+        "        local_pcs = {pc for pc, _, _ in ops}",
+    )
+    source = source.replace(
+        '        out.append("}")',
+        "        if function_addr in fallthrough:\n"
+        '            out.append(f"/* Source fallthrough after cached fragment {function_addr:08x}. */ "\n'
+        '                       f"cb_dispatch(s,0x{fallthrough[function_addr]:08x}u);return;")\n'
+        '        out.append("}")',
+    )
+    source = source.replace(
+        '                "captured_functions": captured,',
+        '                "captured_functions": captured,\n'
+        '                "fallthrough": {f"{a:08x}": f"{b:08x}" for a, b in fallthrough.items()},',
+    )
     for name in ("init", "host_call", "call", "service"):
         source = source.replace(f"nflstreet_ai_policy_{name}", f"nflstreet_down_native_{name}")
     scope: dict[str, Any] = {"__file__": str(__file__), "__name__": "down_builder"}

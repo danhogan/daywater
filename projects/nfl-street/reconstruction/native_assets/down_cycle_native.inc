@@ -567155,36 +567155,44 @@ L80215420: if(!cb_tick(s,0x80215420u))return;
 static AI_NOINLINE void cb_80215440(cb_machine *s){
 if(!cb_tick(s,0x80215440u))return;
 /* 80215440 */ s->pc=0x80215440u;{uint32_t t=(s->r[11]+0xffffffc4u);cb_store(s,t,s->r[17],4);}
+/* Source fallthrough after cached fragment 80215440. */ cb_dispatch(s,0x80215444u);return;
 }
 static AI_NOINLINE void cb_80215444(cb_machine *s){
 if(!cb_tick(s,0x80215444u))return;
 /* 80215444 */ s->pc=0x80215444u;{uint32_t t=(s->r[11]+0xffffffc8u);cb_store(s,t,s->r[18],4);}
+/* Source fallthrough after cached fragment 80215444. */ cb_dispatch(s,0x80215448u);return;
 }
 static AI_NOINLINE void cb_80215448(cb_machine *s){
 if(!cb_tick(s,0x80215448u))return;
 /* 80215448 */ s->pc=0x80215448u;{uint32_t t=(s->r[11]+0xffffffccu);cb_store(s,t,s->r[19],4);}
 /* 8021544c */ s->pc=0x8021544cu;{uint32_t t=(s->r[11]+0xffffffd0u);cb_store(s,t,s->r[20],4);}
 /* 80215450 */ s->pc=0x80215450u;{uint32_t t=(s->r[11]+0xffffffd4u);cb_store(s,t,s->r[21],4);}
+/* Source fallthrough after cached fragment 80215448. */ cb_dispatch(s,0x80215454u);return;
 }
 static AI_NOINLINE void cb_80215454(cb_machine *s){
 if(!cb_tick(s,0x80215454u))return;
 /* 80215454 */ s->pc=0x80215454u;{uint32_t t=(s->r[11]+0xffffffd8u);cb_store(s,t,s->r[22],4);}
+/* Source fallthrough after cached fragment 80215454. */ cb_dispatch(s,0x80215458u);return;
 }
 static AI_NOINLINE void cb_80215458(cb_machine *s){
 if(!cb_tick(s,0x80215458u))return;
 /* 80215458 */ s->pc=0x80215458u;{uint32_t t=(s->r[11]+0xffffffdcu);cb_store(s,t,s->r[23],4);}
+/* Source fallthrough after cached fragment 80215458. */ cb_dispatch(s,0x8021545cu);return;
 }
 static AI_NOINLINE void cb_8021545c(cb_machine *s){
 if(!cb_tick(s,0x8021545cu))return;
 /* 8021545c */ s->pc=0x8021545cu;{uint32_t t=(s->r[11]+0xffffffe0u);cb_store(s,t,s->r[24],4);}
+/* Source fallthrough after cached fragment 8021545c. */ cb_dispatch(s,0x80215460u);return;
 }
 static AI_NOINLINE void cb_80215460(cb_machine *s){
 if(!cb_tick(s,0x80215460u))return;
 /* 80215460 */ s->pc=0x80215460u;{uint32_t t=(s->r[11]+0xffffffe4u);cb_store(s,t,s->r[25],4);}
+/* Source fallthrough after cached fragment 80215460. */ cb_dispatch(s,0x80215464u);return;
 }
 static AI_NOINLINE void cb_80215464(cb_machine *s){
 if(!cb_tick(s,0x80215464u))return;
 /* 80215464 */ s->pc=0x80215464u;{uint32_t t=(s->r[11]+0xffffffe8u);cb_store(s,t,s->r[26],4);}
+/* Source fallthrough after cached fragment 80215464. */ cb_dispatch(s,0x80215468u);return;
 }
 static AI_NOINLINE void cb_80215468(cb_machine *s){
 if(!cb_tick(s,0x80215468u))return;
@@ -567198,36 +567206,44 @@ if(!cb_tick(s,0x80215468u))return;
 static AI_NOINLINE void cb_8021548c(cb_machine *s){
 if(!cb_tick(s,0x8021548cu))return;
 /* 8021548c */ s->pc=0x8021548cu;{uint32_t t=(s->r[11]+0xffffffc4u);s->r[17]=cb_load(s,t,4);}
+/* Source fallthrough after cached fragment 8021548c. */ cb_dispatch(s,0x80215490u);return;
 }
 static AI_NOINLINE void cb_80215490(cb_machine *s){
 if(!cb_tick(s,0x80215490u))return;
 /* 80215490 */ s->pc=0x80215490u;{uint32_t t=(s->r[11]+0xffffffc8u);s->r[18]=cb_load(s,t,4);}
+/* Source fallthrough after cached fragment 80215490. */ cb_dispatch(s,0x80215494u);return;
 }
 static AI_NOINLINE void cb_80215494(cb_machine *s){
 if(!cb_tick(s,0x80215494u))return;
 /* 80215494 */ s->pc=0x80215494u;{uint32_t t=(s->r[11]+0xffffffccu);s->r[19]=cb_load(s,t,4);}
 /* 80215498 */ s->pc=0x80215498u;{uint32_t t=(s->r[11]+0xffffffd0u);s->r[20]=cb_load(s,t,4);}
 /* 8021549c */ s->pc=0x8021549cu;{uint32_t t=(s->r[11]+0xffffffd4u);s->r[21]=cb_load(s,t,4);}
+/* Source fallthrough after cached fragment 80215494. */ cb_dispatch(s,0x802154a0u);return;
 }
 static AI_NOINLINE void cb_802154a0(cb_machine *s){
 if(!cb_tick(s,0x802154a0u))return;
 /* 802154a0 */ s->pc=0x802154a0u;{uint32_t t=(s->r[11]+0xffffffd8u);s->r[22]=cb_load(s,t,4);}
+/* Source fallthrough after cached fragment 802154a0. */ cb_dispatch(s,0x802154a4u);return;
 }
 static AI_NOINLINE void cb_802154a4(cb_machine *s){
 if(!cb_tick(s,0x802154a4u))return;
 /* 802154a4 */ s->pc=0x802154a4u;{uint32_t t=(s->r[11]+0xffffffdcu);s->r[23]=cb_load(s,t,4);}
+/* Source fallthrough after cached fragment 802154a4. */ cb_dispatch(s,0x802154a8u);return;
 }
 static AI_NOINLINE void cb_802154a8(cb_machine *s){
 if(!cb_tick(s,0x802154a8u))return;
 /* 802154a8 */ s->pc=0x802154a8u;{uint32_t t=(s->r[11]+0xffffffe0u);s->r[24]=cb_load(s,t,4);}
+/* Source fallthrough after cached fragment 802154a8. */ cb_dispatch(s,0x802154acu);return;
 }
 static AI_NOINLINE void cb_802154ac(cb_machine *s){
 if(!cb_tick(s,0x802154acu))return;
 /* 802154ac */ s->pc=0x802154acu;{uint32_t t=(s->r[11]+0xffffffe4u);s->r[25]=cb_load(s,t,4);}
+/* Source fallthrough after cached fragment 802154ac. */ cb_dispatch(s,0x802154b0u);return;
 }
 static AI_NOINLINE void cb_802154b0(cb_machine *s){
 if(!cb_tick(s,0x802154b0u))return;
 /* 802154b0 */ s->pc=0x802154b0u;{uint32_t t=(s->r[11]+0xffffffe8u);s->r[26]=cb_load(s,t,4);}
+/* Source fallthrough after cached fragment 802154b0. */ cb_dispatch(s,0x802154b4u);return;
 }
 static AI_NOINLINE void cb_802154b4(cb_machine *s){
 if(!cb_tick(s,0x802154b4u))return;
