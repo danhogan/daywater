@@ -12384,6 +12384,15 @@
     "80244154": "732dc91373271a1ae0090a643629c8704d404b6829484ad3261194789e70f9bb",
     "8024417c": "81269a3cde89ebe4424e9f23e3eea2c4f6b460f980bf6ca27910888682c6a2fb"
   },
+  "disc_interface_boundary": {
+    "confidence": "candidate until original-module gate passes",
+    "read": "zero, matching mem_read32 with external_read unset",
+    "registers": "cc006000..cc006024, aligned u32 only",
+    "scope": "synchronous host boundary only; no device, DMA completion or interrupt simulation",
+    "source": "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/vendor/dolphin/GXRuntime/include/core/cpu.h",
+    "source_sha256": "74a3d8be770ddd6e2fd9e858ce282e3836e7734be02bca73f9ffb466f37ed807",
+    "write": "discard, matching mem_write32 with external_write unset"
+  },
   "driver_callbacks": {
     "14": {
       "8032b9f0": "80143acc",

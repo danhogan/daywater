@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Transcribe the source-owned down state machine, including its indirect callbacks."""
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,9 @@ from typing import Any
 import build_ai_policy_native as builder
 
 HERE = Path(__file__).resolve().parent
+RUNTIME_MEMORY = Path(
+    "/mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/vendor/dolphin/GXRuntime/include/core/cpu.h"
+)
 # Actual writers/readers and their parents, not assumed football rules.
 ROOTS = (
     "8002e3c8 8002e45c 800f9c50 800f946c 800815b4 800262b0 800263ec "
@@ -77,6 +81,26 @@ def main() -> None:
         '                "captured_functions": captured,',
         '                "captured_functions": captured,\n'
         '                "fallthrough": {f"{a:08x}": f"{b:08x}" for a, b in fallthrough.items()},',
+    )
+    # 801F73D4/801F94D8/801F9348 submit a real DVD request after the
+    # touchdown whistle. Their CC006000..24 word accesses are external
+    # memory, not invalid MEM1 pointers. The oracle has no external_read /
+    # external_write callbacks: GXRuntime cpu.h mem_read32 returns zero
+    # and mem_write32 discards the write. Preserve every source instruction
+    # and all request/queue/alarm RAM work with that same explicit boundary.
+    # This does not simulate a disc, DMA completion, interrupts, or any
+    # other device; other out-of-span addresses must still fail closed.
+    source = source.replace(
+        "    out = [",
+        '    helpers = helpers.replace("static uint32_t cb_load(cb_machine *s,uint32_t a,unsigned n){",\n'
+        '        "static uint32_t cb_load(cb_machine *s,uint32_t a,unsigned n){"\n'
+        '        "if(n==4&&a>=0xcc006000u&&a<=0xcc006024u&&!(a&3u))return 0;")\n'
+        '    helpers = helpers.replace("static void cb_store(cb_machine *s,uint32_t a,uint32_t v,unsigned n){",\n'
+        '        "static void cb_store(cb_machine *s,uint32_t a,uint32_t v,unsigned n){"\n'
+        '        "if(n==4&&a>=0xcc006000u&&a<=0xcc006024u&&!(a&3u))return;")\n'
+        '    helpers = ("/* DVD register words: zero reads / discarded writes, matching the oracle\\n"\n'
+        '        "   with unset external device callbacks. No DMA or completion is simulated. */\\n" + helpers)\n'
+        "    out = [",
     )
     for name in ("init", "host_call", "call", "service"):
         source = source.replace(f"nflstreet_ai_policy_{name}", f"nflstreet_down_native_{name}")
@@ -179,6 +203,15 @@ def main() -> None:
     provenance["camera_event_callbacks"] = camera_callbacks
     provenance["allocation_callbacks"] = allocation_callbacks
     provenance["allocator_vtables"] = allocator_vtables
+    provenance["disc_interface_boundary"] = {
+        "registers": "cc006000..cc006024, aligned u32 only",
+        "read": "zero, matching mem_read32 with external_read unset",
+        "write": "discard, matching mem_write32 with external_write unset",
+        "source": str(RUNTIME_MEMORY),
+        "source_sha256": hashlib.sha256(RUNTIME_MEMORY.read_bytes()).hexdigest(),
+        "scope": "synchronous host boundary only; no device, DMA completion or interrupt simulation",
+        "confidence": "candidate until original-module gate passes",
+    }
     manifest.write_text(json.dumps(provenance, indent=2, sort_keys=True) + "\n")
 
 
