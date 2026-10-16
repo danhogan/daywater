@@ -102,6 +102,36 @@ entry. Void entries preserve incoming registers. The sound-cue start returns
 `7FFFFFFF`, its own disabled-audio return in `8013D8A4`; this means no voice
 handle, rather than an invented successful request.
 
+The first boundary revision checked only the PC returned by the DLL's
+dispatcher. The owner's next run failed at context 14, case 2, stage 3:
+`80284692` was `1A` originally and `00` natively. This byte belongs to a
+sound-cue timestamp. The original generated chunk contains a forward
+`BL 8013D8A4` at `8013D884`, emitted as `goto label_8013D8A4`; it therefore
+does not pass through the caller's dispatch hook. Direct cross-chunk C calls
+can bypass that hook too. Native skipping was active while the original
+still ran that sound request. This is a checker boundary defect, not an
+invalid touchdown fixture or evidence for excluding another RAM range.
+
+The checker now also installs the unchanged DLL's exported
+`ppc_set_mem_write_journal` callback. Every listed entry begins with
+`STWU r1,negative-frame(r1)`. The DLL materializes guest PC and invokes the
+journal **before** storing the stack backchain and updating guest r1. At
+exactly one of the nine named PCs the callback checks the captured opcode,
+write width, effective stack address and private stack bounds, applies the
+same void/disabled-handle return, and uses `longjmp` to leave the generated C
+frames. No service RAM store commits and no native game implementation is
+called. Ordinary writes and every other original instruction continue in the
+original module. The protected DLL and its generated sources are not patched.
+
+`setjmp` resides in a separate dispatch helper; the caller owns CPUState, so
+guest state updates remain defined across the nonlocal return. Unwinding can
+retain the DLL's host recursion acceleration depth. Its generated header
+bounds that counter at 24 and then uses the normal dispatcher; it controls
+only host call optimization, not guest instructions or MEM1. The checker
+requires a positive in-chunk interception count and reports it separately.
+The nine native bodies, case generator, all-RAM mask and time budget are
+unchanged by this correction. Runtime agreement still awaits the owner run.
+
 - **not modeled: audio/disc service (`8013D4D4`, sound-bank load request).**
   Called by the sound-bank manager. Its publication writes a bank pointer to
   `*(8030A334) + slot*4`; its `801AB224` callee allocates/loads an audio bank

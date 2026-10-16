@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <setjmp.h>
 #include "moderngekko/module_abi.h"
 #include "down_cycle.h"
 #define BASE 0x80000000u
@@ -34,6 +35,7 @@ static const struct {uint32_t pc,result;int returns;const char *purpose;} audio_
  {0x801aba64u,0,0,"streamed sound control"},
 };
 static unsigned audio_disc_calls[sizeof audio_disc_services/sizeof *audio_disc_services];
+static unsigned audio_disc_in_chunk;
 static int original_audio_disc_entry(CPUState *c){
  for(unsigned i=0;i<sizeof audio_disc_services/sizeof *audio_disc_services;++i){
   if(c->pc!=audio_disc_services[i].pc)continue;
@@ -47,6 +49,44 @@ static unsigned r8(void *p,uint32_t a){const uint8_t *q=span(p,a,1);if(!q)exit(4
 static void w32(void *p,uint32_t a,uint32_t v){uint8_t *q=span(p,a,4);if(!q)exit(4);q[0]=v>>24;q[1]=v>>16;q[2]=v>>8;q[3]=v;}
 static void w16(void *p,uint32_t a,unsigned v){uint8_t *q=span(p,a,2);if(!q)exit(4);q[0]=v>>8;q[1]=v;}
 static void wf(void *p,uint32_t a,float f){uint32_t v;memcpy(&v,&f,4);w32(p,a,v);}
+/* The original DLL can goto another guest function inside one generated
+   chunk, or call another chunk without returning to module->dispatch.
+   Dispatch-only hooks therefore miss service entries (8013D854's forward
+   BL to 8013D8A4 is the observed example).
+
+   The DLL exports a PRE-WRITE journal. All nine listed entries begin with
+   STWU r1,negative-frame(r1). At that first write the original code has
+   materialized PC but has not stored the backchain or updated guest r1.
+   Validate the exact opcode/address/width, perform the SAME listed entry
+   return, and leave the generated C frames before any service RAM write.
+   No gameplay instruction is replaced and no native routine is called.
+
+   Keep setjmp in its own helper: CPUState belongs to the caller, so its
+   updates do not become indeterminate automatic locals after longjmp.
+   Unwinding may retain the DLL's bounded host call-depth acceleration
+   counter; generated.h then falls back to ordinary dispatch at its ceiling.
+   That counter is not guest state and cannot suppress a guest instruction. */
+typedef void (*original_prewrite_fn)(uint32_t,uint32_t,void *);
+typedef void (*original_set_journal_fn)(original_prewrite_fn,void *);
+static jmp_buf original_entry_jump;
+static CPUState *original_active_cpu;
+static void original_service_prewrite(uint32_t offset,uint32_t size,void *user){
+ (void)user;CPUState *c=original_active_cpu;if(!c)return;
+ unsigned i;for(i=0;i<sizeof audio_disc_services/sizeof *audio_disc_services;++i)
+  if(c->pc==audio_disc_services[i].pc)break;
+ if(i==sizeof audio_disc_services/sizeof *audio_disc_services)return;
+ const uint32_t instruction=r32(oracle,c->pc);
+ const uint32_t address=c->gpr[1]+(uint32_t)(int32_t)(int16_t)instruction;
+ if((instruction&0xffff0000u)!=0x94210000u||!(instruction&0x8000u)||
+    size!=4||address<LO||address+4u>HI||offset!=address-BASE){
+  fprintf(stderr,"invalid original service entry journal pc %08x instruction %08x write %08x/%u\n",
+   c->pc,instruction,BASE+offset,size);exit(6);}
+ if(!original_audio_disc_entry(c))exit(6);
+ ++audio_disc_in_chunk;longjmp(original_entry_jump,1);}
+static void original_dispatch(CPUState *c){
+ original_active_cpu=c;
+ if(!setjmp(original_entry_jump))module->dispatch(c,c->pc);
+ original_active_cpu=NULL;}
 /* CPU instruction boundary, not an original-function hook. The unchanged
    oracle chunks delegate MTDEC and cache maintenance to the CPU fallback.
    MTSPR SPR_DEC(22),rS retains the operand in call-local CPU state. Cache
@@ -82,7 +122,7 @@ static int original_raw(uint32_t pc,const uint32_t *args,uint32_t *result){
  for(unsigned step=0;c.pc;++step){
   if(step>5000000u){fprintf(stderr,"original timeout %08x at %08x lr %08x\n",pc,c.pc,c.lr);return 0;}
   if(original_audio_disc_entry(&c))continue;
-  c.downcount=-1000000000;module->dispatch(&c,c.pc);
+  c.downcount=-1000000000;original_dispatch(&c);
   if(c.exception){fprintf(stderr,"original exception %08x at %08x lr %08x\n",pc,c.pc,c.lr);return 0;}}
  *result=c.gpr[3];return 1;}
 /* Host execution boundary, also used by nflstreet_ai_policy_service: these
@@ -248,6 +288,9 @@ static uint8_t *load(const char *path){FILE *f=fopen(path,"rb");if(!f)return NUL
 int main(int argc,char **argv){
  if(argc!=3)return 2;HMODULE h=LoadLibraryA(argv[2]);if(!h)return 3;
  ModernGekkoGetModuleFn get=(ModernGekkoGetModuleFn)GetProcAddress(h,MODERNGEKKO_GET_MODULE_SYMBOL);if(!get||!(module=get()))return 3;
+ original_set_journal_fn set_journal=(original_set_journal_fn)GetProcAddress(h,"ppc_set_mem_write_journal");
+ if(!set_journal){fprintf(stderr,"original module lacks required pre-write journal export\n");return 3;}
+ set_journal(original_service_prewrite,NULL);
  saved=load(argv[1]);native=malloc(BYTES);oracle=malloc(BYTES);if(!saved||!native||!oracle)return 3;
  uint32_t hash=2166136261u;unsigned leaves=0;int status;
  for(case_index=0;case_index<CASES;++case_index){
@@ -300,9 +343,11 @@ int main(int argc,char **argv){
   stage=304;status=pair(0x8010397cu,case_index%7u,0,0,0);if(status)return status;
   leaves+=6;hash=digest(hash,native,LO-BASE);hash=digest(hash,native+HI-BASE,BYTES-(HI-BASE));
  }
+ if(!audio_disc_in_chunk){fprintf(stderr,"original in-chunk service entry boundary was not exercised\n");return 9;}
  if(!whistles[0]||!whistles[1]||!whistles[2]||!whistles[3]||!commits||!selections||!snaps){fprintf(stderr,"incomplete cycle coverage: contact %u OOB %u TD %u incomplete %u commits %u selections %u snaps %u tail updates %u\n",whistles[0],whistles[1],whistles[2],whistles[3],commits,selections,snaps,tail_updates);return 9;}
  printf("Original down cycle: 401 saved/edited cases, 24 x 96 persistent updates; %u updates, %u leaves; whistles contact %u bounds %u touchdown %u incompletion %u; commits %u snaps %u; all RAM outside oracle stack and defined returns match; audio/disc entry returns only; digest %08x.\n",updates,leaves,whistles[0],whistles[1],whistles[2],whistles[3],commits,snaps,hash);
  for(unsigned i=0;i<sizeof audio_disc_services/sizeof *audio_disc_services;++i)
   printf("Audio/disc service %08x (%s): %u original entry returns.\n",audio_disc_services[i].pc,audio_disc_services[i].purpose,audio_disc_calls[i]);
+ printf("Original in-chunk audio/disc entry returns before first store: %u.\n",audio_disc_in_chunk);
  printf("Persistent queue completion: %u additional checked tail updates beyond the 24 x 96 windows; %u selections; commits observed at the original +151 publication.\n",tail_updates,selections);
  return 0;}
