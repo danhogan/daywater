@@ -1,5 +1,6 @@
 #include "live_ai.h"
 #include "ai_policy.h"
+#include "down_cycle.h"
 #include <stdlib.h>
 #include <string.h>
 /* Host scratch token, deliberately OUTSIDE MEM1. It names these eight owned
@@ -47,7 +48,7 @@ static int service_status(nflstreet_live_ai *c,nflstreet_live_ai_actor *a,int ok
  if(ok)return 1;
  if(!c->dispatch.unsupported){failure(c,frame,a->actor,phase,0);return 0;}
  a->held=1;
- if(c->dispatch.service==nflstreet_ai_policy_service){const nflstreet_ai_policy *p=c->dispatch.user;
+ if(c->dispatch.service==nflstreet_ai_policy_service||c->dispatch.service==nflstreet_down_policy_service){const nflstreet_ai_policy *p=c->dispatch.user;
   if(c->log){fprintf(c->log,"AI policy stopped: service %08x, source PC %08x, address %08x, target %08x, budget %d\n",
    c->dispatch.unsupported,p->failure_pc,p->failure_address,p->unsupported,p->failure_budget_exhausted);fflush(c->log);}}
  if(c->log){fprintf(c->log,"frame %u: AI %s missing service %08x, actor %08x; RAM restored, actor held\n",
@@ -67,7 +68,7 @@ static int committed_movement(nflstreet_live_ai *c,nflstreet_live_ai_actor *a){
    available for other service providers. The original-module checker covers
    this source entry in persistent runs, including context 15's callback path. */
 static int dispatched_policy(nflstreet_live_ai *c,nflstreet_live_ai_actor *a){
- if(c->dispatch.service!=nflstreet_ai_policy_service)
+ if(c->dispatch.service!=nflstreet_ai_policy_service&&c->dispatch.service!=nflstreet_down_policy_service)
   return nflstreet_ai_dispatch_step(&c->dispatch,0,a->actor+0xbe4,a->actor,0);
  const nflstreet_ai_call call={0x8007e0b4u,{0,a->actor+0xbe4,a->actor,0,0,0}};uint32_t result;
  const int ok=c->dispatch.service(c->dispatch.user,&call,&result);

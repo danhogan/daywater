@@ -1,11 +1,19 @@
-# Down cycle (candidate, external execution pending)
+# Down cycle (original-module baseline verified; live repair pending)
 
 NFL Street, GameCube GNNE69 North America rev 0, DOL SHA1
 `46e3de854998a0f66c9be8c72a1164d22cd29eb4`. MEM1 is big endian;
 r13 is `803A9A40`. Capture contexts 14/15/16 are private inputs. Their Dolphin
 build is unavailable. This author writes and compiles code only, and cannot
 execute Windows programs. No all-RAM, mutation or live execution result is
-claimed until the external gate passes this exact revision.
+claimed for new integration changes until the external gate passes this exact revision.
+
+The owner's gate on `cb6787a` passed all-RAM and defined-return comparisons
+in contexts 14/15/16, twice each, and caught all six mutants. The reported
+context-16 summary was 7,233 updates, 2,806 leaves, contact/bounds/touchdown
+counts 88 each, 80 incompletions, 24 commits and 24 snaps (digest `f4442890`).
+The live run logged a whistle and two subsequent play selections, then failed
+on a controlled movement rejection and two held AI actors. This revision's
+additional control cases and live wiring are **candidate**, pending that gate.
 
 ## Source trace and native boundary
 
@@ -402,13 +410,57 @@ after ball publication. At whistle it logs
 `down over: <reason> down <n> to go <yards> spot <yard line>` using the proposed
 original result, whose callback subsequently commits it. On phase 5 it selects
 and installs both teams' plays, logs `play selected: ...` again, positions the
-lineups and requests the next snap. Movement state is resynchronized after
-lineup/snap; AI holds are cleared for fresh command queues.
+lineups and requests the next snap. AI movement state is resynchronized after
+lineup/snap; AI holds are cleared for fresh command queues. Controlled movement
+reads the actual actor RAM each update and needs no partial-runtime reseed.
+
+The failing live log was
+`/mnt/w/Daywater/research-temp/nflstreet-live-smoke-codex-downs/smoke.log`.
+After `play selected: 121 35_All Zone` and `play selected: 31 35_Posts`, frame
+810 rejected the controlled player's requested movement. The old observed
+movement wrapper only supports equal requested/active strengths and a limited
+set of statuses; it is not a complete post-lineup actor update. Frames 1572
+and 3383 separately held AI actors at `80144404 -> 8016ED94`: live AI still
+used the older `ai_policy.c` closure, whereas the extended down closure already
+contains that original speech callback and the audited audio service entries.
+
+`nflstreet_down_control_init(&control,ram,actor)` now owns a full native policy
+context, 32 input bytes and a MEM1 transaction. Once per tick,
+`nflstreet_down_control_step(&control,dx,dy)` normalizes the host cardinal or
+diagonal stick request, then runs original input `8003DDEC`, commit `800150E8`
+and complete movement `800F86BC`, in that order. Neutral input also goes through
+the original controller routine. The full wrapper handles resets, unequal
+strengths, contact/animation states, kinematics/root motion and heading
+publication. It runs once; no partial movement result is written back over it.
+Source `8003DDEC` reads an explicit host token `FFF00000` mapped only to the
+context's owned input bytes, outside MEM1. No gameplay address is used as live
+scratch. A failed sequence restores every MEM1 write and emits its exact
+call/PC/address/target; it is not concealed as a successful or idle update.
+
+The live AI dispatcher, clip requests and channel/locomotion callbacks now use
+`nflstreet_down_policy_init/call/service`, thin public entries into the same
+extended native closure. Each AI context retains its existing transaction span,
+SDK caller scope and rollback diagnostics. The old shared AI and movement
+modules are unchanged. Source instructions, twelve service entry returns and
+the established down corpus are unchanged; the host uses the already included
+complete paths. No sound/disc service or gameplay event is added to the skip list.
+
+The checker additionally retains its first real post-lineup and post-snap
+states, then checks 401 saved/edited controlled-input cases against independent
+original `8003DDEC -> 800150E8 -> 800F86BC` calls, plus two 96-update runs from
+those retained states. Position and heading edits use real actor fields;
+status bytes are retained from the original transitions. All MEM1 outside the
+existing oracle stack is compared after each complete input/movement update.
+The oracle constructs its own input bytes in its existing checker fixture;
+it never calls the native controller or a native gameplay replacement. The
+gate requires this extra coverage line and pins `live_ai.c/.h` along with the
+other live sources. These added checks have been compiled, not executed here.
 
 `NFL_LIVE_SCRIPT=1` now continuously drives the controlled player's main stick
 toward positive X. In all three saved contexts that player is the active
 carrier. The purpose is to run it across the sideline within the owner's
 40-second smoke window. It uses verified movement input; it does not teleport,
-force a whistle, inject a tackle or modify score/down flags. Whether this
-reaches a whistle and a second play selection in 40 seconds remains for the
-external live gate to establish. No Windows executable was run by this author.
+force a whistle, inject a tackle or modify score/down flags. The owner's prior
+run reached a contact whistle and subsequent selections; whether this revision
+completes the 40-second run without movement or AI rejection remains for the
+external live gate. No Windows executable was run by this author.

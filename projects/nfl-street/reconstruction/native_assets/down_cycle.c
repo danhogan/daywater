@@ -66,3 +66,39 @@ int nflstreet_down_cycle_snap(nflstreet_down_cycle *c){
  if(!c->native.ok||!dc_call(c,0x8003a4a0u,offense,slot,0,&actor)||!actor)return 0;
  if(!dc_call(c,0x800f946cu,0,0,0,&v))return 0;
  return dc_call(c,0x800815b4u,actor,0,0,&v);}
+void nflstreet_down_policy_init(nflstreet_ai_policy *c,nflstreet_actor_ai ram){nflstreet_down_native_init(c,ram);}
+int nflstreet_down_policy_call(nflstreet_ai_policy *c,const nflstreet_ai_call *call,double f1,uint32_t *result){
+ return nflstreet_down_native_host_call(c,call,f1,result);}
+int nflstreet_down_policy_service(void *user,const nflstreet_ai_call *call,uint32_t *result){
+ return nflstreet_down_native_service(user,call,result);}
+/* Host input token, not a discovered game address. Its 32 owned bytes never
+   occupy MEM1, including while an original controller routine reads them. */
+#define DC_INPUT_TOKEN 0xfff00000u
+static uint8_t *dc_control_span(void *user,uint32_t address,uint32_t size){
+ nflstreet_down_control *c=user;
+ if(address>=DC_INPUT_TOKEN&&(uint64_t)address-DC_INPUT_TOKEN+size<=sizeof c->input)
+  return c->input+(address-DC_INPUT_TOKEN);
+ return nflstreet_ai_transaction_span(&c->journal,address,size);}
+int nflstreet_down_control_init(nflstreet_down_control *c,nflstreet_actor_ai ram,uint32_t actor){
+ if(!c||!ram.span||!ram.span(ram.memory,actor,0x14d4u))return 0;
+ memset(c,0,sizeof *c);c->actor=actor;
+ if(!nflstreet_ai_transaction_init(&c->journal,ram.span,ram.memory))return 0;
+ nflstreet_down_policy_init(&c->native,(nflstreet_actor_ai){dc_control_span,c,ram.r13});return 1;}
+int nflstreet_down_control_step(nflstreet_down_control *c,int dx,int dy){
+ if(!c||!c->journal.before||dx<-1||dx>1||dy<-1||dy>1)return 0;
+ memset(c->input,0,sizeof c->input);
+ const float scale=dx&&dy?0.7071067811865475244f:1.0f;
+ const float x=dx*scale,y=dy*scale;uint32_t bits;
+ memcpy(&bits,&x,4);nflstreet_ai_host_put32(c->input+4,bits);
+ memcpy(&bits,&y,4);nflstreet_ai_host_put32(c->input+8,bits);
+ const nflstreet_ai_call calls[]={
+  {0x8003ddecu,{c->actor,DC_INPUT_TOKEN,0,0,0,0}},
+  {0x800150e8u,{c->actor,0,0,0,0,0}},
+  {0x800f86bcu,{c->actor,0,0,0,0,0}}};
+ c->failure_call=0;nflstreet_ai_transaction_begin(&c->journal);uint32_t result;
+ for(unsigned i=0;i<sizeof calls/sizeof *calls;++i){
+  if(nflstreet_down_policy_call(&c->native,calls+i,1.0,&result))continue;
+  c->failure_call=calls[i].pc;
+  nflstreet_ai_transaction_end(&c->journal,0);return 0;}
+ return nflstreet_ai_transaction_end(&c->journal,1);}
+void nflstreet_down_control_close(nflstreet_down_control *c){if(c)nflstreet_ai_transaction_close(&c->journal);}

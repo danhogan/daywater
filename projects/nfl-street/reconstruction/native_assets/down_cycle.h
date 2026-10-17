@@ -1,6 +1,7 @@
 #ifndef NFLSTREET_DOWN_CYCLE_H
 #define NFLSTREET_DOWN_CYCLE_H
 #include "ai_policy.h"
+#include "ai_policy_transaction.h"
 /* NFL Street GNNE69 r0. Candidate pending the external all-RAM gate.
    Source-owned football rules; explicit host scheduling around menu/replay UI.
    Failure retains partial writes: stop/discard that update, never continue. */
@@ -32,4 +33,23 @@ int nflstreet_down_cycle_lineup(nflstreet_down_cycle *);
    800815B4 for the offensive play's actual +16 actor slot. Snap input timing
    is a host choice; source assignments, ball ownership and rules are native. */
 int nflstreet_down_cycle_snap(nflstreet_down_cycle *);
+/* Extended source closure for live AI/clip/event calls. Same context ABI and
+   scoped SDK boundary as ai_policy.h, with the down module's audited service
+   entries and complete command/callback target set. The older AI module is
+   unchanged. Use a separate context with the AI transaction's span. */
+void nflstreet_down_policy_init(nflstreet_ai_policy *,nflstreet_actor_ai);
+int nflstreet_down_policy_call(nflstreet_ai_policy *,const nflstreet_ai_call *,double,uint32_t *);
+int nflstreet_down_policy_service(void *,const nflstreet_ai_call *,uint32_t *);
+/* Host-controlled input, full original update instead of the observed-player
+   partial movement adapter. Input bytes are owned outside MEM1; failure
+   restores every MEM1 write across input -> commit -> complete movement. */
+typedef struct {
+ nflstreet_ai_policy native;
+ nflstreet_ai_transaction journal;
+ uint32_t actor,failure_call;
+ uint8_t input[32];
+} nflstreet_down_control;
+int nflstreet_down_control_init(nflstreet_down_control *,nflstreet_actor_ai,uint32_t actor);
+int nflstreet_down_control_step(nflstreet_down_control *,int dx,int dy);
+void nflstreet_down_control_close(nflstreet_down_control *);
 #endif

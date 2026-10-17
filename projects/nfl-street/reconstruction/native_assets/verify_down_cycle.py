@@ -35,7 +35,7 @@ SOURCES = tuple(
 ) + ("menus/verify_controller_checks.py",)
 
 
-LIVE = ("CMakeLists.txt", "live_main.c", "build_windows_live.sh")
+LIVE = ("CMakeLists.txt", "live_main.c", "live_ai.c", "live_ai.h", "build_windows_live.sh")
 
 
 def live_hashes(root: Path) -> dict[str, str]:
@@ -231,6 +231,11 @@ def main() -> None:
                 match = SUMMARY.search(summary)
                 if not match or not all(int(n) for n in match.groups()):
                     raise RuntimeError(f"Incomplete original down cycle coverage in context {context}: {summary}")
+                if (
+                    "Controlled input: 401 saved/edited cases across saved/lineup/snap states, 192 persistent updates; "
+                    "original input/commit/full movement, all RAM matches."
+                ) not in summary:
+                    raise RuntimeError(f"Missing post-down controlled-input coverage in context {context}")
                 traces.append(digest(log))
                 print(match[0], flush=True)
                 # Retain completed comparisons even if a later provenance check fails.

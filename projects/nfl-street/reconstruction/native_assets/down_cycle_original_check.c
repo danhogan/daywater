@@ -16,6 +16,8 @@
 static const ModernGekkoModuleDesc *module;
 static uint8_t *native,*oracle,*saved;
 static nflstreet_down_cycle policy;
+static nflstreet_down_control control;
+static uint8_t *control_lineup,*control_snap;
 static uint32_t seed=0x646f776eu;
 static unsigned case_index,side,stage;
 /* Not modeled: audio/disc service. Source/write audit is in down_cycle.md.
@@ -254,13 +256,16 @@ static int next_down(void){
  if(!o_call(0x800f2a20u,0,0,0)||!o_call(0x800f2a20u,1,0,0)||
     !o_call(0x800f8ae8u,0,0,0)||!o_call(0x800f8ae8u,1,0,0)||!o_call(0x8002e45cu,2,0,0))return 6;
  if(!same())return 7;
+ if(!control_lineup){control_lineup=malloc(BYTES);if(!control_lineup)return 3;memcpy(control_lineup,native,BYTES);}
  const uint32_t args[6]={team,0,0,0,0,0};if(!original_host(0x800f2e7cu,args,&play))return 6;
  const uint32_t lookup[6]={team,r8(oracle,play+0x16u),0,0,0,0};if(!original_host(0x8003a4a0u,lookup,&actor))return 6;
  /* The getters can update cached words. Run them natively before comparing
     the composite snap call, which executes those same getters itself. */
  if(!nflstreet_down_cycle_snap(&policy))return rejected();
  if(!o_call(0x800f946cu,0,0,0)||!o_call(0x800815b4u,actor,0,0))return 6;
- if(!same())return 7;nv=phase(native);if(nv!=3){fprintf(stderr,"return mismatch snap phase %u\n",nv);return 7;}++snaps;return 0;}
+ if(!same())return 7;nv=phase(native);if(nv!=3){fprintf(stderr,"return mismatch snap phase %u\n",nv);return 7;}
+ if(!control_snap){control_snap=malloc(BYTES);if(!control_snap)return 3;memcpy(control_snap,native,BYTES);}
+ ++snaps;return 0;}
 static void prepare(unsigned index){
  if(!index)return;
  const uint32_t f=field(native),b=ball(native),roster=r32(native,R13-0x7c30u),base=r32(native,roster);
@@ -295,6 +300,21 @@ static void prepare(unsigned index){
 static uint32_t digest(uint32_t d,const void *p,unsigned n){const uint8_t *b=p;for(unsigned i=0;i<n;++i)d=(d^b[i])*16777619u;return d;}
 static uint8_t *load(const char *path){FILE *f=fopen(path,"rb");if(!f)return NULL;uint8_t *p=malloc(BYTES);
  int ok=p&&fread(p,1,BYTES,f)==BYTES&&fgetc(f)==EOF;fclose(f);if(!ok){free(p);return NULL;}return p;}
+/* Independent original controller sequence. RESULT names checker-owned input
+   fixture bytes only; production uses the control context's external token.
+   8003DDEC only reads this input record and never publishes its pointer. */
+static int control_pair(int dx,int dy){
+ uint32_t xb=dx?(dy?0x3f3504f3u:0x3f800000u):0,yb=dy?(dx?0x3f3504f3u:0x3f800000u):0;
+ if(dx<0)xb|=0x80000000u;if(dy<0)yb|=0x80000000u;
+ memset(span(native,RESULT,32),0,32);memset(span(oracle,RESULT,32),0,32);
+ w32(native,RESULT+4u,xb);w32(oracle,RESULT+4u,xb);w32(native,RESULT+8u,yb);w32(oracle,RESULT+8u,yb);
+ if(!nflstreet_down_control_step(&control,dx,dy)){
+  fprintf(stderr,"controlled native rejected case %u stage %u call %08x pc %08x address %08x target %08x budget %d\n",
+   case_index,stage,control.failure_call,control.native.failure_pc,control.native.failure_address,
+   control.native.unsupported,control.native.failure_budget_exhausted);return 5;}
+ if(!o_call(0x8003ddecu,control.actor,RESULT,0)||!o_call(0x800150e8u,control.actor,0,0)||
+    !o_call(0x800f86bcu,control.actor,0,0))return 6;
+ return same()?0:7;}
 int main(int argc,char **argv){
  if(argc!=3)return 2;HMODULE h=LoadLibraryA(argv[2]);if(!h)return 3;
  ModernGekkoGetModuleFn get=(ModernGekkoGetModuleFn)GetProcAddress(h,MODERNGEKKO_GET_MODULE_SYMBOL);if(!get||!(module=get()))return 3;
@@ -353,6 +373,30 @@ int main(int argc,char **argv){
   stage=304;status=pair(0x8010397cu,case_index%7u,0,0,0);if(status)return status;
   leaves+=6;hash=digest(hash,native,LO-BASE);hash=digest(hash,native+HI-BASE,BYTES-(HI-BASE));
  }
+ /* Preserve the completed down corpus above. Additional live-control cases
+    cover the old observed movement wrapper's post-lineup rejection, using
+    actual captured lineup/snap states, not fabricated status values. */
+ if(!control_lineup||!control_snap)return 9;
+ const uint32_t controlled=carrier(saved);
+ if(!nflstreet_down_control_init(&control,(nflstreet_actor_ai){span,native,R13},controlled))return 3;
+ for(case_index=0;case_index<CASES;++case_index){
+  const uint8_t *source=case_index%3u==1?control_lineup:case_index%3u==2?control_snap:saved;
+  memcpy(native,source,BYTES);
+  if(case_index){wf(native,controlled+0x1a8u,(float)((int)(rnd()%4001u)-2000)/100.0f);
+   wf(native,controlled+0x1acu,(float)((int)(rnd()%6001u)-3000)/100.0f);
+   w32(native,controlled+0x1c8u,rnd()&0xffffffu);}
+  memcpy(oracle,native,BYTES);memcpy(control.native.stack,source+LO-BASE,sizeof control.native.stack);
+  stage=900;status=control_pair(case_index?(int)(case_index%3u)-1:1,case_index?(int)(case_index/3u%3u)-1:0);
+  if(status)return status;
+  hash=digest(hash,native,LO-BASE);hash=digest(hash,native+HI-BASE,BYTES-(HI-BASE));
+ }
+ for(unsigned context=0;context<2;++context){
+  const uint8_t *source=context?control_snap:control_lineup;memcpy(native,source,BYTES);memcpy(oracle,native,BYTES);
+  memcpy(control.native.stack,source+LO-BASE,sizeof control.native.stack);case_index=CASES+context;
+  for(unsigned tick=0;tick<96;++tick){stage=1000+tick;status=control_pair(1,(int)(tick/32u)-1);if(status)return status;}
+  hash=digest(hash,native,LO-BASE);hash=digest(hash,native+HI-BASE,BYTES-(HI-BASE));
+ }
+ nflstreet_down_control_close(&control);
  if(!audio_disc_in_chunk){fprintf(stderr,"original in-chunk service entry boundary was not exercised\n");return 9;}
  if(!whistles[0]||!whistles[1]||!whistles[2]||!whistles[3]||!commits||!selections||!snaps){fprintf(stderr,"incomplete cycle coverage: contact %u OOB %u TD %u incomplete %u commits %u selections %u snaps %u tail updates %u\n",whistles[0],whistles[1],whistles[2],whistles[3],commits,selections,snaps,tail_updates);return 9;}
  printf("Original down cycle: 401 saved/edited cases, 24 x 96 persistent updates; %u updates, %u leaves; whistles contact %u bounds %u touchdown %u incompletion %u; commits %u snaps %u; all RAM outside oracle stack and defined returns match; audio/disc entry returns only; digest %08x.\n",updates,leaves,whistles[0],whistles[1],whistles[2],whistles[3],commits,snaps,hash);
@@ -360,4 +404,5 @@ int main(int argc,char **argv){
   printf("Audio/disc service %08x (%s): %u original entry returns.\n",audio_disc_services[i].pc,audio_disc_services[i].purpose,audio_disc_calls[i]);
  printf("Original in-chunk audio/disc entry returns before first store: %u.\n",audio_disc_in_chunk);
  printf("Persistent queue completion: %u additional checked tail updates beyond the 24 x 96 windows; %u selections; commits observed at the original +151 publication.\n",tail_updates,selections);
+ printf("Controlled input: 401 saved/edited cases across saved/lineup/snap states, 192 persistent updates; original input/commit/full movement, all RAM matches.\n");
  return 0;}
