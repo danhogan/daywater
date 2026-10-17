@@ -53,12 +53,6 @@ MUTANTS = [
     {
         "name": "overlapping-text",
         "file": "disc_constants_original_check.c",
-        "old": "else if (!load_ok) { overlaps++; }",
-        "new": "else if (!load_ok) { /* overlaps++; */ }",
-    },
-    {
-        "name": "bss-overlap",
-        "file": "disc_constants_original_check.c",
         "old": (
             "else if (!load_ok) {\n"
             "                overlaps++;\n"
@@ -66,9 +60,15 @@ MUTANTS = [
         ),
         "new": (
             "else if (!load_ok) {\n"
-            "                overlaps++;\n"
+            "                /* overlaps++; */\n"
             "                /* if (index > 0 && (index - 1) % 10 == 4) bss_overlaps++; */"
         ),
+    },
+    {
+        "name": "bss-overlap",
+        "file": "disc_constants_original_check.c",
+        "old": "else if (!verify_ok) { revisions++; }",
+        "new": "else if (!verify_ok) { /* revisions++; */ }",
     },
     {
         "name": "unaligned-address",

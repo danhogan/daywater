@@ -16,15 +16,6 @@
 static const ModernGekkoModuleDesc *module;
 static uint8_t *oracle;
 static uint32_t seed = 0x46e3de85u;
-static uint32_t rnd(void);
-static uint32_t rd(const uint8_t *p);
-static void wr(uint8_t *p, uint32_t v);
-static uint8_t *at(uint8_t *r, uint32_t a);
-static uint32_t hash(uint32_t h, const void *p, size_t n);
-static uint8_t *load_file(const char *path, size_t *out_size);
-static int original_load(nflstreet_dol_header *hdr);
-static int same(uint8_t *native);
-static void mutate_dol(uint8_t *dol, size_t dol_size, unsigned variant);
 static uint32_t rnd(void) { seed = seed * 1664525u + 1013904223u; return seed; }
 static uint32_t rd(const uint8_t *p) { return (uint32_t)p[0]<<24 | (uint32_t)p[1]<<16 | (uint32_t)p[2]<<8 | p[3]; }
 static void wr(uint8_t *p, uint32_t v) { p[0]=(uint8_t)(v>>24); p[1]=(uint8_t)(v>>16); p[2]=(uint8_t)(v>>8); p[3]=(uint8_t)v; }
