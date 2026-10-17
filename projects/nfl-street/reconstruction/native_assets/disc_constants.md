@@ -1,70 +1,61 @@
-# DOL Section Loading + BSS Zeroing (Gate 03)
+# GNNE69 rev0 DOL preparation (row 03 bounded slice)
 
-## Scope
+This is host memory preparation, not a reconstructed GameCube loader or an
+original-module startup comparison. Evidence level: candidate unless the private verification report records a full
+pass for the current source hashes; then verified within the byte contract below. GNNE69 rev0 main.dol SHA1 is
+`46e3de854998a0f66c9be8c72a1164d22cd29eb4`.
 
-Native reconstruction of GameCube DOL section loading for GNNE69 rev 0 (DOL SHA-1 `46e3de854998a0f66c9be8c72a1164d22cd29eb4`). Implements:
+`nflstreet_disc_read_dol(iso, &bytes, &size)` uses nod's documented
+`nod_partition_meta(...).raw_dol` route outside the FST, pins the full DOL SHA1,
+and returns an owned copy (caller frees). It shares the existing disc reader's
+nod provider; `disc_files.c` remains unchanged. Returned metadata is copied
+before nod handles close. Failure leaves outputs untouched.
 
-- `nflstreet_dol_parse_header`: Validates and parses the DOL header (7 text sections, 11 data sections, BSS, entry point)
-- `nflstreet_dol_load_sections`: Loads all sections into a target MEM1 buffer at their linked addresses, zeroes BSS
-- `nflstreet_dol_verify_revision`: SHA-1 verification against the pinned GNNE69 rev 0 baseline
+`nflstreet_dol_parse_header` reads the 256-byte DOL header: 7 text then 11 data
+entries, offsets at 0, addresses at 0x48, sizes at 0x90; BSS at 0xD8/0xDC and
+entry at 0xE0. Structural parsing rejects truncated input, overlapping file or
+guest sections, sections inside the header and guest-address overflow. It does
+not identify the revision; use the disc helper or explicit revision check first.
+The layout agrees with [Dolphin DolReader.h](https://github.com/dolphin-emu/dolphin/blob/master/Source/Core/Core/Boot/DolReader.h).
 
-All bounds checks enforced:
-- Section offsets within DOL image (≥ 256, past header)
-- Section sizes 4-byte aligned, addresses 4-byte aligned
-- No overlapping sections (text/text, text/data, data/data, BSS/loaded)
-- BSS does not overlap any loaded section
-- Rejects truncated sections (extending past DOL image)
-- Rejects wrong revision (SHA-1 mismatch)
+`nflstreet_dol_load_sections` validates all descriptors, source and target bounds
+before any writes, zeroes the BSS envelope then overlays initialized sections.
+The pinned DOL has an unaligned BSS byte count and initialized data inside that
+envelope. Rejecting BSS/data overlap or requiring aligned sizes would reject the
+real image. This zero-then-overlay order is an explicit host convention, with
+initialized data taking precedence; it makes no claim about original boot order.
+Source/header/target must not alias. Callers may use structural loading on other
+images, but the disc helper accepts only the pinned revision.
 
-## Verification Contract
+## Gate
 
-**Gate script**: `verify_disc_constants.py`
+From repository root:
 
-**Private evidence directory**: `/mnt/w/Daywater/research-temp/nflstreet-disc-constants-20261017/`
-
-**Private inputs**:
-- `/mnt/w/Daywater/research-temp/nflstreet-GNNE69.iso` (DOL extracted from ISO, SHA-1 `813c4511ba3135059a13de424555647e8252254b`)
-- `/mnt/w/Daywater/research-temp/position-neutral-{14,15,16}.mem1` (24 MiB MEM1 snapshots)
-- ModernGekko recompiled module: `/mnt/w/Daywater/research-temp/nflstreet-native-windows-local/gGNNE69_recomp.dll`
-- nod prebuilt: `/mnt/w/Daywater/research-temp/nflstreet-live-20261013/build/_deps/nod_prebuilt-src/`
-
-**Fast mode** (`NFLSTREET_GATE_FAST=1`):
-- One context (15), one repeat, 10 edited cases, no mutants
-
-**Full mode**:
-- Three contexts (14, 15, 16), two fresh Windows processes each
-- 200 edited cases per context (201 total including saved-as-is)
-- 7 parallel mutants built and run in separate directories
-- All mutants must fail with comparison exit code 4 (not crash/build failure)
-
-**Comparison**: All 24 MiB MEM1 RAM compared byte-for-byte outside the declared oracle stack `[0x80f46f00, 0x80f47000)`. Return value and all RAM must match.
-
-## Native API
-
-```c
-// dol_sections.h
-int nflstreet_dol_parse_header(const uint8_t *dol, size_t dol_size, nflstreet_dol_header *header);
-int nflstreet_dol_load_sections(const uint8_t *dol, size_t dol_size,
-                                 const nflstreet_dol_header *header,
-                                 uint8_t *target, size_t target_size,
-                                 uint32_t target_base);
-int nflstreet_dol_verify_revision(const uint8_t *dol, size_t dol_size);
+```sh
+PYTHONPATH=projects/nfl-street/reconstruction/menus python3 projects/nfl-street/reconstruction/native_assets/verify_disc_constants.py
 ```
 
-## What Is Not Modeled
+`NFLSTREET_GATE_FAST=1` selects context 15, one Windows process, 11 cases and no
+mutants. Full mode selects contexts 14/15/16, two fresh processes each, 201 cases
+per process and eight parallel production mutations. Every case compares all
+24 MiB, including untouched dirty bytes, with an independent reference formed
+from raw fields of the pinned exported DOL; no stack range is excluded.
+Seventeen invalid structural/revision/forged-header inputs are also checked.
+Build failures/crashes never count as caught mutants; comparison exit 4 is
+required. Stable results, private/provider hashes and source hashes are recorded.
 
-- Original DOL loader entry point (not exposed in this revision; the game uses a different startup path)
-- DVD async loading, streaming, or DVD timing
-- DOL relocation (sections load at linked addresses; no relocation performed)
-- Partial section loading or demand paging
-- Multiple DOLs (only main.dol)
+Private evidence directory:
+`/mnt/w/Daywater/research-temp/nflstreet-disc-constants-20261017/`.
+Inputs are the pinned ISO, independent `nflstreet-native-windows-local/game/sys/main.dol`,
+contexts `position-neutral-{14,15,16}.mem1`, and the existing nod provider.
+Snapshots seed tests only; runtime DOL preparation reads no snapshot.
+No original routines, Dolphin integration, render, or live game execution is tested.
 
-## Integration
+## Integration and remaining row 03 work
 
-Call `nflstreet_dol_parse_header` then `nflstreet_dol_load_sections` during early startup, before any consumer initializes. The target buffer should be the full 24 MiB MEM1 span at base `0x80000000`. The function zeroes BSS automatically.
-
-No existing shared files modified. New files:
-- `dol_sections.c` / `dol_sections.h`
-- `disc_constants_original_check.c`
-- `build_windows_disc_constants_check.sh`
-- `verify_disc_constants.py`
+Before consumer initialization, read the DOL, parse it, then load into a caller-owned
+24 MiB buffer with guest base `0x80000000`; free the DOL after loading. The loader
+is a standalone input owner and has not been joined into the live app.
+Replacing each required private constants catalog with a disc-derived consumer
+view remains a separate slice. This does not construct mutable match state,
+handle relocation or emulate DVD timing. No shared files need changes here.

@@ -101,7 +101,7 @@ static int sha1_equals(const uint8_t *data, size_t len, const uint8_t expected[2
 }
 
 int nflstreet_dol_verify_revision(const uint8_t *dol, size_t dol_size) {
-    return sha1_equals(dol, dol_size, EXPECTED_DOL_SHA1);
+    return dol && sha1_equals(dol, dol_size, EXPECTED_DOL_SHA1);
 }
 
 static uint32_t read_be32(const uint8_t *p) {
@@ -111,150 +111,62 @@ static uint32_t read_be32(const uint8_t *p) {
            (uint32_t)p[3];
 }
 
-int nflstreet_dol_parse_header(const uint8_t *dol, size_t dol_size, nflstreet_dol_header *header) {
+static const nflstreet_dol_section *section_at(const nflstreet_dol_header *h, unsigned i) {
+    return i < 7 ? &h->text[i] : &h->data[i - 7];
+}
+static int valid_header(const nflstreet_dol_header *h, size_t dol_size) {
     if (dol_size < 256) return 0;
-    
-    /* Text section offsets (0x00), addresses (0x48), sizes (0x90) */
-    /* Data section offsets (0xD8), addresses (0x120), sizes (0x168) */
-    /* BSS address (0x1B0), BSS size (0x1B4), entry point (0x1B8) */
-    
-    memset(header, 0, sizeof(*header));
-    
-    /* Parse text sections */
-    for (int i = 0; i < NFLSTREET_DOL_TEXT_SECTIONS; ++i) {
-        uint32_t off = read_be32(dol + 0x00 + i * 4);
-        uint32_t addr = read_be32(dol + 0x48 + i * 4);
-        uint32_t size = read_be32(dol + 0x90 + i * 4);
-        header->text[i].offset = off;
-        header->text[i].address = addr;
-        header->text[i].size = size;
-    }
-    
-    /* Parse data sections */
-    for (int i = 0; i < NFLSTREET_DOL_DATA_SECTIONS; ++i) {
-        uint32_t off = read_be32(dol + 0xD8 + i * 4);
-        uint32_t addr = read_be32(dol + 0x120 + i * 4);
-        uint32_t size = read_be32(dol + 0x168 + i * 4);
-        header->data[i].offset = off;
-        header->data[i].address = addr;
-        header->data[i].size = size;
-    }
-    
-    header->bss_address = read_be32(dol + 0x1B0);
-    header->bss_size = read_be32(dol + 0x1B4);
-    header->entry_point = read_be32(dol + 0x1B8);
-    
-    /* Validate all sections */
-    for (int i = 0; i < NFLSTREET_DOL_TEXT_SECTIONS; ++i) {
-        if (header->text[i].size == 0) continue;
-        if (header->text[i].offset < 256) return 0;
-        if (header->text[i].offset > dol_size) return 0;
-        if (header->text[i].size > dol_size - header->text[i].offset) return 0;
-        if (header->text[i].address % 4 != 0) return 0;
-        if (header->text[i].size % 4 != 0) return 0;
-    }
-    
-    for (int i = 0; i < NFLSTREET_DOL_DATA_SECTIONS; ++i) {
-        if (header->data[i].size == 0) continue;
-        if (header->data[i].offset < 256) return 0;
-        if (header->data[i].offset > dol_size) return 0;
-        if (header->data[i].size > dol_size - header->data[i].offset) return 0;
-        if (header->data[i].address % 4 != 0) return 0;
-        if (header->data[i].size % 4 != 0) return 0;
-    }
-    
-    if (header->bss_address % 4 != 0) return 0;
-    if (header->bss_size % 4 != 0) return 0;
-    
-    /* Check for overlapping sections */
-    for (int i = 0; i < NFLSTREET_DOL_TEXT_SECTIONS; ++i) {
-        if (header->text[i].size == 0) continue;
-        uint32_t start_i = header->text[i].address;
-        uint32_t end_i = start_i + header->text[i].size;
-        for (int j = i + 1; j < NFLSTREET_DOL_TEXT_SECTIONS; ++j) {
-            if (header->text[j].size == 0) continue;
-            uint32_t start_j = header->text[j].address;
-            uint32_t end_j = start_j + header->text[j].size;
-            if (start_i < end_j && start_j < end_i) return 0;
-        }
-        for (int j = 0; j < NFLSTREET_DOL_DATA_SECTIONS; ++j) {
-            if (header->data[j].size == 0) continue;
-            uint32_t start_j = header->data[j].address;
-            uint32_t end_j = start_j + header->data[j].size;
-            if (start_i < end_j && start_j < end_i) return 0;
+    if ((uint64_t)h->bss_address + h->bss_size > UINT64_C(0x100000000)) return 0;
+    for (unsigned i = 0; i < 18; ++i) {
+        const nflstreet_dol_section *a = section_at(h, i);
+        if (!a->size) continue;
+        if (a->offset < 256 || a->offset > dol_size || a->size > dol_size - a->offset) return 0;
+        if ((uint64_t)a->address + a->size > UINT64_C(0x100000000)) return 0;
+        for (unsigned j = 0; j < i; ++j) {
+            const nflstreet_dol_section *b = section_at(h, j);
+            if (!b->size) continue;
+            if ((uint64_t)a->address < (uint64_t)b->address + b->size &&
+                (uint64_t)b->address < (uint64_t)a->address + a->size) return 0;
+            if ((uint64_t)a->offset < (uint64_t)b->offset + b->size &&
+                (uint64_t)b->offset < (uint64_t)a->offset + a->size) return 0;
         }
     }
-    
-    for (int i = 0; i < NFLSTREET_DOL_DATA_SECTIONS; ++i) {
-        if (header->data[i].size == 0) continue;
-        uint32_t start_i = header->data[i].address;
-        uint32_t end_i = start_i + header->data[i].size;
-        for (int j = i + 1; j < NFLSTREET_DOL_DATA_SECTIONS; ++j) {
-            if (header->data[j].size == 0) continue;
-            uint32_t start_j = header->data[j].address;
-            uint32_t end_j = start_j + header->data[j].size;
-            if (start_i < end_j && start_j < end_i) return 0;
-        }
-    }
-    
-    /* Check BSS doesn't overlap loaded sections */
-    if (header->bss_size > 0) {
-        uint32_t bss_start = header->bss_address;
-        uint32_t bss_end = bss_start + header->bss_size;
-        for (int i = 0; i < NFLSTREET_DOL_TEXT_SECTIONS; ++i) {
-            if (header->text[i].size == 0) continue;
-            uint32_t start_i = header->text[i].address;
-            uint32_t end_i = start_i + header->text[i].size;
-            if (bss_start < end_i && start_i < bss_end) return 0;
-        }
-        for (int i = 0; i < NFLSTREET_DOL_DATA_SECTIONS; ++i) {
-            if (header->data[i].size == 0) continue;
-            uint32_t start_i = header->data[i].address;
-            uint32_t end_i = start_i + header->data[i].size;
-            if (bss_start < end_i && start_i < bss_end) return 0;
-        }
-    }
-    
     return 1;
 }
-
+int nflstreet_dol_parse_header(const uint8_t *dol, size_t dol_size, nflstreet_dol_header *header) {
+    if (!dol || !header || dol_size < 256) return 0;
+    nflstreet_dol_header h = {0};
+    for (unsigned i = 0; i < 18; ++i) {
+        nflstreet_dol_section *a = i < 7 ? &h.text[i] : &h.data[i - 7];
+        a->offset = read_be32(dol + i * 4);
+        a->address = read_be32(dol + 0x48 + i * 4);
+        a->size = read_be32(dol + 0x90 + i * 4);
+    }
+    h.bss_address = read_be32(dol + 0xd8);
+    h.bss_size = read_be32(dol + 0xdc);
+    h.entry_point = read_be32(dol + 0xe0);
+    if (!valid_header(&h, dol_size)) return 0;
+    *header = h;
+    return 1;
+}
+static int fits(uint32_t address, uint32_t size, uint32_t base, size_t capacity) {
+    return address >= base && (uint64_t)address - base <= capacity &&
+        size <= capacity - ((uint64_t)address - base);
+}
 int nflstreet_dol_load_sections(const uint8_t *dol, size_t dol_size,
-                                 const nflstreet_dol_header *header,
-                                 uint8_t *target, size_t target_size,
-                                 uint32_t target_base) {
-    /* Load text sections */
-    for (int i = 0; i < NFLSTREET_DOL_TEXT_SECTIONS; ++i) {
-        if (header->text[i].size == 0) continue;
-        uint32_t addr = header->text[i].address;
-        uint32_t off = header->text[i].offset;
-        uint32_t size = header->text[i].size;
-        if (addr < target_base) return 0;
-        if (addr - target_base > target_size) return 0;
-        if (size > target_size - (addr - target_base)) return 0;
-        memcpy(target + (addr - target_base), dol + off, size);
+    const nflstreet_dol_header *header, uint8_t *target, size_t target_size, uint32_t target_base) {
+    if (!dol || !header || !target || !valid_header(header, dol_size)) return 0;
+    if (header->bss_size && !fits(header->bss_address, header->bss_size, target_base, target_size)) return 0;
+    for (unsigned i = 0; i < 18; ++i) {
+        const nflstreet_dol_section *a = section_at(header, i);
+        if (a->size && !fits(a->address, a->size, target_base, target_size)) return 0;
     }
-    
-    /* Load data sections */
-    for (int i = 0; i < NFLSTREET_DOL_DATA_SECTIONS; ++i) {
-        if (header->data[i].size == 0) continue;
-        uint32_t addr = header->data[i].address;
-        uint32_t off = header->data[i].offset;
-        uint32_t size = header->data[i].size;
-        if (addr < target_base) return 0;
-        if (addr - target_base > target_size) return 0;
-        if (size > target_size - (addr - target_base)) return 0;
-        memcpy(target + (addr - target_base), dol + off, size);
+    /* Host preparation: the real DOL BSS envelope contains initialized sections.
+       Zero its holes, then restore initialized bytes; this is not an original boot routine. */
+    if (header->bss_size) memset(target + (header->bss_address - target_base), 0, header->bss_size);
+    for (unsigned i = 0; i < 18; ++i) {
+        const nflstreet_dol_section *a = section_at(header, i);
+        if (a->size) memcpy(target + (a->address - target_base), dol + a->offset, a->size);
     }
-    
-    /* Zero BSS */
-    if (header->bss_size > 0) {
-        uint32_t addr = header->bss_address;
-        uint32_t size = header->bss_size;
-        if (addr < target_base) return 0;
-        if (addr - target_base > target_size) return 0;
-        if (size > target_size - (addr - target_base)) return 0;
-        memset(target + (addr - target_base), 0, size);
-    }
-    
     return 1;
 }

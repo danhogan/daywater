@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-"""Gate 03: DOL section loading + BSS zeroing verification against original module.
-Byte comparison with pinned private DOL, reject wrong revision/truncated/overlapping sections;
-no MEM1 read at runtime. Supplies constants plus fresh backing span before any consumer init."""
+"""Windows integration gate for host DOL byte preparation, not original startup execution."""
 
 import concurrent.futures
 import json
@@ -10,102 +8,78 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from verify_controller_checks import PRIVATE, baseline_hashes, digest, private, run, windows
+from verify_controller_checks import PRIVATE, baseline_hashes, digest, private, windows
 from verify_player_startup import source_hashes
 
 SOURCES = (
     "dol_sections.c",
     "dol_sections.h",
+    "disc_dol.c",
+    "disc_dol.h",
     "disc_constants_original_check.c",
-    "disc_files.c",
-    "disc_files.h",
-    "archive.c",
-    "archive.h",
-    "lzh1.c",
-    "lzh1.h",
     "build_windows_disc_constants_check.sh",
     "verify_disc_constants.py",
+    "disc_constants.md",
 )
-
 ISO_SHA1 = "813c4511ba3135059a13de424555647e8252254b"
+DOL_SHA1 = "46e3de854998a0f66c9be8c72a1164d22cd29eb4"
 BOUNDARY = (
-    "Native DOL section loading (text/data sections + BSS zeroing) versus original-module RAM on three saved contexts. "
-    "Two fresh Windows processes per context (14/15/16). Original routines execute in the untouched DLL. "
-    "All RAM outside the one declared oracle stack [80f46f00,80f47000) must match. "
-    "Wrong revision, truncated sections, overlapping sections (text/text, text/data, BSS/loaded), "
-    "unaligned addresses/sizes, offsets before header, sections past image end are rejected. "
-    "No MEM1 read at runtime; supplies constants plus fresh backing span before any consumer init."
+    "Host nod raw_dol bytes versus pinned independent main.dol export; host memory preparation "
+    "zeros BSS envelope then overlays initialized sections. All MEM1 bytes compared, including untouched "
+    "dirty bytes. No original module, emulator boot, startup execution or catalog consumer integration."
 )
 
+
+def run(command: list[str], log: Path) -> str:
+    process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
+    log.write_text(process.stdout)
+    if process.returncode:
+        print(process.stdout, flush=True)
+        raise subprocess.CalledProcessError(process.returncode, command, output=process.stdout)
+    return process.stdout
+
+
+# Every mutation changes production behavior; compiler failures never count as catches.
 MUTANTS = [
-    {
-        "name": "wrong-revision",
-        "file": "disc_constants_original_check.c",
-        "old": 'if (!parse_ok || !load_ok || !verify_ok) { fprintf(stderr, "As-is case failed\\n"); return 4; }',
-        "new": 'if (!parse_ok || !load_ok) { fprintf(stderr, "As-is case failed\\n"); return 4; }',
-    },
-    {
-        "name": "truncated-section",
-        "file": "disc_constants_original_check.c",
-        "old": "if (!parse_ok) { truncated++; }",
-        "new": "if (!parse_ok) { /* truncated++; */ }",
-    },
-    {
-        "name": "overlapping-text",
-        "file": "disc_constants_original_check.c",
-        "old": (
-            "else if (!load_ok) {\n"
-            "                overlaps++;\n"
-            "                if (index > 0 && (index - 1) % 10 == 4) bss_overlaps++;"
+    {"name": name, "file": "dol_sections.c", "old": old, "new": new}
+    for name, old, new in (
+        (
+            "revision-pin",
+            "return dol && sha1_equals(dol, dol_size, EXPECTED_DOL_SHA1);",
+            "return dol && (sha1_equals(dol, dol_size, EXPECTED_DOL_SHA1) || dol_size > 0);",
         ),
-        "new": (
-            "else if (!load_ok) {\n"
-            "                /* overlaps++; */\n"
-            "                /* if (index > 0 && (index - 1) % 10 == 4) bss_overlaps++; */"
+        ("header-offset", "h.bss_address = read_be32(dol + 0xd8);", "h.bss_address = read_be32(dol + 0xdc);"),
+        (
+            "source-bounds",
+            "if (a->offset < 256 || a->offset > dol_size || a->size > dol_size - a->offset) return 0;",
+            "if (a->offset < 256) return 0;",
         ),
-    },
-    {
-        "name": "bss-overlap",
-        "file": "disc_constants_original_check.c",
-        "old": "else if (!verify_ok) { revisions++; }",
-        "new": "else if (!verify_ok) { /* revisions++; */ }",
-    },
-    {
-        "name": "unaligned-address",
-        "file": "disc_constants_original_check.c",
-        "old": (
-            "if (revisions != 1 || truncated != 1 || overlaps < 2 "
-            "|| bss_overlaps < 1 || unaligned < 2 || offset_before != 1 || extends_past != 1) {"
+        (
+            "guest-overlap",
+            "(uint64_t)b->address < (uint64_t)a->address + a->size) return 0;",
+            "(uint64_t)b->address < (uint64_t)a->address + a->size) { /* accept overlap */ }",
         ),
-        "new": (
-            "if (revisions != 1 || truncated != 1 || overlaps < 2 "
-            "|| bss_overlaps < 1 || unaligned < 2 || offset_before != 1 || extends_past != 0) {"
+        (
+            "file-overlap",
+            "(uint64_t)b->offset < (uint64_t)a->offset + a->size) return 0;",
+            "(uint64_t)b->offset < (uint64_t)a->offset + a->size) { /* accept overlap */ }",
         ),
-    },
-    {
-        "name": "offset-before-header",
-        "file": "disc_constants_original_check.c",
-        "old": (
-            "if (revisions != 1 || truncated != 1 || overlaps < 2 "
-            "|| bss_overlaps < 1 || unaligned < 2 || offset_before != 1 || extends_past != 1) {"
+        (
+            "bss-zero",
+            "if (header->bss_size) memset(target + (header->bss_address - target_base), 0, header->bss_size);",
+            "if (header->bss_size) memset(target + (header->bss_address - target_base), 1, header->bss_size);",
         ),
-        "new": (
-            "if (revisions != 1 || truncated != 1 || overlaps < 2 "
-            "|| bss_overlaps < 1 || unaligned < 2 || offset_before != 0 || extends_past != 1) {"
+        (
+            "section-copy",
+            "if (a->size) memcpy(target + (a->address - target_base), dol + a->offset, a->size);",
+            "if (a->size) memcpy(target + (a->address - target_base), dol + a->offset, a->size - 1);",
         ),
-    },
-    {
-        "name": "extends-past-image",
-        "file": "disc_constants_original_check.c",
-        "old": (
-            "if (revisions != 1 || truncated != 1 || overlaps < 2 "
-            "|| bss_overlaps < 1 || unaligned < 2 || offset_before != 1 || extends_past != 1) {"
+        (
+            "bss-wrap",
+            "if ((uint64_t)h->bss_address + h->bss_size > UINT64_C(0x100000000)) return 0;",
+            "if ((uint64_t)h->bss_address + h->bss_size > UINT64_C(0x100000000)) { /* accept wrap */ }",
         ),
-        "new": (
-            "if (revisions != 1 || truncated != 1 || overlaps < 2 "
-            "|| bss_overlaps < 1 || unaligned < 2 || offset_before != 1 || extends_past != 0) {"
-        ),
-    },
+    )
 ]
 
 
@@ -131,12 +105,16 @@ def main() -> None:
         if digest(iso, "sha1") != ISO_SHA1:
             raise RuntimeError("Disc image differs from preserved GNNE69 rev0 ISO")
 
+        dol = private(PRIVATE / "research-temp/nflstreet-native-windows-local/game/sys/main.dol")
+        if digest(dol, "sha1") != DOL_SHA1:
+            raise RuntimeError("Exported DOL differs from pinned GNNE69 revision")
+
         context_paths = {i: private(PRIVATE / f"research-temp/position-neutral-{i}.mem1") for i in contexts}
 
         nod = private(PRIVATE / "research-temp/nflstreet-live-20261013/build/_deps/nod_prebuilt-src")
         provider = [nod / "include/nod.h", nod / "lib/nod.lib", nod / "bin/nod.dll"]
 
-        inputs = {str(path): digest(path) for path in [iso, *context_paths.values(), *provider]}
+        inputs = {str(path): digest(path) for path in [iso, dol, *context_paths.values(), *provider]}
 
         build_cmd = [
             "env",
@@ -156,13 +134,13 @@ def main() -> None:
             traces = []
             for repeat in range(repeats):
                 log = out / f"constants-{context}-{repeat}.log"
-                text = run([str(exe), windows(iso), windows(ram), str(edited_cases)], log)
+                text = run([str(exe), windows(iso), windows(dol), windows(ram), str(edited_cases)], log)
                 # Parse the summary line
-                if "Original DOL sections:" not in text:
+                if "DOL constants:" not in text:
                     raise RuntimeError(f"DOL constants comparison failed in context {context} repeat {repeat}")
                 traces.append(digest(log))
                 results[f"{context}-{repeat}"] = text.strip()
-            if traces[0] != traces[1] and not fast:
+            if not fast and traces[0] != traces[1]:
                 raise RuntimeError(f"Fresh DOL constants traces differ for context {context}")
             logs[str(context)] = traces
 
@@ -170,7 +148,7 @@ def main() -> None:
         caught = []
         mutant_count = 0 if fast else len(MUTANTS)
 
-        def run_mutant(mutant):
+        def run_mutant(mutant: dict[str, str]) -> str:
             scratch = out / "mutants" / mutant["name"]
             scratch.mkdir(parents=True, exist_ok=True)
             for name in SOURCES:
@@ -180,12 +158,22 @@ def main() -> None:
             if text.count(mutant["old"]) != 1 or "\n" in mutant["old"] or "\n" in mutant["new"]:
                 raise RuntimeError(f"Mutation must match exactly one source line: {mutant['name']}")
             target.write_text(text.replace(mutant["old"], mutant["new"]))
-            run([*build_cmd, str(scratch)], scratch / "build.log")
+            run(
+                [
+                    "env",
+                    f"DAYWATER_NOD={nod}",
+                    "bash",
+                    str(scratch / "build_windows_disc_constants_check.sh"),
+                    str(scratch),
+                ],
+                scratch / "build.log",
+            )
             with (scratch / "check.log").open("w") as output:
                 process = subprocess.run(
                     [
                         str(scratch / "disc-constants-original-check.exe"),
                         windows(iso),
+                        windows(dol),
                         windows(context_paths[14]),
                         "10",
                     ],
@@ -193,12 +181,13 @@ def main() -> None:
                     stderr=subprocess.STDOUT,
                     check=False,
                 )
-            if process.returncode != 4:
+            if process.returncode != 4 or "comparison failed at line" not in (scratch / "check.log").read_text():
+                print((scratch / "check.log").read_text(), flush=True)
                 raise RuntimeError(f"Mutant {mutant['name']} was not caught by comparison: {process.returncode}")
             return mutant["name"]
 
         if mutant_count > 0:
-            max_workers = max(1, os.cpu_count() // 2)
+            max_workers = max(1, (os.cpu_count() or 2) // 2)
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {executor.submit(run_mutant, m): m["name"] for m in MUTANTS[:mutant_count]}
                 for future in concurrent.futures.as_completed(futures):
@@ -208,6 +197,8 @@ def main() -> None:
                         caught.append(caught_name)
                     except Exception as e:
                         raise RuntimeError(f"Mutant {name} failed: {e}")
+
+        caught = [m["name"] for m in MUTANTS if m["name"] in caught]
 
         if before != baseline_hashes() or any(digest(Path(path)) != sha for path, sha in inputs.items()):
             raise RuntimeError("Protected originals or private inputs changed")
@@ -219,11 +210,14 @@ def main() -> None:
             baseline=before,
             input_sha256=inputs,
             source_sha256=sources,
-            original_log_sha256=logs,
+            check_log_sha256=logs,
             results=results,
             executable_sha256=digest(exe),
             mutants_caught=caught,
             fast_mode=fast,
+            cases_per_process=edited_cases + 1,
+            fresh_processes=len(contexts) * repeats,
+            mutants_total=mutant_count,
         )
     except Exception as exc:
         record.update(status="failed", error=str(exc))
