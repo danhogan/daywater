@@ -80,7 +80,16 @@ static void prepare(uint8_t *r,unsigned index,responses *q){
  if(index>480)wr(at(r,CONFIG),8u+rnd());
  static const uint32_t selectors[]={0,1,2,3,4,0xffffffffu,0x80000000u,0x100u};
  q->words[0]=selectors[((index-1)/8)%8];q->words[6]=rnd();q->words[7]=rnd()^0x55aa55aau;
- for(unsigned n=1;n<QUERIES;++n)q->reals[n]=(double)(int32_t)(rnd()%200000u)/97.0-1000.0;
+ /* Constrain generated doubles to be exactly representable as floats, so the
+     native (host C cast) and oracle (Gekko frsp via emulated FNIG wrapper)
+     double->float conversions agree. The original FNIG wrapper 8014966C returns
+     float in f1; the check intercepts there and must supply a float-equivalent
+     double. Host C (float)double and Gekko frsp differ on values not exactly
+     representable as float due to rounding mode/FTZ differences. */
+  for(unsigned n=1;n<QUERIES;++n){
+    float f=(float)(int32_t)(rnd()%200000u)/97.0f-1000.0f;
+    q->reals[n]=(double)f;
+  }
  static const float scales[]={60.0f,1.0f,0.01f,1.25f,-3.0f,0.0f,0.5f,10000000.0f};
  float threshold=(float)(int32_t)(rnd()%10000u)/4096.0f;
  wf(r,0x80245820u,scales[(index-1)%8]);wf(r,0x80245824u,threshold);
