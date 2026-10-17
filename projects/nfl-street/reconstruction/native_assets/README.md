@@ -328,6 +328,115 @@ the external SKL1 skeletons by original names. Synthetic Linux and Windows
 checks exercise translated/rotated poses and malformed input rejection.
 The original strict 14-mesh comparison still passes unchanged.
 
+## Module index
+
+### Drawing
+
+- [crowd_draw.md](crowd_draw.md) Reconstructs how the in-match frame draws the venue's crowd, ten spectators and their copies, two garbage cans, and static street props, issuing the exact GX SDK calls of the original.
+- [cloud_draw.md](cloud_draw.md) Reconstructs entry 1 of the field camera's scene node and the clouds it draws, issuing the original's GX calls and RAM writes through the shared draw engine.
+- [effects_draw.md](effects_draw.md) Draws three more entries of the in-match scene traversal with the original's GX calls, immediate vertex writes to the GX pipe and matrix-stack writes.
+- [scenery_draw.md](scenery_draw.md) Reconstructs how the original draws scenery instances and the two venue loops that draw the EARS field, producing the exact GX SDK calls of the original.
+- [light_rig.md](light_rig.md) Reconstructs the routine that turns the active light rig's world-space lights into view-space GX light objects each frame.
+- [native_sky_render.md](native_sky_render.md) Constructs and draws the original procedural sky before the six EARS field layers, with field and sky outputs remaining unchanged.
+- [field_overlay.md](field_overlay.md) Reconstructs the field-camera traversal entry that checks a byte and reads 0xC4-byte records holding positions, angles, and subsidiary quad descriptions.
+- [hud_draw.md](hud_draw.md) Reconstructs the in-match text renderer, player name tags, scoreboard, GameBreaker bars, and the field camera path for HUD elements.
+- [ball_and_marks.md](ball_and_marks.md) Reconstructs turf marks left by players, drop shadows of field objects and the ball, the ball model, and the field camera that the scene draws under.
+- [native_field_render.md](native_field_render.md) Renders the captured EARS field from an independent Windows C executable using the original gameplay camera, loading six original TMdl field assets.
+- [player_render.md](player_render.md) Executes the GX calls that `player_draw.c` produces in a small software GPU, drawing the 14 players of a saved context natively.
+- [player_draw.md](player_draw.md) Reconstructs what the original game sends to the GPU to draw one player, issuing the same GX SDK calls in the same order as the original.
+
+### Player bodies and animation
+
+- [actor_scale.md](actor_scale.md) Reconstructs the actor scale step before palettes with probable confidence from decompile and instruction-by-instruction inspection.
+- [actor_model_init.md](actor_model_init.md) Reconstructs the ordinary C state owned by original `800D4E0C` and its small channel helpers for fresh actor base model initialization.
+- [actor_factory.md](actor_factory.md) Owns the allocation request, clearing, header writes and optional constructor invocation from `801956A4` for fresh actor factory creation.
+- [actor_palettes.md](actor_palettes.md) Reconstructs `80162760`, the per-actor skinning step that runs before each player draw, working on saved RAM through the draw span.
+- [actor_dynamics.md](actor_dynamics.md) Reconstructs the actor head and hand dynamics, with the previous hand check passing in contexts 14, 15 and 16.
+- [actor_dynamics_math.md](actor_dynamics_math.md) Implements the first independently verified stage for secondary head/hand dynamics with original math leaves against saved big-endian RAM.
+- [body_postattach.md](body_postattach.md) Owns a fresh body file selected by the verified TBYP/key and variant mapping, relocating it at an explicit host token and applying the `801C6B38` binding.
+- [hair_postattach.md](hair_postattach.md) Connects existing owned three-slot hair resources to native `801C6B38` reconstruction, supplying each model/view and a fresh SKL1 target.
+- [face_resource_pair.md](face_resource_pair.md) Owns two adjacent decoded `plaface.dat` TMdl entries, their resource identities, whole-file relocation and 52-byte attached views.
+- [headwear_state.md](headwear_state.md) Joins the selected PLAY row to the fresh GEAR table and reconstructs original `800DDEBC` / `800DDE18` decisions.
+- [player_appearance_init.md](player_appearance_init.md) Reconstructs original `801639C8` direct writes and its vector, node descriptor, table, registry and mapping helpers.
+- [player_model_binding.md](player_model_binding.md) Owns the source state and sequence of `801630B0` and tractable model helpers, replacing a whole model-binding capture boundary.
+- [player_startup.md](player_startup.md) Connects the owned model/channel initializer, tail reset and appearance initializer through one API without Dolphin or ModernGekko dependency.
+- [player_bound_startup.md](player_bound_startup.md) Connects owned actor factory allocation/header setup, model/channel initialization, tail reset, appearance state and model binding.
+- [player_resource_loading.md](player_resource_loading.md) Covers remaining fresh-player resource ownership, building raw 52-byte model views directly from independently decoded body entries.
+- [player_record.md](player_record.md) Reconstructs original `800DE000`, the writer of the 0x68-byte player record at `802AAA60 + slot*0x68`.
+- [selected_player_resources.md](selected_player_resources.md) Joins the existing independently loaded PLAY resolver to the new face-pair owner and processed base-body catalog.
+- [selected_player_visual.md](selected_player_visual.md) Owns selected face and hair geometry, borrows the processed body variant, and joins these with selected texture slots and material instances.
+- [hair_resources.md](hair_resources.md) Reconstructs original `800DEBD0` / `800E177C` / `800E1734` resource-index planning, then independently decodes, relocates and attaches the three requested TMdl resources.
+- [gear_texture.md](gear_texture.md) Reconstructs original `800DE3B8`, which turns one selected player's appearance record into 25 texture slots handed to `800E2E48`.
+- [face_texture.md](face_texture.md) Owns the named face-texture plan, decoded raw MMAP, processed MMAP and inspection image zero.
+- [slot_textures.md](slot_textures.md) Turns a selected player's 25 texture-slot requests into owned, relocated texture destinations following the original boot-to-match pipeline.
+- [slot_materials.md](slot_materials.md) Reconstructs the step that attaches each player's 25 owned slot textures to named materials, building a GX texture set for every slot destination.
+- [texture_apply.md](texture_apply.md) Reconstructs original `80164CE4` for processed MMAPv2 files, copying images and palettes with the original ordered address/size cache notification.
+- [palette_recolor.md](palette_recolor.md) Reconstructs the original dynamic-palette step `800D9C0C`, recoloring palette record 0 using the player's 24 color-state ids.
+- [attachment_palette_scale.md](attachment_palette_scale.md) Reconstructs four scaling blocks inside original `80162760`, using explicit original model-slot identities.
+- [cluster_palette.md](cluster_palette.md) Reconstructs the weighted body-cluster matrix arithmetic in original `801CA4E8` and `801CA720`, producing native float matrices.
+- [model_instance.md](model_instance.md) Reconstructs original `80162FC4` and its called initialization, palette/material binding helpers, followed by model setter `801EBFE0`.
+- [model_relocate.md](model_relocate.md) Reconstructs original `801C5EC8`, its registry dispatch and directory arithmetic, connecting owners to all nine independently decoded body assets.
+- [model_view.md](model_view.md) Owns original `801C67E4`, `801C6644` and their directory lookup behavior for independently decoded raw TMdl files.
+- [model_postattach.md](model_postattach.md) Implements original `801C6B38(view, target_skeleton)` in a bounded GameCube token namespace, mapping names from 16-byte source skeleton rows to the target SKL1 name table.
+- [skeleton_startup.md](skeleton_startup.md) Owns the six-resource initialization performed by original `80041108`, loading animdata entries 95,96,97,99,100,101 and producing expanded vector words.
+- [skeleton_resource.md](skeleton_resource.md) Decodes an independently supplied `animdata.dat` entry, owns its bytes, and reconstructs original `8017EB24` relocation.
+- [match_skeletons.md](match_skeletons.md) Composes the verified skeleton startup and face/hair postattachment stages for all 14 simultaneous `match_visuals` owners.
+- [match_bodies.md](match_bodies.md) Replaces the 14 visual owners' borrowed body references with fresh owned body files/views, decoded, relocated and bound before any visual pointer changes.
+- [match_body_palettes.md](match_body_palettes.md) Connects the exact cluster kernel to the 14 independently owned selected bodies, reading each player's current private body file/view.
+- [match_visuals.md](match_visuals.md) Joins the retained `quick_match_session` roster with `selected_player_visual_from_match` for all 14 selected players in side-major, menu lineup order.
+- [match_model_instances.md](match_model_instances.md) Joins current selected body/face/hair views and their native matrices into owned original-layout draw objects.
+- [match_attachment_palettes.md](match_attachment_palettes.md) Generates matrices from the 14 selected players' private, bound face and hair models.
+- [native_player_animation.md](native_player_animation.md) Decodes an original clip, evaluates body and template-head cluster matrices, and renders moving poses from original mesh and texture assets.
+- [actor_animation.md](actor_animation.md) Documents the visual actor's pose layout (+5C) holding signed 16-bit x/y/z angles per bone in compact SKL1 order.
+- [native_live_player.md](native_live_player.md) Loads original extracted assets once, evaluates compressed animation poses with time interpolation, rebuilds the posed player mesh, and renders it over a cached native field and sky.
+- [native_player_render.md](native_player_render.md) Renders one clothed player, both on the reconstructed field and in a close-up, using a measured fixed pose, light settings and appearance palettes.
+- [player_constructor.md](player_constructor.md) Connects the source model/channel initializer, descriptor word transfer, and tail reset routines in the order used by `800E1F7C`.
+- [player_surface.md](player_surface.md) Joins the verified gear/face request, slot loading, palette recoloring, texture-set binding, default settings and actor material hookup into one native lifetime.
+
+### Gameplay (movement, AI, plays, downs, ball)
+
+- [native_movement_player.md](native_movement_player.md) Provides a second movement mode that calls reconstructed input, acceleration, turning and kinematics code with rendered placement from native updates.
+- [native_braking.md](native_braking.md) Advances the original grounded braking branch when movement keys are released, decelerating the actor to a held stop.
+- [native_directions.md](native_directions.md) Accepts all eight WASD/arrow directions in reconstructed movement mode, with braking on key release and restart on new direction.
+- [native_idle_stream.md](native_idle_stream.md) Runs both chosen cycles through the reconstructed original command-stream setup and timing driver, with idle cycle 18 no longer using the inspection animation clock.
+- [native_curve_choice.md](native_curve_choice.md) Chooses the primary, alternate or other curve from carried movement inputs in native C, preserving source identity aliases and original transition durations.
+- [native_phase_rebind.md](native_phase_rebind.md) Preserves checked original cycle duration and elapsed position on locomotion clip changes in the experimental launcher.
+- [native_set_playback.md](native_set_playback.md) Loads a checked two-set catalog and switches between supported sets with V, deferring requests during fades.
+- [native_paired_playback.md](native_paired_playback.md) Consumes the two carried heading words when selecting clip pairs and calculating their blend/rate, joining curve choice, phase transfer and four-channel fades.
+- [native_directional_playback.md](native_directional_playback.md) Consumes the two carried heading words when selecting clip pairs and calculating their blend/rate, joining existing curve choice, phase transfer and fades.
+- [native_contact_playback.md](native_contact_playback.md) Accepts C to run one checked contact context, calculating contact parameters and candidate/RNG selection and building both requests.
+- [native_two_players.md](native_two_players.md) Renders and moves two player instances on the checked field/sky, each owning a separate movement runtime, stream phase, curve/pair choices and animation channels.
+- [native_retiring_fade.md](native_retiring_fade.md) Keeps the outgoing animation pair while the new pair fades in, with all four streams advancing with checked source phase and rates.
+- [locomotion_predicates.md](locomotion_predicates.md) Implements locomotion predicates and request selection with candidate confidence pending the external Windows gate.
+- [actor_ai.md](actor_ai.md) Implements assignment-follow gameplay inputs with candidate confidence, writing and compiling code only without Windows executable execution.
+- [actor_ai_dispatch.md](actor_ai_dispatch.md) Implements actor AI state dispatch and input commit with candidate confidence pending complete source-pinned gate acceptance.
+- [actor_channels.md](actor_channels.md) Reconstructs the per-update animation step the game runs for every gameplay actor at `8003A24C`, advancing channels and building the pose.
+- [ai_policy.md](ai_policy.md) Implements the five requested service entries `800AAC08`, `800AFC88`, `800A0D10`, `8006E2E4`, `8007C180` as instruction-ordered native C.
+- [play_selection.md](play_selection.md) Runs the game's script-driven offensive and defensive play choice, database expansion, and installation into gameplay actors.
+- [down_cycle.md](down_cycle.md) Reconstructs the down cycle with original-module baseline verified, pending live repair against three saved Dolphin contexts.
+- [clip_requests.md](clip_requests.md) Reconstructs animation clip requests, with the retained owner-run report matching all 16,856 context-14 comparisons.
+- [channel_callbacks.md](channel_callbacks.md) Reconstructs animation group and program callbacks with candidate confidence, with two context-14 logs now agreeing on all cases and soaks.
+- [ball_update.md](ball_update.md) Updates the ball on saved MEM1, with probable confidence from source/disassembly pending the external gate.
+- [ball_handoff.md](ball_handoff.md) Implements ball ownership event consumers on MEM1, reconstructed from decompilation and instruction order with probable confidence.
+
+### HUD and markers
+
+- [hud_values.md](hud_values.md) Documents a partial reconstruction of HUD value producers, with the native producer slice and Windows oracle compiling but pending external execution.
+- [player_markers.md](player_markers.md) Reconstructs three native routines on saved RAM for the player-select rings and name tags following the controlled player.
+- [camera_projection.md](camera_projection.md) Reconstructs the two writes made before the camera-slot tail in `801DFAB0`, writing camera slots at `80331F00` and `80331F40`.
+
+### Match setup and data
+
+- [quick_match_roster.md](quick_match_roster.md) Consumes the existing `nflstreet_quick_match_selection` output to validate seven distinct STAT players for each selected team and build GAME rows.
+- [quick_match_session.md](quick_match_session.md) Owns a native Quick Game roster after menu confirmation, copying the loaded STAT DB and building the verified GAME roster from the selection.
+- [match_setup_plan.md](match_setup_plan.md) Provides a planning audit for native match setup, starting with Quick Game choices and replacing the live MEM1 resume boundary.
+- [game_roster.md](game_roster.md) Builds the match's GAME database PLAY table, the rows that `800DE000` reads for each player, rebuilt byte for byte from disc data.
+
+### Other
+
+- [disc_files.md](disc_files.md) Is a host I/O choice that uses nod's C API directly to open disc and data-partition handles, avoiding Aurora's global DVD state for an independent byte check.
+- [original_render_capture.md](original_render_capture.md) Records the original capture that supplies a repeated saved-match GPU reference capturing all 10,638 draws, command bytes, initial GPU state and ordered memory updates.
+
 The remaining `LATI_FOUNTAIN` record has no HSH1 match in the original
 definition archive. `0x800E8CC8` returns -1 on that lookup failure;
 `0x800D2F60` explicitly logs "NOT ADDED" and skips object creation. The viewer
