@@ -40,14 +40,30 @@ The manager also links and opens all three adapters together in the private
 `research-temp/nflstreet-disc-catalogs-manager-20261017/` check. Its scope is
 coexistence and ownership, not retained-match or live gameplay acceptance.
 
-## Remaining integration
+## Verified retained aggregate join
 
-The retained match currently borrows its resource inputs. A subsequent bounded
-owner should retain these catalog sources through `match_visuals` and
-`match_skeletons` teardown, then exercise those aggregate constructors with the
-new inputs. No existing retained-match entry point or live loop has switched
-inputs in this slice. Mutable globals, allocation pools, actor initialization
-and the remaining startup owners still require their planned gates.
+The [retained-match input owner](match_disc_inputs.md) now retains all three catalog
+sources and derives GEAR records, colors and dynclut tables from the retained
+session and new catalog. It calls unchanged `match_visuals_open` and
+`match_skeletons_bind`, keeps borrowed material names alive, and closes visuals
+before skeletons and input owners. Real callbacks are queued until both stages
+succeed; a rejecting real callback can leave earlier external side effects.
+
+The full native composition gate passed in six fresh Windows processes. Each
+compared three complete aggregates against independent exported-catalog inputs:
+42 players, 252 bound resources, 350 catalog/name queries and 201 varied GEAR
+record cases. Late visual, binding and callback failures, namespace conflicts,
+occupied outputs and distinct per-player callback contexts are checked. All
+eight production mutants were caught. The existing visual and skeleton baseline
+gates also passed before the join. Evidence is under
+`research-temp/nflstreet-match-disc-inputs-20261017/run-dd254489cd3e/` on W:.
+
+Row 03 data ownership is complete for the current catalog consumers within
+this byte/composition boundary. Session, resolver, stable body pools, headwear
+and other asset archives remain explicit borrowed prerequisites. Mutable globals,
+allocation pools, actor initialization and other startup owners still require
+their planned gates. Final live entry belongs to rows 28/29; the live loop has
+not switched inputs here.
 
 The RAM-derived animation-set inspection catalog used by explicit
 `NFL_LIVE_HOST_LOCOMOTION` is a different NSC1 format. It remains outside the
