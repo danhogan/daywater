@@ -59,19 +59,27 @@ MUTANTS = [
     {
         "name": "bss-overlap",
         "file": "disc_constants_original_check.c",
-        "old": "else if (!verify_ok) { revisions++; }",
-        "new": "else if (!verify_ok) { /* revisions++; */ }",
+        "old": (
+            "else if (!load_ok) {\n"
+            "                overlaps++;\n"
+            "                if (index > 0 && (index - 1) % 10 == 4) bss_overlaps++;"
+        ),
+        "new": (
+            "else if (!load_ok) {\n"
+            "                overlaps++;\n"
+            "                /* if (index > 0 && (index - 1) % 10 == 4) bss_overlaps++; */"
+        ),
     },
     {
         "name": "unaligned-address",
         "file": "disc_constants_original_check.c",
         "old": (
             "if (revisions != 1 || truncated != 1 || overlaps < 2 "
-            "|| unaligned < 2 || offset_before != 1 || extends_past != 1) {"
+            "|| bss_overlaps < 1 || unaligned < 2 || offset_before != 1 || extends_past != 1) {"
         ),
         "new": (
             "if (revisions != 1 || truncated != 1 || overlaps < 2 "
-            "|| unaligned < 2 || offset_before != 1 || extends_past != 0) {"
+            "|| bss_overlaps < 1 || unaligned < 2 || offset_before != 1 || extends_past != 0) {"
         ),
     },
     {
@@ -79,11 +87,11 @@ MUTANTS = [
         "file": "disc_constants_original_check.c",
         "old": (
             "if (revisions != 1 || truncated != 1 || overlaps < 2 "
-            "|| unaligned < 2 || offset_before != 1 || extends_past != 1) {"
+            "|| bss_overlaps < 1 || unaligned < 2 || offset_before != 1 || extends_past != 1) {"
         ),
         "new": (
             "if (revisions != 1 || truncated != 1 || overlaps < 2 "
-            "|| unaligned < 2 || offset_before != 0 || extends_past != 1) {"
+            "|| bss_overlaps < 1 || unaligned < 2 || offset_before != 0 || extends_past != 1) {"
         ),
     },
     {
@@ -91,11 +99,11 @@ MUTANTS = [
         "file": "disc_constants_original_check.c",
         "old": (
             "if (revisions != 1 || truncated != 1 || overlaps < 2 "
-            "|| unaligned < 2 || offset_before != 1 || extends_past != 1) {"
+            "|| bss_overlaps < 1 || unaligned < 2 || offset_before != 1 || extends_past != 1) {"
         ),
         "new": (
             "if (revisions != 1 || truncated != 1 || overlaps < 2 "
-            "|| unaligned < 2 || offset_before != 1 || extends_past != 0) {"
+            "|| bss_overlaps < 1 || unaligned < 2 || offset_before != 1 || extends_past != 0) {"
         ),
     },
 ]

@@ -111,7 +111,10 @@ int main(int argc, char **argv) {
             revisions = 1;
         } else {
             if (!parse_ok) { truncated++; }
-            else if (!load_ok) { overlaps++; }
+            else if (!load_ok) {
+                overlaps++;
+                if (index > 0 && (index - 1) % 10 == 4) bss_overlaps++;
+            }
             else if (!verify_ok) { revisions++; }
         }
         if (load_ok) {
@@ -120,9 +123,9 @@ int main(int argc, char **argv) {
         }
         free(dol_copy);
     }
-    if (revisions != 1 || truncated != 1 || overlaps < 2 || unaligned < 2 || offset_before != 1 || extends_past != 1) {
-        fprintf(stderr, "Incomplete mutant coverage: rev=%u trunc=%u overlap=%u unalign=%u offset=%u past=%u\n",
-                revisions, truncated, overlaps, unaligned, offset_before, extends_past);
+    if (revisions != 1 || truncated != 1 || overlaps < 2 || bss_overlaps < 1 || unaligned < 2 || offset_before != 1 || extends_past != 1) {
+        fprintf(stderr, "Incomplete mutant coverage: rev=%u trunc=%u overlap=%u bss=%u unalign=%u offset=%u past=%u\n",
+                revisions, truncated, overlaps, bss_overlaps, unaligned, offset_before, extends_past);
         return 6;
     }
     printf("Original DOL sections: %u cases (1 saved + %u edited); all RAM outside [80f46f00,80f47000) match; revision/truncated/overlapping/BSS/unaligned/offset/past mutants caught; digest %08x.\n",
