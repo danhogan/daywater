@@ -17,10 +17,10 @@ static const ModernGekkoModuleDesc *module;
 static uint8_t *oracle;
 static uint32_t seed = 0x46e3de85u;
 static uint32_t rnd(void) { seed = seed * 1664525u + 1013904223u; return seed; }
-static uint32_t rd(const uint8_t *p) { return (uint32_t)p[0]<<24 | (uint32_t)p[1]<<16 | (uint32_t)p[2]<<8 | p[3]; }
-static void wr(uint8_t *p, uint32_t v) { p[0]=(uint8_t)(v>>24); p[1]=(uint8_t)(v>>16); p[2]=(uint8_t)(v>>8); p[3]=(uint8_t)v; }
-static uint8_t *at(uint8_t *r, uint32_t a) { return r + (a - BASE); }
-static uint32_t hash(uint32_t h, const void *p, size_t n) { const uint8_t *b=p; for(size_t i=0;i<n;++i)h=(h^b[i])*16777619u; return h; }
+static uint32_t dol_rd(const uint8_t *p) { return (uint32_t)p[0]<<24 | (uint32_t)p[1]<<16 | (uint32_t)p[2]<<8 | p[3]; }
+static void dol_wr(uint8_t *p, uint32_t v) { p[0]=(uint8_t)(v>>24); p[1]=(uint8_t)(v>>16); p[2]=(uint8_t)(v>>8); p[3]=(uint8_t)v; }
+static uint8_t *dol_at(uint8_t *r, uint32_t a) { return r + (a - BASE); }
+static uint32_t dol_hash(uint32_t h, const void *p, size_t n) { const uint8_t *b=p; for(size_t i=0;i<n;++i)h=(h^b[i])*16777619u; return h; }
 static uint8_t *load_file(const char *path, size_t *out_size) {
     FILE *f = fopen(path, "rb"); if (!f) return NULL;
     fseek(f, 0, SEEK_END); long sz = ftell(f); fseek(f, 0, SEEK_SET);
@@ -52,32 +52,32 @@ static void mutate_dol(uint8_t *dol, size_t dol_size, unsigned variant) {
     switch (variant) {
         case 0: /* Wrong revision: flip a byte in the DOL header */ dol[0x100] ^= 1; break;
         case 1: /* Truncated section: increase a text section size beyond image */ {
-            uint32_t off = rd(dol + 0x00); uint32_t sz = rd(dol + 0x90);
-            wr(dol + 0x90, sz + 1000);
+            uint32_t off = dol_rd(dol + 0x00); uint32_t sz = dol_rd(dol + 0x90);
+            dol_wr(dol + 0x90, sz + 1000);
             break;
         }
         case 2: /* Overlapping text sections: make section 1 overlap section 0 */ {
-            uint32_t addr0 = rd(dol + 0x48); uint32_t sz0 = rd(dol + 0x90);
-            wr(dol + 0x4C, addr0 + sz0 / 2); /* section 1 address */
+            uint32_t addr0 = dol_rd(dol + 0x48); uint32_t sz0 = dol_rd(dol + 0x90);
+            dol_wr(dol + 0x4C, addr0 + sz0 / 2); /* section 1 address */
             break;
         }
         case 3: /* Overlapping text and data: make data section 0 overlap text section 0 */ {
-            uint32_t addr0 = rd(dol + 0x48);
-            wr(dol + 0x120, addr0); /* data section 0 address = text section 0 address */
+            uint32_t addr0 = dol_rd(dol + 0x48);
+            dol_wr(dol + 0x120, addr0); /* data section 0 address = text section 0 address */
             break;
         }
         case 4: /* BSS overlapping loaded section: make BSS overlap text section 0 */ {
-            uint32_t addr0 = rd(dol + 0x48); uint32_t sz0 = rd(dol + 0x90);
-            wr(dol + 0x1B0, addr0 + sz0 / 2); /* BSS address */
+            uint32_t addr0 = dol_rd(dol + 0x48); uint32_t sz0 = dol_rd(dol + 0x90);
+            dol_wr(dol + 0x1B0, addr0 + sz0 / 2); /* BSS address */
             break;
         }
-        case 5: /* Unaligned section address */ wr(dol + 0x48, rd(dol + 0x48) | 1); break;
-        case 6: /* Unaligned section size */ wr(dol + 0x90, rd(dol + 0x90) | 1); break;
-        case 7: /* Section offset before header */ wr(dol + 0x00, 100); break;
+        case 5: /* Unaligned section address */ dol_wr(dol + 0x48, dol_rd(dol + 0x48) | 1); break;
+        case 6: /* Unaligned section size */ dol_wr(dol + 0x90, dol_rd(dol + 0x90) | 1); break;
+        case 7: /* Section offset before header */ dol_wr(dol + 0x00, 100); break;
         case 8: /* Section extends past DOL image */ {
             size_t sz = dol_size;
-            wr(dol + 0x00, (uint32_t)(sz - 10));
-            wr(dol + 0x90, 100);
+            dol_wr(dol + 0x00, (uint32_t)(sz - 10));
+            dol_wr(dol + 0x90, 100);
             break;
         }
         case 9: /* Zero BSS size but non-zero address - edge case */ break;
@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
         }
         if (load_ok) {
             if (!same(ram)) { fprintf(stderr, "RAM mismatch case %u\n", index); return 5; }
-            digest = hash(digest, ram, LO - BASE); digest = hash(digest, ram + (HI - BASE), BYTES - (HI - BASE));
+            digest = dol_hash(digest, ram, LO - BASE); digest = dol_hash(digest, ram + (HI - BASE), BYTES - (HI - BASE));
         }
         free(dol_copy);
     }
