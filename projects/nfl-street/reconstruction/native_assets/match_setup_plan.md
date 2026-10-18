@@ -1,8 +1,35 @@
 # Native match setup: replace the live MEM1 resume boundary
 
-Planning audit, 2026-10-16, branch `codex/setupplan`, baseline `f6cdade`.
-Only this document is changed. No constructor, oracle, Dolphin session or live
-window was executed for this audit.
+Original planning audit: 2026-10-16, branch `codex/setupplan`, baseline `f6cdade`.
+That audit changed only this document and did not execute constructors, oracles,
+Dolphin or the live app. Subsequent implementation results are recorded below.
+
+## Current route to a match without saved RAM
+
+The goal is to construct a Quick Game from disc data and menu choices, then
+enter the native game loop without restoring MEM1. The existing live app still
+uses its snapshot launch; the component proofs below do not change that yet.
+
+- **Established building blocks:** venue/weather scalars, disc-input ownership,
+  and the default object-pool/scene operations, including insertion and reorder.
+  These have bounded original-code or documented composition checks.
+- **Latest completed milestone:** fresh matrix table/stack allocation, connected
+  to the existing matrix operations and verified against original game code.
+  This new path supplies table/slot bytes instead of borrowing captured matrix
+  state. It provides storage needed before cameras and models can be created;
+  it does not change the existing snapshot launcher yet.
+- **Next:** verify palette-pool creation, then construct view/camera nodes.
+  The palette allocator has been located in original code; it is not verified
+  or implemented by the matrix-stack slice.
+- **Still ahead:** the rule/menu adapter, environment and gameplay owners,
+  remaining animation/UI state, validated entry evidence, and final startup
+  wiring. Rows 01/04 and 07 onward retain their own requirements; no complete
+  fresh-match claim follows from the storage work.
+
+For each milestone, the result is a usable producer plus its bounded proof.
+Full six-process runs and planted-bug checks are evidence for that result,
+not a percentage-complete estimate for the whole game. The detailed gate table
+in section 4 remains the implementation checklist.
 
 ## Target and evidence vocabulary
 
@@ -293,7 +320,7 @@ Every row inherits the full comparison/mutation contract above.
 | 03 / 1–2 days: disc/constants owner | Reuse `disc_files.c`; add a proven route to matching DOL tables/initialized sections and zeroed BSS, replace each required private catalog's origin with disc-derived data. | Byte comparison with pinned private DOL/archive exports, reject wrong revision and truncated/overlapping sections; no MEM1 read at runtime. Supplies constants plus fresh backing span before any consumer init. | Existing disc/DOL. **Bounded slice verified 2026-10-17: full Windows gate passed, contexts 14/15/16 twice, 201 cases/process, all 24 MiB equal, 17 invalid inputs/process rejected, 8/8 production mutants caught: pinned nod metadata DOL route (`disc_dol.c/h`), structural section loader and explicit host BSS preparation (`dol_sections.c/h`), independent export/all-RAM gate with production mutants (`verify_disc_constants.py`). Disc-backed skeleton, gear and material catalog adapters now pass their full native composition gates (six processes each, 21/21 production mutants total); see `disc_catalogs.md` for boundaries and reports. Row 03 data ownership is complete for current catalog consumers: `match_disc_inputs.c` joins retained visuals/skeletons with owned disc inputs (six fresh processes, three full aggregates/process, 8/8 production mutants). Final live entry remains in rows 28/29. See `disc_constants.md` and `match_disc_inputs.md`.** |
 | 04 / 2–3 days: rule/config adapter | Connect `match_settings`/`match_pipeline` to actual menu/default FNIG, MTTS side contexts and ordinary-mode GAME schemas; implement only the exact queried tags/copy operations needed, including `801E5628/801E5698/801E4D4C` boundaries. | Joined original boundary trace plus all-RAM/owned-table writes for default and one changed rule, errors/cancel/retry. Retained setup owns configuration through menu teardown. Do not invent readable meanings for raw rule tags. | Validate SAV for live FNIG; capture changed rule if unavailable. |
 | 05 / 2 days: registered object pool | `80195400`, relevant pool allocator `801812D4`, `801957A4/801958E8`, and scene owner `801954E4` path used by `80004830`; separate registration, allocation and insertion if needed. | Exact registry/pool/node bytes, allocation trace, order/list links, clearing and failure cleanup for a few known types. Native scene tokens replace allocator-outcome literals. Leave uncalled types unavailable. | Existing controlled; validate SAV for natural registry lifecycle. **Default type-zero controlled kernel path verified 2026-10-18:** pool (391 cases/process), registration/factory (513), scene/list owner (401), registry initialization (401), insertion (401), removal/reordering (401). Each gate uses six fresh original-DLL processes; first four catch 8/8 mutants each, insertion/removal catch 9/9 each. Exact all-RAM comparisons exclude only accounted phase stacks; ordered services and nonvoid returns match. Removal gate covers 25 initialization→registration→scene→factory-insert→reorder→remove compositions/process and proves actor allocation remains occupied. Independent offline checks and manager hash audits pass. APIs return allocator-produced scene/object identities; existing live consumers are unchanged, with final entry wiring in rows 28/29. Removal supports scene+0C=0 only; other search callbacks/types, teardown, natural heap and actual class constructors remain unavailable or separate owners. See `object_pool.md`, `registered_pool.md`, `scene_owner.md`, `registry_init.md`, `scene_insert.md`, `scene_remove.md`. |
-| 06 / 1–2 days: matrix storage | `8018908C`, `80189664` and reached per-stack allocation helpers; separately identify palette-pool creation behind `801CA4B0`. | Table/slot allocations, identity/reset, selected stack and dirty popped slots all-RAM equal. Allocate native stacks before view/object constructors; wire existing `matrix_stack.c`. Palette creation with a new closure is a separate 1–2-day follow-up, not an assumed memset. | Existing controlled; capture if pool origin unobservable. |
+| 06 / 1–2 days: matrix storage | `8018908C`, `80189664` and reached per-stack allocation helpers; separately identify palette-pool creation behind `801CA4B0`. | Table/slot allocations, identity/reset, selected stack and dirty popped slots all-RAM equal. Allocate native stacks before view/object constructors; wire existing `matrix_stack.c`. Palette creation with a new closure is a separate 1–2-day follow-up, not an assumed memset. | Existing controlled. **Stack-storage slice verified 2026-10-18:** `matrix_storage.c/h` creates the table and per-stack allocations, publishes allocator-produced identities, and binds unchanged `matrix_stack.c` consumers. Full original-DLL gate: six fresh processes, 401 cases/process, 10/10 production mutants; all24MiB outside exact32-byte stack, real nonvoid returns and ordered services match. Includes 25 original matrix-only startup sequences/process, dirty popped slots, replacement/failure/retry and independent offline checks. No captured table/slot input is required for the new path. **Row06 remains open for palette-pool creation:** source-located (probable, not executed) at `801CA3F4 -> 8018B7B8`, with reset/flip `801CA494` and allocation consumer `801CA4B0`; separate bounded gate next. Existing live launch remains unchanged. See `matrix_storage.md`. |
 | 07 / 2 days: view nodes | `80004728 -> 801DF14C/801DF8B4` and reached field/HUD camera type constructors; callback registration `801DF39C`. | Equal node/data/callback bytes and viewport/stack publications; camera view/projection gate from these new nodes. Populate field/HUD handles passed to scene, replacing `hud_cameras[]`. | Validate SAV; capture if fresh camera data missing. |
 | 08 / 2–3 days: environment resource | `8010870C -> 80108320/80108278`; bounded full version-105 runtime relocation/tree setup. Reuse `environment.c` parsing. | All relocated pointers, full owned environment and source headers match for EARS and one other venue; spatial lookups `801087B8/8010862C` agree on edited XY. Publish r13-7054/-7058 before ball/AI. | Existing disc + controlled states; capture second venue if needed for natural load. |
 | 09 / 2 days: venue field model | `800D9D88/800D9CF0 -> 80165A50`, required `801EC318` resource/view/material construction only. | Fresh type-6 object `B58`, model/shader/texture allocations and field GX stream equal; actual selected venue model name. Publish main-field handle, no `VENUE_MAIN_FIELD` literal. Split unsupported Lite/MAnm handlers into individual 1–2-day gates if reached. | Existing resources; validate SAV for descriptor. |
