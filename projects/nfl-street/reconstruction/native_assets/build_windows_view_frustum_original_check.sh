@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+out=${1:?private output required}
+case "$out" in /mnt/w/Daywater/research-temp/*) ;; *) exit 2 ;; esac
+mkdir -p "$out"
+export ZIG_GLOBAL_CACHE_DIR=${ZIG_GLOBAL_CACHE_DIR:-/home/dan/.cache/daywater-zig-cache}
+zig=${DAYWATER_ZIG:-/mnt/w/Daywater/tools/zig-x86_64-linux-0.16.0/zig}
+"$zig" cc -target x86_64-windows-gnu -std=c11 -O2 -ffp-contract=off -Wall -Wextra -Werror -Wno-misleading-indentation \
+ -I /mnt/w/Daywater/tools/ModernGekko-Template/lib/ModernGekko/include \
+ "$root/view_frustum_original_check.c" "$root/view_frustum.c" "$root/view_nodes.c" "$root/camera_projection.c" "$root/draw_engine.c" "$root/list_nodes.c" "$root/scene_owner.c" "$root/object_pool.c" \
+ -o "$out/view-frustum-original-check.exe"
