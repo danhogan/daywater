@@ -1,0 +1,281 @@
+#!/usr/bin/env python3
+"""Original-DLL integration gate for the GNNE69 view-system owner."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import subprocess
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import Any
+
+from verify_controller_checks import BASELINES, PRIVATE, baseline_hashes, digest, private, windows
+
+HERE = Path(__file__).resolve().parent
+OUT = PRIVATE / "research-temp/nflstreet-view-system-20261018"
+CACHE = Path("/home/dan/daywater/cache/binaries/46e3de854998a0f66c9be8c72a1164d22cd29eb4")
+ABI = PRIVATE / "tools/ModernGekko-Template/lib/ModernGekko/include/moderngekko"
+FILES = (
+    "view_system.c",
+    "view_system.h",
+    "view_system_original_check.c",
+    "build_windows_view_system_original_check.sh",
+    "verify_view_system.py",
+    "view_system.md",
+    "matrix_storage.c",
+    "matrix_storage.h",
+    "scene_owner.c",
+    "scene_owner.h",
+    "object_pool.c",
+    "object_pool.h",
+    "matrix_stack.h",
+    "draw_engine.h",
+    "player_draw.h",
+)
+BUILD = FILES[3]
+EXE = "view-system-original-check.exe"
+ADDRESSES = (
+    "80180fb4",
+    "80180490",
+    "80180328",
+    "801defd8",
+    "801df834",
+    "801954e4",
+    "801805e0",
+    "80180340",
+    "80180388",
+    "80181184",
+    "80181040",
+    "801811f0",
+    "80181128",
+    "801810ec",
+    "8018908c",
+    "80189068",
+    "801891e8",
+    "80189328",
+    "80189664",
+    "8017bc54",
+    "801af57c",
+    "801af630",
+    "80155da8",
+)
+SUMMARY = re.compile(
+    r"Original view system: (\d+) cases \(1 saved \+ (\d+) edited\); "
+    r"producer/open/blocked (\d+)/(\d+)/(\d+); heap-fail stages (\d+)/(\d+)/(\d+)/(\d+)/(\d+); "
+    r"error-zero/scene-zero/default/repeat/depth-zero (\d+)/(\d+)/(\d+)/(\d+)/(\d+); 8 host guards; "
+    r"returns, ordered services and all RAM outside phase stacks match; digest ([0-9a-f]{8})\."
+)
+MUTANTS = (
+    ("type0_callback", "0x80180c6cu", "0x80180b94u"),
+    ("type0_header", "nflstreet_pool_align(32u,alignment)", "nflstreet_pool_align(36u,alignment)"),
+    ("type0_padding", "p[0x2c]=1;", "wr(p+0x2c,0x01000000u);"),
+    ("guard_code", "result=0x80001u", "result=0x80002u"),
+    ("view_failure_publication", "wr(view,list);", "if(list)wr(view,list);"),
+    ("callback_size", "rd(d+4),16,", "rd(d+4),20,"),
+    ("stack_index", "*index=d[10];", "*index=d[11];"),
+    ("scene_capacity", "(uint32_t)d[8]<<8|d[9]", "(uint32_t)d[8]<<8"),
+    ("scene_failure_propagation", "wr(scene,created);", "wr(scene,created);if(!created)result=0x80003u;"),
+    ("active_reset", "wr(active,0);", "wr(active,1);"),
+    ("attempt_flag", "wr(active,0);*flag=1;", "wr(active,0);if(!result)*flag=1;"),
+)
+BOUNDARY = (
+    "Original type0 producer80180FB4/80180490, view bootstrap801DEFD8/801DF834 and reached "
+    "list/matrix/scene constructors execute unhooked; only external heap/error/geterror return early. "
+    "Actual bootstrap/child returns, ordered services with dirty arena/type-table/global snapshots, "
+    "and all24MiB compare after phases. Type0 stack[80F46FA8,80F47008), matrix-open[80F46FE8,80F47008), "
+    "matrix-slot[80F46FF0,80F47008), bootstrap[80F46F48,80F47008), guarded-repeat[80F46FF0,80F47008). "
+    "Only just-compared stack synchronized. Fresh type0 records/matrix table/slots in every edited case; "
+    "no captured owners substituted. Natural descriptor(5,6,40,0,12) included with original alignment/count. "
+    "Partial failures, geterror0, high-bit scene capacities, initialized-on-failure and no-retry guard tested. "
+    "No other list types, heap implementation, teardown, field/HUD runtime callbacks or live/fresh-match claim."
+)
+
+
+def fingerprints(paths: list[Path]) -> dict[str, str]:
+    return {str(path): digest(path) for path in paths}
+
+
+def execute(command: list[str], log: Path) -> tuple[int, str]:
+    with log.open("w", encoding="utf-8") as output:
+        result = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, timeout=600, check=False)
+    text = log.read_text(encoding="utf-8").replace("\r\n", "\n").strip()
+    if result.returncode:
+        print(text, flush=True)
+    return result.returncode, text
+
+
+def build(source: Path, out: Path) -> None:
+    code, text = execute(["bash", str(source / BUILD), str(out)], out / "build.log")
+    if code:
+        raise RuntimeError(f"Build failed ({code}): {text}")
+
+
+def command(exe: Path, context: int, edited: int) -> list[str]:
+    return [
+        str(exe),
+        windows(PRIVATE / f"research-temp/position-neutral-{context}.mem1"),
+        windows(BASELINES["original_dll"][0]),
+        str(edited),
+    ]
+
+
+def mutant(task: tuple[str, str, str], out: Path, edited: int) -> dict[str, Any]:
+    name, old, new = task
+    scratch = private(out / "mutants" / name)
+    scratch.mkdir(parents=True, exist_ok=True)
+    result: dict[str, Any] = {"name": name, "status": "failed", "old": old, "new": new}
+    try:
+        for file in (*FILES[:4], *FILES[6:]):
+            shutil.copyfile(HERE / file, scratch / file)
+        source = scratch / FILES[0]
+        original = source.read_text()
+        if original.count(old) != 1:
+            raise RuntimeError(f"Nonunique mutation anchor: {name}")
+        source.write_text(original.replace(old, new))
+        build(scratch, scratch)
+        code, text = execute(command(scratch / EXE, 15, edited), scratch / "original.log")
+        # Only explicit oracle discrepancies count. Build failures, host
+        # rejections, timeouts, exceptions and crashes are never kills.
+        caught = (code == 7 and re.search(r"MISMATCH (RAM|RETURN) case \d+", text) is not None) or (
+            code == 8 and re.search(r"MISMATCH TRACE case \d+", text) is not None
+        )
+        result.update(
+            status="caught" if caught else "failed",
+            returncode=code,
+            diagnostic=text,
+            source_sha256=digest(source),
+            executable_sha256=digest(scratch / EXE),
+            log_sha256=digest(scratch / "original.log"),
+        )
+    except Exception as error:
+        result["error"] = str(error)
+    return result
+
+
+def main() -> None:
+    fast = os.environ.get("NFLSTREET_GATE_FAST") == "1"
+    contexts, repeats, edited = ((15,), 1, 40) if fast else ((14, 15, 16), 2, 400)
+    out = private(OUT / ("fast" if fast else "full"))
+    out.mkdir(parents=True, exist_ok=True)
+    lock = out / ".running"
+    descriptor = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    os.close(descriptor)
+    report = out / "verification.json"
+    record: dict[str, Any] = {
+        "status": "running",
+        "mode": "fast" if fast else "full",
+        "boundary": BOUNDARY,
+        "phase_stack_exclusions": {
+            "type0": ["80f46fa8", "80f47008"],
+            "matrix_open": ["80f46fe8", "80f47008"],
+            "matrix_slot_and_repeat": ["80f46ff0", "80f47008"],
+            "bootstrap": ["80f46f48", "80f47008"],
+        },
+    }
+    try:
+        protected = baseline_hashes()
+        sources = [HERE / file for file in FILES]
+        sources += [HERE.parent / "menus/verify_controller_checks.py"]
+        sources += [ABI / file for file in ("module_abi.h", "cpu_state.h", "cpu_abi_version.h")]
+        sources += [CACHE / kind / f"{address}.txt" for address in ADDRESSES for kind in ("decompiled", "disassembly")]
+        before = fingerprints(sources)
+        dol = PRIVATE / "research-temp/nflstreet-native-windows-local/game/sys/main.dol"
+        if digest(dol, "sha1") != "46e3de854998a0f66c9be8c72a1164d22cd29eb4":
+            raise RuntimeError("DOL revision changed")
+        init_hex = "380000009003001c900300184e800020"
+        with dol.open("rb") as stream:
+            stream.seek(0x17DC20)
+            if stream.read(16).hex() != init_hex:
+                raise RuntimeError("DOL type0 initializer differs")
+        raw = (
+            (0x80180C20, 0x17DC20, "380000009003001c900300184e800020"),
+            (0x80261800, 0x25E800, "000000003f800000"),
+            (0x80288AD8, 0x285AD8, "00000005000000060028000c"),
+        )
+        for guest, offset, expected in raw:
+            with dol.open("rb") as stream:
+                stream.seek(offset)
+                if stream.read(len(expected) // 2).hex() != expected:
+                    raise RuntimeError(f"DOL evidence changed: {guest:08x}")
+        for context in contexts:
+            with (PRIVATE / f"research-temp/position-neutral-{context}.mem1").open("rb") as stream:
+                for guest, _, expected in raw:
+                    stream.seek(guest - 0x80000000)
+                    if stream.read(len(expected) // 2).hex() != expected:
+                        raise RuntimeError(f"Capture evidence changed: {guest:08x}")
+        inputs = fingerprints([dol, *(PRIVATE / f"research-temp/position-neutral-{i}.mem1" for i in contexts)])
+        record["raw_source_evidence"] = [{"guest": f"{g:08x}", "dol_offset": f"{o:x}", "bytes": h} for g, o, h in raw]
+        record.update(baselines=protected, source_sha256=before, input_sha256=inputs)
+        build(HERE, out)
+        executable_hash = digest(out / EXE)
+        runs: list[dict[str, Any]] = []
+        record["runs"] = runs
+        jobs = [(context, repeat) for context in contexts for repeat in range(repeats)]
+
+        def run_original(job: tuple[int, int]) -> dict[str, Any]:
+            context, repeat = job
+            log = out / f"context{context}-{repeat}.log"
+            code, output = execute(command(out / EXE, context, edited), log)
+            match = SUMMARY.fullmatch(output)
+            if code or not match or tuple(map(int, match.groups()[:2])) != (edited + 1, edited):
+                raise RuntimeError(f"Original comparison failed ({code}): {log}; {output}")
+            if not all(int(value) for value in match.groups()[2:15]):
+                raise RuntimeError(f"Missing branch coverage: {log}")
+            return {"context": context, "repeat": repeat, "summary": output, "log_sha256": digest(log)}
+
+        # Up to three independent processes, each with its own input RAM/log.
+        # map yields stable report order; repeats still run in fresh processes.
+        with ThreadPoolExecutor(max_workers=min(3, len(jobs))) as pool:
+            for run in pool.map(run_original, jobs):
+                runs.append(run)
+                print(run["summary"], flush=True)
+        for context in contexts:
+            if len({run["summary"] for run in runs if run["context"] == context}) != 1:
+                raise RuntimeError(f"Fresh processes differ in context {context}")
+        mutants = []
+        if not fast:
+            workers = min(len(MUTANTS), max(1, (os.cpu_count() or 2) // 2))
+            with ThreadPoolExecutor(max_workers=min(3, workers)) as pool:
+                mutants = list(pool.map(lambda task: mutant(task, out, edited), MUTANTS))
+            record["mutants"] = mutants
+            for item in mutants:
+                print(f"Mutant {item['name']}: {item['status']}", flush=True)
+            if any(item["status"] != "caught" for item in mutants):
+                raise RuntimeError("A production mutant was not caught by an oracle discrepancy")
+        if protected != baseline_hashes() or before != fingerprints(sources):
+            raise RuntimeError("Protected originals or source changed during verification")
+        if inputs != fingerprints([Path(path) for path in inputs]) or executable_hash != digest(out / EXE):
+            raise RuntimeError("Private inputs or comparison executable changed")
+        record.update(
+            status="passed",
+            contexts=list(contexts),
+            fresh_processes=len(contexts) * repeats,
+            cases_per_process=edited + 1,
+            mutants_caught=len(mutants),
+            mutants_total=len(mutants),
+            executable_sha256=executable_hash,
+            provenance={
+                "game": "NFL Street GNNE69 North America revision 0",
+                "dol_sha1": "46e3de854998a0f66c9be8c72a1164d22cd29eb4",
+                "dolphin": "Existing captures; build not established by this gate",
+                "captures": "Position-neutral 14/15/16; not fresh boot captures",
+            },
+        )
+    except Exception as error:
+        record.update(status="failed", error=str(error))
+        raise
+    finally:
+        report.write_text(json.dumps(record, indent=2) + "\n")
+        lock.unlink()
+    print(
+        f"View system: passed; mode={'fast' if fast else 'full'}; contexts={len(contexts)}; "
+        f"processes={len(contexts) * repeats}; cases/process={edited + 1}; "
+        f"mutants={len(mutants)}/{len(mutants)}; private report {report}"
+    )
+
+
+if __name__ == "__main__":
+    main()
